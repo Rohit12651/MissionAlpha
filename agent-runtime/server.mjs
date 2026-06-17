@@ -310,6 +310,7 @@ function applyAllowed(relPath) {
   if (!relPath || typeof relPath !== "string") return false;
   if (isAbsolute(relPath)) return false;
   if (/[\x00-\x1f]/.test(relPath)) return false; // control chars / NUL
+  if (/["'`|$=]/.test(relPath)) return false; // bus-format metachars — no legit use in src/
   const dest = resolve(REPO_ROOT, relPath);
   const rootPrefix = resolve(REPO_ROOT) + sep;
   if (!dest.startsWith(rootPrefix)) return false; // containment (kills ../ escape)
@@ -422,6 +423,30 @@ async function applyChanges(agentId, paths) {
     }
   }
   return results;
+}
+
+// Report-back — after an operator-confirmed apply, tell the swarm bus the agent's
+// task is DONE: a heartbeat (→ kanban/board) + a sync TO BOSS (→ live feed + Boss
+// console). Reuses the proven shell writers. Fire-and-forget.
+function reportBack(agentId, summary) {
+  const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
+  const SYNC = join(REPO_ROOT, "scripts", "agent-sync.sh");
+  // Sanitize: strip quotes/newlines/control chars so a crafted file path can't
+  // break the BROADCAST/SYNC_LOG markdown the dashboard parses (bus-format injection).
+  // (spawn array already prevents SHELL injection — no shell:true.)
+  // eslint-disable-next-line no-control-regex
+  const clean = (s) => String(s).replace(/[\x00-\x1f"'`|$=]/g, " ").replace(/\s+/g, " ").trim();
+  const safeId = String(agentId).replace(/[^a-z0-9_-]/gi, "");
+  const sum = clean(summary).slice(0, 140);
+  const sh = (script, args) => {
+    try {
+      spawn("bash", [script, ...args.map(String)], { stdio: "ignore", cwd: REPO_ROOT });
+    } catch {
+      /* non-fatal */
+    }
+  };
+  sh(HB, [safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"]);
+  sh(SYNC, [safeId, "BOSS", "task-done", "-", `done: ${sum}`]);
 }
 
 // CLI backend — drive the local `claude` CLI headless. Uses the Claude Code
@@ -618,7 +643,7 @@ const server = createServer(async (req, res) => {
   }
   // Auth gate for the sensitive endpoints (/changes leaks file content, /apply
   // writes to the live repo). Token + same-origin required.
-  const needsAuth = /^\/runtime\/[a-z0-9_-]{1,64}\/(changes|apply)$/i.test(url.pathname);
+  const needsAuth = /^\/runtime\/[a-z0-9_-]{1,64}\/(changes|apply|run)$/i.test(url.pathname);
   if (needsAuth && (!originOk(req) || !tokenOk(req))) {
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "unauthorized" }));
@@ -655,8 +680,53 @@ const server = createServer(async (req, res) => {
         return;
       }
       const results = await applyChanges(ma[1], paths.slice(0, 100));
+      const okPaths = results.filter((r) => r.ok).map((r) => r.path);
+      if (okPaths.length) reportBack(ma[1], `${okPaths.length} file(s): ${okPaths.join(", ")}`);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ results }));
+    });
+    return;
+  }
+  // Loop — POST /runtime/:agentId/run {task} → agent does the task in its sandbox
+  // (write-mode F2b). Diff surfaces via /changes; operator applies → report-back.
+  const mr = url.pathname.match(/^\/runtime\/([a-z0-9_-]{1,64})\/run$/i);
+  if (req.method === "POST" && mr) {
+    if (TOOLS !== "write") {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "runtime not in write mode (RUNTIME_TOOLS=write)" }));
+      return;
+    }
+    if (inflight >= MAX_INFLIGHT) {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "busy" }));
+      return;
+    }
+    let body = "";
+    req.on("data", (c) => {
+      body += c;
+      if (body.length > 16_000) req.destroy();
+    });
+    req.on("end", () => {
+      let task = "";
+      try {
+        task = String(JSON.parse(body || "{}").task || "").slice(0, 4000);
+      } catch {
+        /* empty */
+      }
+      if (!task.trim()) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "task required" }));
+        return;
+      }
+      const prompt =
+        `TASK from BOSS: ${task}\n\n` +
+        `Use your Write/Edit tools to make this change in your sandbox NOW. ` +
+        `Then summarize what you changed (caveman). The operator will review the diff before it reaches the live repo.`;
+      inflight++;
+      res.on("close", () => {
+        inflight = Math.max(0, inflight - 1);
+      });
+      void handleChat(mr[1], prompt, res);
     });
     return;
   }

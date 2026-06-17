@@ -18,6 +18,10 @@ STATUS_DIR="$ROOT/agent-status"
 SYNC_LOG="$STATUS_DIR/SYNC_LOG.md"
 INBOX_DIR="$STATUS_DIR/INBOX"
 
+# Strip the BODY delimiter (") + newlines/CR so a crafted body can't break the
+# BODY="…" field or forge a new SYNC_LOG line (sr-security #5, defense-in-depth).
+BODY="${BODY//\"/ }"; BODY="${BODY//$'\n'/ }"; BODY="${BODY//$'\r'/ }"
+
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LINE="$NOW FROM=$FROM TO=$TO TOPIC=$TOPIC REF=$REF BODY=\"$BODY\""
 

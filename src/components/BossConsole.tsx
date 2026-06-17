@@ -13,6 +13,18 @@ interface Directive {
 }
 const VALID_VERBS = new Set<CommandType>(["task", "ack", "respawn"]);
 
+// Cached runtime auth token (same-origin via vite) for /run calls.
+let tokenPromise: Promise<string> | null = null;
+function runtimeToken(): Promise<string> {
+  if (!tokenPromise) {
+    tokenPromise = fetch("/api/runtime-token", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { token: "" }))
+      .then((j) => (j as { token?: string }).token ?? "")
+      .catch(() => "");
+  }
+  return tokenPromise;
+}
+
 // Pull the ```dispatch``` block out of a CEO reply. Returns the prose (block
 // stripped) + the parsed directives. Lines: "<verb> <agent-id> <rest...>".
 function parseDispatch(content: string): { clean: string; directives: Directive[] } {
@@ -144,6 +156,7 @@ export function BossConsole({
     if (idx == null) return;
     const dirs = parseDispatch(msgs[idx]?.content ?? "").directives;
     setGateForMsg(null);
+    // 1) record the directive on the bus (INBOX/audit) via the command channel.
     const results = await Promise.all(
       dirs.map((d) =>
         onCommand({
@@ -156,8 +169,25 @@ export function BossConsole({
     );
     const ok = results.filter((r) => r.ok).length;
     setFired((f) => new Set(f).add(idx));
-    setDispatchMsg(`dispatched ${ok}/${dirs.length} to swarm`);
-    window.setTimeout(() => setDispatchMsg(""), 4000);
+    // 2) AUTONOMOUS LOOP — for each task directive, trigger the agent to actually
+    //    DO the work in its sandbox (write-mode run). Diff surfaces in that agent's
+    //    drawer for operator review+apply. Fire-and-forget; runs stream server-side.
+    const token = await runtimeToken();
+    const taskDirs = dirs.filter((d) => d.type === "task");
+    void Promise.all(
+      taskDirs.map((d) =>
+        fetch(`/runtime/${encodeURIComponent(d.target)}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-runtime-token": token },
+          body: JSON.stringify({ task: d.body || "see CEO directive" }),
+        }).catch(() => {}),
+      ),
+    );
+    setDispatchMsg(
+      `dispatched ${ok}/${dirs.length}` +
+        (taskDirs.length ? ` · ${taskDirs.length} agent(s) running — review diffs in their drawers` : ""),
+    );
+    window.setTimeout(() => setDispatchMsg(""), 8000);
   }, [gateForMsg, msgs, onCommand]);
 
   const gold = tok("ceo-gold");

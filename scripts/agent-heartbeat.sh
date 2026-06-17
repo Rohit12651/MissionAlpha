@@ -17,6 +17,11 @@ FILES="${4:--}"
 BLOCKED_BY="${5:--}"
 NEXT="${6:--}"
 
+# AGENT is spliced into the awk program text below — validate strictly to prevent
+# awk-program injection (sr-security #2b). Also strip | from table-bound fields.
+[[ "$AGENT" =~ ^[a-z0-9_-]{1,64}$ ]] || { echo "invalid agent name" >&2; exit 2; }
+TASK="${TASK//|/ }"; FILES="${FILES//|/ }"; STATE="${STATE//|/ }"; BLOCKED_BY="${BLOCKED_BY//|/ }"
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STATUS_DIR="$ROOT/agent-status"
 BROADCAST="$STATUS_DIR/BROADCAST.md"

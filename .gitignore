@@ -22,3 +22,4 @@ agent-runtime/sandboxes/
 agent-status/BROADCAST.md
 agent-status/SCHEDULER.md
 agent-status/*.md
+.vite/

@@ -3,6 +3,41 @@
 Living log of build decisions + state. Caveman where terse; normal prose for design rationale.
 Last updated: 2026-06-15 (Cycle 1; Cycle 2A; Boss Console; dispatch bridge; CLI subscription backend; F2a read; F2b write+sandbox+broker; config-guard; auth-token+anti-rebinding on /apply — ALL done + 2x security-reviewed + verified).
 
+## SHIPPED (2026-06-15): git init + pushed to https://github.com/Rohit12651/MissionAlpha (main, commit fcf22c8).
+gitignore excludes node_modules, .env (both), .runtime-token, agent-status runtime data
+(history/ was 1.9G sim junk, SYNC_LOG, HEARTBEAT, INBOX, commands, state.json, *.md status files,
+sandboxes). 168 files on remote, no secrets. Histories were unrelated (fresh init vs GitHub stub) →
+force-with-lease replaced the auto-stub. credential.helper=osxkeychain (worked); no gh CLI.
+Re-push: `git push origin main` (may need keychain/PAT interactively if non-interactive shell fails).
+
+## AUTONOMOUS LOOP (2026-06-15) — BOSS goal → agent builds → reports back — DONE + verified
+The full loop: BOSS chats CEO → CEO proposes ```dispatch → operator confirms (F3) → each task
+directive triggers the agent to actually DO the work → operator reviews diff → apply → agent
+reports DONE to BOSS feed. Reuses F2b sandbox+broker.
+- `agent-runtime/server.mjs`:
+  - `POST /runtime/:id/run {task}` — token+host gated (added "run" to needsAuth), requires
+    TOOLS=write, inflight-capped. Builds task-framed prompt → handleChat (write-mode: seeds sandbox,
+    spawns claude -p with Write/Edit in --add-dir sandbox). Agent edits sandbox only.
+  - reportBack(agentId, summary) — after successful /apply, spawns agent-heartbeat.sh DONE_CYCLE +
+    agent-sync.sh <agent> BOSS task-done. So apply → DONE on board + sync in BOSS feed.
+- `src/components/BossConsole.tsx`: fireDispatch now, after recording directives via /api/command,
+  also POSTs /runtime/<target>/run {task} (token from /api/runtime-token) per task directive →
+  agents actually run. Status: "N agent(s) running — review diffs in their drawers".
+- FLOW: dispatch confirm → agents run (sandbox) → open each agent drawer → F2b proposed-changes
+  panel → review → apply → repo updated + DONE in feed.
+- VERIFIED (curl, full loop): /run task → agent edited sandbox → /changes diff → repo clean pre-
+  apply → /apply → repo got file → senior-web-1 state=DONE_CYCLE + BOSS feed "done: 1 file(s):
+  src/LOOP.txt". /run no-token→401. Dashboard loads clean, no console errors.
+- Human stays gate: operator confirms dispatch AND each apply. No auto-apply.
+- sr-security review of /run + reportBack: NEEDS-FIX (no BLOCK). /run auth SAFE, spawn SAFE
+  (argv array no shell), sandbox/broker boundary SAFE. Fixed: (#5) bus-format field injection via
+  crafted src/ paths → reportBack clean() strips ["'`|$=]+control; applyAllowed rejects ["'`|$=]
+  paths; agent-sync.sh strips BODY "/newlines. (#2b) agent-heartbeat.sh awk-splice → validates
+  AGENT regex + strips | from fields. VERIFIED: bad agent→"invalid agent name", metachar paths→
+  rejected, report-back still works + SYNC_LOG line well-formed.
+- NOTE: dispatch→run browser e2e is code-wired + components individually verified; the real-CEO
+  must emit a ```dispatch block (system prompt instructs it) for the UI path to trigger runs.
+
 ## What MissionAlpha IS
 Standalone agent-swarm command tower. Decoupled watcher. Contract = reads ONE file
 `agent-status/state.json` (via `WAAHYU_STATE_PATH`) + writes commands to `agent-status/commands/`.
