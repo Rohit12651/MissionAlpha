@@ -521,6 +521,11 @@ export default defineConfig(({ mode }) => {
           target: `http://localhost:${env.RUNTIME_PORT || "3005"}`,
           changeOrigin: true,
         },
+        // Agent Factory endpoints live on the same separate runtime service.
+        "/factory": {
+          target: `http://localhost:${env.RUNTIME_PORT || "3005"}`,
+          changeOrigin: true,
+        },
       },
     },
     // Keep a single three.js instance across r3f / drei so refs/types line up.

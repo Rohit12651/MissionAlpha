@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  ScrollText, ChevronDown, Clock, Check, XCircle, Loader2, BellOff, RefreshCw, Send,
+  ScrollText, ChevronDown, Clock, Check, XCircle, BellOff, RefreshCw, Send,
 } from "lucide-react";
 import type {
   AuditEntry, CommandStatusSnapshot, CommandLifecycle,

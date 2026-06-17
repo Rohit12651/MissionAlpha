@@ -20,6 +20,9 @@
   --c-stale-red: oklch(0.66 0.21 25);
   --c-done-green: oklch(0.78 0.16 150);
   --c-ceo-gold: oklch(0.84 0.14 90);
+  /* Agent Factory identity — hue 300 (violet), distinct from cyan/gold/amber so
+     it never collides with a status color. ~7.6:1 on panel, ~8.4:1 on bg. */
+  --c-factory-violet: oklch(0.78 0.13 300);
 }
 
 [data-theme="light"] {
@@ -42,6 +45,8 @@
   --c-stale-red: oklch(0.55 0.2 25);
   --c-done-green: oklch(0.52 0.14 150);
   --c-ceo-gold: oklch(0.55 0.13 80);
+  /* Factory violet — darkened to ~L.48 for AA as small text on white (~5.0:1). */
+  --c-factory-violet: oklch(0.48 0.18 300);
   /*
     Bright variants kept for non-text decorative glow (globe halos, dots,
     column wash) where the darkened text accents would look muddy. Components

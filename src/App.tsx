@@ -14,6 +14,7 @@ import { TimeScrubber } from "./components/TimeScrubber";
 import { BulkActionBar } from "./components/BulkActionBar";
 import { ControlPlanePanel } from "./components/ControlPlanePanel";
 import { SessionsBrowser } from "./components/SessionsBrowser";
+import { AgentFactory } from "./components/factory/AgentFactory";
 import { BossConsole } from "./components/BossConsole";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
@@ -314,6 +315,9 @@ export default function App() {
 
             {/* F4 session history — recall + summarize past swarm sessions. */}
             {!replaying && <SessionsBrowser listSessions={listSessions} />}
+
+            {/* Agent Factory — BOSS spawns AI-authored agents w/ real-posting skills. */}
+            {!replaying && <AgentFactory builtinIds={state.agents.map((a) => a.id)} />}
 
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium text-muted">

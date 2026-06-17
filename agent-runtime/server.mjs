@@ -38,6 +38,8 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync, existsSync } from "node:fs";
 import { cp, readdir, readFile, writeFile, mkdir, stat, lstat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
+// Agent Factory — registry, agent-creator, credential broker, posting (own module).
+import * as factory from "./factory.mjs";
 const __dir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dir, ".."); // MissionAlpha repo root
 const TOOLS = process.env.RUNTIME_TOOLS || "none";
@@ -157,8 +159,21 @@ const TOOL_NOTE = {
     "\n\nTOOLS: you can Read/Glob/Grep AND Write/Edit files — but ONLY inside your sandbox working " +
     "directory (a scratch copy, never the live repo). No Bash/exec. Make changes in the sandbox and report what you did.",
 };
-const systemFor = (id) =>
-  (id === "boss" ? CEO_BOSS_SYSTEM : CAVEMAN_SYSTEM(id)) + (TOOL_NOTE[TOOLS] || "");
+const systemFor = (id) => {
+  if (id === "boss") return CEO_BOSS_SYSTEM + (TOOL_NOTE[TOOLS] || "");
+  // Factory-created agent → use its BOSS-authored persona (+ caveman bus mandate).
+  const persona = factory.createdPersona(id);
+  if (persona) {
+    return (
+      persona +
+      `\n\nYou are the "${id}" agent in the MissionAlpha swarm. Bus comms in /caveman full. ` +
+      `You can DRAFT/propose posts but you NEVER post to a real account yourself — the BOSS confirms every external post. ` +
+      `Never claim you posted, ran code, or accessed credentials.` +
+      (TOOL_NOTE[TOOLS] || "")
+    );
+  }
+  return CAVEMAN_SYSTEM(id) + (TOOL_NOTE[TOOLS] || "");
+};
 
 // Lazy SDK load (only if key present + installed).
 let Anthropic = null;
@@ -181,9 +196,16 @@ const SECRET_RE = /sk-ant-[A-Za-z0-9_-]{6,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-
 const scrub = (t) => {
   if (typeof t !== "string") return t;
   let out = t.replace(SECRET_RE, "[redacted-secret]");
+  out = factory.scrubExt(out); // extended shapes: bearer/oauth/access_token/JWT/google/meta/slack
   if (RUNTIME_TOKEN) out = out.split(RUNTIME_TOKEN).join("[redacted-token]"); // never egress our own token
   return out;
 };
+
+// JSON responder for factory routes.
+function ok2(res, obj, code = 200) {
+  res.writeHead(code, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(obj));
+}
 
 function sse(res) {
   res.writeHead(200, {
@@ -730,6 +752,130 @@ const server = createServer(async (req, res) => {
     });
     return;
   }
+  // ── AGENT FACTORY ───────────────────────────────────────────────────────────
+  // Mutating/sensitive factory routes need the same gate as /apply: loopback Host +
+  // Origin + runtime token. Read-only catalog/health are host-gated only (no secrets).
+  if (url.pathname.startsWith("/factory/")) {
+    const authed = originOk(req) && tokenOk(req); // host already enforced globally above
+    const readBody = (cap = 64_000) =>
+      new Promise((resolveBody) => {
+        let b = "";
+        req.on("data", (c) => {
+          b += c;
+          if (b.length > cap) req.destroy();
+        });
+        req.on("end", () => {
+          try {
+            resolveBody(JSON.parse(b || "{}"));
+          } catch {
+            resolveBody({});
+          }
+        });
+      });
+
+    // GET /factory/health — meta (composio configured?, catalog size). Open (host-gated).
+    if (req.method === "GET" && url.pathname === "/factory/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, ...factory.factoryMeta }));
+      return;
+    }
+    // GET /factory/skills — the closed skill catalog + platforms. Read-only.
+    if (req.method === "GET" && url.pathname === "/factory/skills") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ skills: factory.SKILL_CATALOG, platforms: factory.PLATFORMS }));
+      return;
+    }
+
+    // Everything below mutates or could surface sensitive data → require auth.
+    if (!authed) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
+      return;
+    }
+
+    // GET /factory/agents — created-agent registry (persona elided to a preview).
+    if (req.method === "GET" && url.pathname === "/factory/agents") {
+      return ok2(res, { agents: factory.listAgents() });
+    }
+    // GET /factory/connections — accounts (NEVER secrets).
+    if (req.method === "GET" && url.pathname === "/factory/connections") {
+      return ok2(res, { connections: factory.listConnections() });
+    }
+    // GET /factory/audit — runtime audit log tail.
+    if (req.method === "GET" && url.pathname === "/factory/audit") {
+      return ok2(res, { entries: factory.readAudit(100) });
+    }
+
+    // POST /factory/author {description} → SSE: stream reasoning, then a `spec` event.
+    if (req.method === "POST" && url.pathname === "/factory/author") {
+      if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
+      const body = await readBody(16_000);
+      const description = String(body.description || "").slice(0, 4000);
+      if (!description.trim()) return ok2(res, { error: "description required" }, 400);
+      const stream = sse(res);
+      stream.meta({ mode: BACKEND === "cli" ? "cli" : "mock", phase: "authoring" });
+      const finish = (raw) => {
+        const parsed = factory.parseSpecFromText(raw);
+        res.write(`event: spec\ndata: ${JSON.stringify(scrub(JSON.stringify(parsed)))}\n\n`);
+        stream.done();
+      };
+      if (BACKEND === "cli") {
+        inflight++;
+        res.on("close", () => (inflight = Math.max(0, inflight - 1)));
+        factory.authorSpec(description, stream, finish);
+      } else {
+        // mock author (no claude binary) — emit reasoning then a parsed spec.
+        const mk = factory.mockAuthorSpec(description);
+        stream.token(mk.reasoning + "\n");
+        const v = factory.validateSpec(mk.spec);
+        res.write(`event: spec\ndata: ${JSON.stringify(JSON.stringify(v))}\n\n`);
+        stream.done();
+      }
+      return;
+    }
+    // POST /factory/create {spec} — persist a BOSS-confirmed agent.
+    if (req.method === "POST" && url.pathname === "/factory/create") {
+      const body = await readBody(32_000);
+      const r = factory.createAgent(body.spec || body);
+      return ok2(res, r, r.error ? 400 : 201);
+    }
+    // POST /factory/connect {platform, handle, secret} — credential broker IN.
+    // The raw secret enters ONLY here and is encrypted immediately; never logged.
+    if (req.method === "POST" && url.pathname === "/factory/connect") {
+      const body = await readBody(16_000);
+      const r = factory.connectAccount({ platform: body.platform, handle: body.handle, secret: body.secret });
+      return ok2(res, r, r.error ? 400 : 201);
+    }
+    // POST /factory/post/preview {agentId, connId, content} — dry run (mints confirmToken).
+    if (req.method === "POST" && url.pathname === "/factory/post/preview") {
+      const body = await readBody(16_000);
+      const r = factory.previewPost(body);
+      return ok2(res, r, r.error ? 400 : 200);
+    }
+    // POST /factory/post/execute {agentId, connId, content, confirmToken} — BOSS-confirmed post.
+    if (req.method === "POST" && url.pathname === "/factory/post/execute") {
+      if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
+      const body = await readBody(16_000);
+      const r = await factory.executePost(body);
+      return ok2(res, r, r.error ? 400 : 200);
+    }
+    // DELETE /factory/connections/:connId — revoke an account.
+    const dconn = url.pathname.match(/^\/factory\/connections\/(conn_[a-z0-9]+)$/i);
+    if (req.method === "DELETE" && dconn) {
+      const r = factory.deleteConnection(dconn[1]);
+      return ok2(res, r, r.error ? 404 : 200);
+    }
+    // DELETE /factory/:id — remove a created agent from the registry.
+    const dagent = url.pathname.match(/^\/factory\/([a-z][a-z0-9-]{2,48})$/i);
+    if (req.method === "DELETE" && dagent) {
+      const r = factory.deleteAgent(dagent[1]);
+      return ok2(res, r, r.error ? 404 : 200);
+    }
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "not found" }));
+    return;
+  }
+
   // GET /runtime/health
   if (req.method === "GET" && url.pathname === "/runtime/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -740,10 +886,11 @@ const server = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not found" }));
 });
 
+factory.loadRegistry(); // hydrate created-agent personas before serving
 server.listen(PORT, "127.0.0.1", () => {
   console.log(
     `agent-runtime: listening :${PORT} · backend=${BACKEND}` +
       (BACKEND === "cli" ? " (Claude Code subscription — no API key)" : BACKEND === "api" ? ` (${MODEL})` : "") +
-      ` · tools=${TOOLS}`,
+      ` · tools=${TOOLS} · factory=on (composio:${factory.factoryMeta.composio})`,
   );
 });

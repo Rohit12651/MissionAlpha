@@ -268,3 +268,70 @@ Closes "anyone local can call /apply, server enforces nothing".
 ## Test residue (cleanup if resetting)
 acks.json (ceo, architect), respawns.json (senior-web-1 + earlier), manual heartbeats. Reset:
 `echo '{}' > agent-status/acks.json && echo '{}' > agent-status/respawns.json && python3 scripts/emit_state.py`
+
+## ═══ AGENT FACTORY (2026-06-17) — IN PROGRESS ═══
+Executing docs/ceo/agent-factory-plan.md. BOSS spawns AI-authored agents (Path B) w/ real-posting skills.
+P0 GATE (CEO): BOSS decisions locked (real posting, persist, Path B, same runtime+F2b). Platforms =
+Twitter/X + LinkedIn via composio MCP (default, baked). Composio key NOT set → posting layer built
+composio-ready w/ safe SIMULATED dry-run fallback (mock-when-no-key, same pattern as backend); real
+post path activates when COMPOSIO_API_KEY present. Security invariants hold regardless (Claude never
+sees creds, per-post BOSS gate, audit). Decisions → STRATEGY_APPROVED. Building P1→P9 this session.
+
+## ═══ AGENT FACTORY — COMPLETE + TESTED (2026-06-17) ═══
+All 9 phases done, tested (curl + Playwright browser e2e + adversarial), tsc clean, committed+pushed.
+BOSS describes need → Claude (cli/subscription) authors spec → BOSS reviews/edits → confirms → agent
+persisted (.claude/agents/<id>.md + factory/registry.json) + live + chat/run-able. Real-posting skills
+(Twitter/X + LinkedIn), every external post BOSS-gated dry-run→confirm→execute→audit.
+
+### Backend — agent-runtime/factory.mjs (new) + server.mjs wiring
+- SKILL_CATALOG (7 closed skills) + PLATFORMS (twitter 280/25cap, linkedin 3000/15cap). Spec schema:
+  {id ^[a-z][a-z0-9-]{2,48}$, role, title, persona, skills[catalog], tools[Read|Write|Run — NO Bash],
+  integrations[platform needs matching posting skill], createdBy:"BOSS"(forced), createdAt}.
+- REGISTRY: createAgent writes persona .md (committed) + registry.json (committed) + announces BROADCAST
+  row. loadRegistry() at startup. server.systemFor(id) now loads created-agent persona (+ caveman + no-
+  self-post mandate); built-ins unchanged.
+- AGENT-CREATOR: POST /factory/author {description} → cli claude (AGENT_CREATOR_SYSTEM, no tools) streams
+  reasoning then a ```spec block → parseSpecFromText → validateSpec → SSE `spec` event. mockAuthorSpec
+  fallback. NOT auto-created (BOSS confirms via /factory/create). REAL cli author VERIFIED (subscription).
+- CREDENTIAL BROKER: POST /factory/connect {platform,handle,secret} → AES-256-GCM encrypt (KEK from
+  BROKER_KEY env or 0600 .broker-key in tmp runtime dir, OUTSIDE repo) → connections.json (tmp,0600).
+  connId opaque. GET /factory/connections returns {connId,platform,handle} only — NEVER secret. Secret
+  lifetime = connect body→encrypt, and 1 decrypt-on-stack at post time. Never logged/streamed/seeded/env.
+- POSTING: /factory/post/preview (read-only dry-run, mints single-use confirmToken bound to
+  sha256(agentId+connId+content), 120s TTL) → BOSS F3 confirm → /factory/post/execute (requires fresh
+  matching confirmToken) → composio when COMPOSIO_API_KEY else clearly-marked SIMULATED (no fabricated
+  net call; composioPost throws if half-configured). Rate-limit rolling-24h per account. authorizePost:
+  created agent may only post via a connId whose platform ∈ its integrations (T6 confused-deputy).
+- Endpoints all under /factory/* (vite proxy added). Mutating/sensitive ones host+origin+token gated
+  (reuse existing gates); /factory/skills + /factory/health host-gated only (no secrets). Extended egress
+  scrub (SECRET_RE + bearer/oauth/access_token/JWT/google/meta/slack) applied to all SSE + JSON.
+
+### Frontend — 4 surfaces (src/components/factory/ + src/lib/factoryClient.ts)
+- index.css: added --c-factory-violet (dark oklch(0.78 0.13 300) ~7.6:1, light oklch(0.48 0.18 300) ~5:1).
+- CreateAgentFlow.tsx (surface 1): describe→author SSE stream→editable spec review card (title/role/persona
+  collapse, skill/tool/integration chips, CAN-POST marker)→confirm/re-author/discard.
+- AgentFactory.tsx (surface 2 + host): collapsible panel, tabs Agents(gallery, stagger, built-in band) /
+  Skills / Accounts(broker connect+revoke, password field, "creds stay with you") / Post(compose→preview).
+- SkillCatalog.tsx (surface 3): searchable dense list, posts-only filter, pick+browse modes.
+- PostApprovalGate.tsx (surface 4): PermissionGate fork, violet frame+gold confirm, rendered content
+  preview, char/limit color, dry-run/simulated marker, focus-trap+ESC+reduced-motion.
+- Wired in App.tsx below SessionsBrowser (live-only). emil motion, OKLCH-only, a11y, mobile.
+
+### Docs: ADR-019/020/021 (docs/adr/), threat model (docs/security/agent-factory-threat-model.md, STRIDE+
+OWASP-LLM, must-pass checklist), UX contract (docs/design/agent-factory-ux.md). Agents (architect, sr-
+security, principal-ux) authored content but were Write-blocked in sandbox → I persisted their output.
+
+### Verified
+- curl: author(mock+REAL cli), create, agents list, connect, connections(no secret), preview→execute
+  (simulated post + rate decrement), audit chain.
+- adversarial: no-token→401, Bash tool→reject, reserved id(ceo)→reject, integration w/o skill→reject,
+  secret-shaped persona→reject, dup id→reject, confirmToken replay→reject, execute w/o token→reject,
+  cross-platform connId→403, grep for secret across audit/connections/SSE = NO LEAK.
+- Playwright headless e2e (full BOSS flow): open factory→New Agent→describe→author→spec review→confirm→
+  gallery→connect account→compose→preview→approval modal→Simulate post→audited. CONSOLE_ERRORS: [].
+- tsc --noEmit clean (also removed 2 pre-existing dead imports). NOTE: repo has no eslint installed/config
+  (lint script aspirational) — tsc noUnusedLocals is the type/lint gate.
+
+### Run: runtime `cd agent-runtime && RUNTIME_TOOLS=write RUNTIME_SANDBOX_ROOT=/tmp/ma-sb npm start` (cli/
+subscription, factory=on). dashboard `npm run dev`. Real posting needs COMPOSIO_API_KEY + connId→action
+wiring in factory.composioPost (currently throws if key set but unwired — fail-loud, never fake success).

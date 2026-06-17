@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useReducedMotion } from "framer-motion";
-import { BellOff, RefreshCw, Loader2, Check, AlertTriangle, Layers } from "lucide-react";
+import { BellOff, RefreshCw, Loader2, Check, Layers } from "lucide-react";
 import type { AgentState, CommandRequest, CommandResult, CommandType } from "../data/types";
 import { tok } from "../lib/agentMeta";
 import { PermissionGate } from "./PermissionGate";
