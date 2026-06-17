@@ -1,0 +1,13 @@
+{
+  "name": "missionalpha-agent-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Track B / Chat Fork — SEPARATE agent runtime service. Streams Claude replies per agent over SSE. NOT part of the watcher process (preserves decoupling). Phase 1: chat-only, no tools.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0"
+  }
+}

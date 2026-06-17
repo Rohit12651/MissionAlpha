@@ -1,0 +1,32 @@
+# Waahyu Agent Scheduler — Linux systemd unit (for CI / Cloud VM / staging box).
+# The daemon self-loops every ~50s. systemd keeps it alive + restarts on crash.
+#
+# INSTALL (user service):
+#   mkdir -p ~/.config/systemd/user
+#   cp infrastructure/systemd/waahyu-agent-scheduler.service ~/.config/systemd/user/
+#   # edit WorkingDirectory + ExecStart paths
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now waahyu-agent-scheduler
+#   systemctl --user status waahyu-agent-scheduler
+# STOP:
+#   systemctl --user disable --now waahyu-agent-scheduler
+# LOGS:
+#   journalctl --user -u waahyu-agent-scheduler -f
+#
+# Headless agent invocation (COST!): set Environment=AGENT_DRIVER=claude
+
+[Unit]
+Description=Waahyu Agent Heartbeat Scheduler
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/WaahyuFOLDER/WaahyuPython
+ExecStart=/bin/bash /path/to/WaahyuFOLDER/WaahyuPython/scripts/agent-scheduler.sh
+Environment=TICK_SECONDS=50
+Environment=AGENT_DRIVER=none
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

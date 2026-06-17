@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Waahyu Agent Scheduler — macOS launchd keep-alive.
+  The daemon self-loops every ~50s (cron CANNOT do sub-60s). launchd just
+  keeps it alive + restarts on crash + starts at login.
+
+  INSTALL:
+    1. Edit WorkingDirectory + ProgramArguments paths if repo moves.
+    2. cp infrastructure/launchd/com.waahyu.agent-scheduler.plist ~/Library/LaunchAgents/
+    3. launchctl load -w ~/Library/LaunchAgents/com.waahyu.agent-scheduler.plist
+    4. launchctl list | grep waahyu      # verify
+  STOP:
+    launchctl unload -w ~/Library/LaunchAgents/com.waahyu.agent-scheduler.plist
+  LOGS:
+    tail -f agent-status/scheduler.out.log
+
+  To enable headless agent invocation (COST!), add to EnvironmentVariables:
+    <key>AGENT_DRIVER</key><string>claude</string>
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.waahyu.agent-scheduler</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/RohitAnandeshi/Downloads/WaahyuFOLDER/WaahyuPython/scripts/agent-scheduler.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/RohitAnandeshi/Downloads/WaahyuFOLDER/WaahyuPython</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TICK_SECONDS</key>
+    <string>50</string>
+    <key>AGENT_DRIVER</key>
+    <string>none</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/RohitAnandeshi/Downloads/WaahyuFOLDER/WaahyuPython/agent-status/scheduler.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/RohitAnandeshi/Downloads/WaahyuFOLDER/WaahyuPython/agent-status/scheduler.err.log</string>
+</dict>
+</plist>
