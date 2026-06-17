@@ -17,6 +17,7 @@ import { useTick } from "../lib/ticker";
 import { StateBadge } from "./StateBadge";
 import { TtlRing } from "./TtlRing";
 import { AgentAction } from "./AgentAction";
+import { AgentManage } from "./factory/AgentManage";
 
 // A1 — Agent Drill-Down Drawer + A2 Why-Stuck. Right-side slide-in, spring/ease-out,
 // reduced-motion → instant. a11y: role=dialog, aria-modal, focus trap, Esc, focus
@@ -226,20 +227,31 @@ export function AgentDrawer({
   const titleId = useId();
   const open = agent !== null;
 
+  // BUG 2/3 fix: App passes a fresh `onClose` closure every poll (~2s). If that
+  // identity lives in the focus-effect deps, the effect re-runs every tick and
+  // re-focuses the close button — stealing focus mid-chat (BUG 2) and scrolling
+  // the drawer back to the top (BUG 3). Stash it in a ref so the keydown handler
+  // can call the latest onClose without making it an effect dependency.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   // Esc to close + focus trap + restore focus to the triggering element on close.
   useEffect(() => {
     if (!open) return;
     const trigger = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
 
-    // Focus the panel's close button (first focusable) on open.
+    // Focus the panel's close button (first focusable) on open. preventScroll so
+    // opening the drawer never yanks the scroll position.
     const focusables = panel?.querySelectorAll<HTMLElement>(FOCUSABLE);
-    focusables?.[0]?.focus();
+    focusables?.[0]?.focus({ preventScroll: true });
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !panel) return;
@@ -263,8 +275,9 @@ export function AgentDrawer({
       trigger?.focus?.();
     };
     // Re-run only on the open transition (per agent id), not on every poll.
+    // onClose is read via onCloseRef so it must NOT be a dep — see BUG 2/3 above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, agent?.id, onClose]);
+  }, [open, agent?.id]);
 
   return (
     <AnimatePresence>
@@ -301,6 +314,10 @@ export function AgentDrawer({
 
             {/* A5 — operator action: the first thing you can DO on drill-in. */}
             <AgentAction agent={agent} agents={agents} onCommand={onCommand} />
+
+            {/* Item 4 — manage created agents (skills + delete). Self-hides for
+                built-ins (not in the factory registry), so always safe to render. */}
+            <AgentManage agentId={agent.id} />
 
             <WhyStuck
               agent={agent}

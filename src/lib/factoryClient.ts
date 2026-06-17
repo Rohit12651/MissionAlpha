@@ -99,6 +99,14 @@ export const createAgent = (spec: Partial<AgentSpec>) =>
   });
 export const deleteAgent = (id: string) =>
   authedJson<{ ok?: boolean; error?: string }>(`/factory/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const updateAgent = (
+  id: string,
+  patch: Partial<Pick<AgentSpec, "skills" | "tools" | "integrations" | "persona">>,
+) =>
+  authedJson<{ spec?: AgentSpec; error?: string }>(`/factory/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 
 export const listConnections = () => authedJson<{ connections: Connection[] }>("/factory/connections");
 export const connectAccount = (platform: string, handle: string, secret: string) =>

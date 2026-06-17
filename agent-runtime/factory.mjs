@@ -219,6 +219,62 @@ export function createAgent(raw) {
   return { spec: { ...spec, persona: undefined, personaPreview: spec.persona.slice(0, 240) } };
 }
 
+// PATCH an existing created agent. Allowed fields ONLY: skills, tools, integrations,
+// persona. The merged spec is re-run through the SAME constraints validateSpec uses
+// (catalog ⊆, tools ⊆ {Read,Write,Run}, integration needs a matching posting skill,
+// derived tools from skills, persona cleaned + length + secret-shape). id/role/title/
+// createdBy/createdAt are immutable.
+export function updateAgent(id, patch) {
+  const existing = registry.get(String(id || ""));
+  if (!existing) return { error: "not found" };
+  const p = patch && typeof patch === "object" ? patch : {};
+
+  // persona — only re-clean/validate when the patch supplies one.
+  let persona = existing.persona;
+  if (p.persona !== undefined) {
+    persona = clean(p.persona, 6000);
+    if (persona.length < 20) return { error: "persona too short (min 20 chars)" };
+    if (secretShaped(persona)) return { error: "spec rejected: secret-shaped content not allowed" };
+  }
+
+  // skills ⊆ SKILL_CATALOG ids
+  const skills = p.skills !== undefined
+    ? (Array.isArray(p.skills) ? [...new Set(p.skills.map(String))] : [])
+    : (Array.isArray(existing.skills) ? [...existing.skills] : []);
+  for (const s of skills) if (!SKILL_IDS.has(s)) return { error: `unknown skill: ${s}` };
+
+  // tools ⊆ {Read,Write,Run} (NO Bash); then derive required tools from chosen skills.
+  let tools = p.tools !== undefined
+    ? (Array.isArray(p.tools) ? [...new Set(p.tools.map(String))] : [])
+    : (Array.isArray(existing.tools) ? [...existing.tools] : []);
+  for (const t of tools) if (!ALLOWED_TOOLS.has(t)) return { error: `tool not allowed: ${t} (only Read|Write|Run)` };
+  const need = new Set();
+  for (const s of skills) for (const t of SKILL_CATALOG.find((c) => c.id === s)?.tools ?? []) need.add(t);
+  tools = [...new Set([...tools, ...need])].filter((t) => ALLOWED_TOOLS.has(t));
+
+  // integrations ⊆ PLATFORMS, each needs a matching posting skill among `skills`.
+  const integrations = p.integrations !== undefined
+    ? (Array.isArray(p.integrations) ? [...new Set(p.integrations.map(String))] : [])
+    : (Array.isArray(existing.integrations) ? [...existing.integrations] : []);
+  for (const pf of integrations) if (!PLATFORM_BY_ID.has(pf)) return { error: `unknown integration: ${pf}` };
+  const allowedPlatforms = new Set();
+  for (const s of skills) for (const pf of SKILL_CATALOG.find((c) => c.id === s)?.platforms ?? []) allowedPlatforms.add(pf);
+  for (const pf of integrations) if (!allowedPlatforms.has(pf)) return { error: `integration ${pf} needs a matching posting skill` };
+
+  const updatedSpec = {
+    ...existing,
+    persona, skills, tools, integrations,
+    // immutable — never trust client to change these
+    id: existing.id, role: existing.role, title: existing.title,
+    createdBy: existing.createdBy, createdAt: existing.createdAt,
+  };
+  registry.set(updatedSpec.id, updatedSpec);
+  saveRegistry();
+  writePersonaFile(updatedSpec);
+  audit("agent.update", { id: updatedSpec.id, skills: updatedSpec.skills, integrations: updatedSpec.integrations });
+  return { spec: { ...updatedSpec, persona: undefined, personaPreview: persona.slice(0, 240) } };
+}
+
 export function deleteAgent(id) {
   if (!registry.has(id)) return { error: "not found" };
   registry.delete(id);

@@ -51,6 +51,25 @@ META = {
     "memory-updater":           ("Memory Custodian",     "support",   "memory"),
 }
 
+# Agent Factory — BOSS-created agents are first-class board citizens. Merge them
+# into META so parse_broadcast() accepts their BROADCAST rows (it drops any id not
+# in META). Re-read each emit so created/deleted agents appear/vanish within a tick.
+_REGISTRY_FILE = os.path.join(ROOT, "factory", "registry.json")
+def _merge_registry_meta():
+    try:
+        with open(_REGISTRY_FILE, "r", encoding="utf-8") as f:
+            arr = json.load(f)
+    except Exception:
+        return
+    if not isinstance(arr, list):
+        return
+    for spec in arr:
+        aid = spec.get("id") if isinstance(spec, dict) else None
+        if not aid or aid in META:
+            continue
+        role = str(spec.get("role") or spec.get("title") or "Factory Agent")[:48]
+        META[aid] = (role, "support", "build")
+
 # state -> kanban column (state view)
 STATE_COLUMN = {
     "IDLE": "idle",
@@ -266,6 +285,7 @@ def parse_scheduler():
 
 def main():
     now_e = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    _merge_registry_meta()  # created agents → first-class board citizens
     agents = parse_broadcast(now_e)
     # Attach each agent's own inbox (A1 drawer surfaces this). Backward-compatible
     # additive field — existing fields unchanged.

@@ -33,12 +33,18 @@ TTL="60s"
 # --- update BROADCAST.md row atomically ---
 TMP="$STATUS_DIR/.BROADCAST.$$.tmp"
 awk -v agent="$AGENT" -v state="$STATE" -v task="$TASK" -v files="$FILES" -v blocked="$BLOCKED_BY" -v hb="$NOW" -v ttl="$TTL" '
-  BEGIN { OFS="" }
+  BEGIN { OFS=""; found=0 }
   /^\| '"$AGENT"' \|/ {
     print "| ", agent, " | ", state, " | ", task, " | ", files, " | ", blocked, " | ", hb, " | ", ttl, " |"
+    found=1
     next
   }
   { print }
+  # Factory agents (or any new agent) have no pre-existing row — append one so they
+  # become first-class board citizens (emit_state parses every BROADCAST row).
+  END {
+    if (!found) print "| ", agent, " | ", state, " | ", task, " | ", files, " | ", blocked, " | ", hb, " | ", ttl, " |"
+  }
 ' "$BROADCAST" > "$TMP"
 mv "$TMP" "$BROADCAST"
 

@@ -20,11 +20,12 @@ Usage:
 Stop: Ctrl-C, or kill the background pid.
 Zero external deps (stdlib only).
 """
-import os, sys, time, subprocess
+import os, sys, time, json, subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HB = os.path.join(ROOT, "scripts", "agent-heartbeat.sh")
 SYNC = os.path.join(ROOT, "scripts", "agent-sync.sh")
+REGISTRY_FILE = os.path.join(ROOT, "factory", "registry.json")
 TICK = int(os.environ.get("TICK_SECONDS", "6"))
 
 # Lifecycle ring each agent walks. DONE_CYCLE loops back to IDLE → continuous motion.
@@ -91,6 +92,37 @@ def sh(script, *args):
         pass
 
 
+def registry_agents():
+    """Read factory/registry.json → list of {id,title,role,skills}. Built-in IDS are
+    excluded so a created agent never collides with a hardcoded one. Never crashes:
+    missing/empty/parse-fail → []."""
+    try:
+        with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
+            raw = f.read().strip()
+        if not raw:
+            return []
+        arr = json.loads(raw)
+        if not isinstance(arr, list):
+            return []
+        out = []
+        for a in arr:
+            if not isinstance(a, dict):
+                continue
+            aid = str(a.get("id") or "").strip()
+            if not aid or aid in AGENTS:
+                continue
+            sk = a.get("skills")
+            out.append({
+                "id": aid,
+                "title": str(a.get("title") or aid),
+                "role": str(a.get("role") or ""),
+                "skills": [str(s) for s in sk] if isinstance(sk, list) else [],
+            })
+        return out
+    except Exception:
+        return []
+
+
 # Deterministic block: one agent is always BLOCKED so the dashboard BLOCKED
 # column populates + globe renders that node red/amber. senior-web-2 waits on
 # senior-security-engineer to sign off the bulk-surface review.
@@ -110,6 +142,14 @@ def tick(n):
         task, files, nxt = AGENTS[aid]
         state = LIFECYCLE[(n + i) % len(LIFECYCLE)]
         sh(HB, aid, state, task, files, "", nxt)
+    # 1b) created agents (factory registry) are REAL board citizens — same LIFECYCLE
+    #     rotation + heartbeat as the built-ins. Re-read every tick so agents created
+    #     while the sim runs appear within one tick (and deleted ones drop out).
+    reg = registry_agents()
+    for idx, ag in enumerate(reg):
+        task = (ag["skills"][0] if ag["skills"] else f"factory agent: {ag['title']}")[:60]
+        state = LIFECYCLE[(n + idx) % len(LIFECYCLE)]
+        sh(HB, ag["id"], state, task, "-", "", "await dispatch")
     # 2) emit a rotating slice of talk so the feed moves + globe edges shift
     k = len(TALK)
     for j in range(5):
@@ -118,6 +158,17 @@ def tick(n):
     # 2b) blocked agent pings its blocker every tick about the stall
     sh(SYNC, BLOCKED_AGENT, BLOCKED_BY, "blocked", "/api/command/bulk",
        "Blocked. Need bulk-surface sign-off. ETA?")
+    # 2c) light chatter for created agents so they talk on the bus (globe edges +
+    #     feed). ~1 sync per registry agent per tick → feed not flooded. Alternate
+    #     agent→CEO status and CEO→agent assign so edges flow both ways.
+    for idx, ag in enumerate(reg):
+        skill = ag["skills"][0] if ag["skills"] else "on task"
+        if (n + idx) % 2 == 0:
+            sh(SYNC, ag["id"], "ceo", "status", ag["id"],
+               f"alive. {skill}. await dispatch.")
+        else:
+            sh(SYNC, "ceo", ag["id"], "assign", ag["id"],
+               f"run: {ag['title']}. report back.")
     # 3) refresh state.json now so the dashboard moves at sim cadence (not the
     #    scheduler's slower tick). emit_state is idempotent + cheap.
     try:
@@ -125,7 +176,8 @@ def tick(n):
                        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
-    print(f"sim tick {n}: 16 heartbeats (1 BLOCKED) + 6 sync msgs + emit_state", flush=True)
+    print(f"sim tick {n}: 16 builtin + {len(reg)} factory heartbeats "
+          f"(1 BLOCKED) + 6 sync msgs + emit_state", flush=True)
 
 
 def main():

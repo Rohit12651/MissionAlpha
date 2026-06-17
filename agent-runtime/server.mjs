@@ -865,6 +865,14 @@ const server = createServer(async (req, res) => {
       const r = factory.deleteConnection(dconn[1]);
       return ok2(res, r, r.error ? 404 : 200);
     }
+    // PATCH /factory/:id — edit a created agent (skills/tools/integrations/persona).
+    // Same auth as create (block already requires `authed`). Re-validated in factory.
+    const pagent = url.pathname.match(/^\/factory\/([a-z][a-z0-9-]{2,48})$/i);
+    if (req.method === "PATCH" && pagent) {
+      const body = await readBody(32_000);
+      const r = factory.updateAgent(pagent[1], body);
+      return ok2(res, r, r.error ? 400 : 200);
+    }
     // DELETE /factory/:id — remove a created agent from the registry.
     const dagent = url.pathname.match(/^\/factory\/([a-z][a-z0-9-]{2,48})$/i);
     if (req.method === "DELETE" && dagent) {
