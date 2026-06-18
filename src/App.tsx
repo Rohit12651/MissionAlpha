@@ -316,8 +316,8 @@ export default function App() {
             {/* F4 session history — recall + summarize past swarm sessions. */}
             {!replaying && <SessionsBrowser listSessions={listSessions} />}
 
-            {/* Agent Factory — BOSS spawns AI-authored agents w/ real-posting skills. */}
-            {!replaying && <AgentFactory builtinIds={state.agents.map((a) => a.id)} />}
+            {/* Agent Factory — create wizard. Created agents live on the board (BOSS badge). */}
+            {!replaying && <AgentFactory />}
 
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium text-muted">

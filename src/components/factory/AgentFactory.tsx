@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  Factory, ChevronDown, Plus, Bot, Crown, Send, Trash2, Plug, KeyRound,
-  Loader2, Check, AlertTriangle, ShieldCheck, Link2,
+  Factory, ChevronDown, Send, Trash2, Plug, KeyRound,
+  Loader2, Check, AlertTriangle, ShieldCheck, Link2, Sparkles,
 } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import {
-  getSkills, getFactoryHealth, listAgents, deleteAgent, listConnections, connectAccount,
+  getSkills, getFactoryHealth, listAgents, listConnections, connectAccount,
   deleteConnection, previewPost, executePost,
   type Skill, type Platform, type AgentSpec, type Connection, type PostPreview,
 } from "../../lib/factoryClient";
@@ -14,25 +14,27 @@ import { CreateAgentFlow } from "./CreateAgentFlow";
 import { SkillCatalog } from "./SkillCatalog";
 import { PostApprovalGate } from "./PostApprovalGate";
 
-// Surface 2 (+host) — Agent Factory panel. Collapsible like SessionsBrowser. Tabs:
-//   Agents (gallery + New-Agent create flow) · Skills (catalog) · Accounts (broker)
+// Agent Factory panel — a CREATE WIZARD. Collapsible like SessionsBrowser. Tabs:
+//   Create (describe → author → confirm) · Skills (catalog) · Accounts (broker)
 //   · Post (compose → dry-run → BOSS-confirm → execute).
+// Once an agent is created it lives ON THE BOARD (with a BOSS badge) and is managed
+// from its board drawer (edit skills / delete) — there is NO duplicate gallery here.
 // All color via OKLCH tokens; factory-violet identity; reduced-motion safe.
 
-type Tab = "agents" | "skills" | "accounts" | "post";
+type Tab = "create" | "skills" | "accounts" | "post";
 
-export function AgentFactory({ builtinIds = [] }: { builtinIds?: string[] }) {
+export function AgentFactory() {
   const reduce = useReducedMotion();
   const violet = tok("factory-violet");
 
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("agents");
+  const [tab, setTab] = useState<Tab>("create");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [agents, setAgents] = useState<AgentSpec[]>([]);
   const [conns, setConns] = useState<Connection[]>([]);
   const [composio, setComposio] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [createKey, setCreateKey] = useState(0); // bump to reset the create flow
   const [toast, setToast] = useState("");
 
   const refresh = useCallback(async () => {
@@ -51,18 +53,13 @@ export function AgentFactory({ builtinIds = [] }: { builtinIds?: string[] }) {
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast(""), 5000); };
 
   const onCreated = useCallback((spec: AgentSpec) => {
-    setCreating(false);
-    flash(`agent “${spec.id}” created + live`);
+    flash(`“${spec.id}” created — now live on the board (look for the BOSS badge)`);
+    setCreateKey((k) => k + 1); // reset the flow for the next agent
     void refresh();
   }, [refresh]);
 
-  const removeAgent = useCallback(async (id: string) => {
-    const r = await deleteAgent(id);
-    if (r.ok) { flash(`removed ${id}`); void refresh(); } else flash(r.error || "delete failed");
-  }, [refresh]);
-
   const TABS: Array<{ id: Tab; label: string; n?: number }> = [
-    { id: "agents", label: "Agents", n: agents.length },
+    { id: "create", label: "Create" },
     { id: "skills", label: "Skills", n: skills.length },
     { id: "accounts", label: "Accounts", n: conns.length },
     { id: "post", label: "Post" },
@@ -86,8 +83,8 @@ export function AgentFactory({ builtinIds = [] }: { builtinIds?: string[] }) {
           <span className="text-[14px] font-semibold text-text">Agent Factory</span>
           <span className="font-mono text-[10px] uppercase tracking-wide text-muted">BOSS spawns agents</span>
           {agents.length > 0 && (
-            <span className="rounded-full font-mono text-[9px]" style={{ padding: "1px 7px", color: violet, backgroundColor: `color-mix(in oklch, ${violet} 12%, transparent)` }}>
-              {agents.length} created
+            <span className="rounded-full font-mono text-[9px]" style={{ padding: "1px 7px", color: violet, backgroundColor: `color-mix(in oklch, ${violet} 12%, transparent)` }} title="Created agents live on the board">
+              {agents.length} on board
             </span>
           )}
         </span>
@@ -130,12 +127,16 @@ export function AgentFactory({ builtinIds = [] }: { builtinIds?: string[] }) {
                 </p>
               )}
 
-              {tab === "agents" && (
-                <AgentsTab
-                  skills={skills} agents={agents} builtinIds={builtinIds} creating={creating}
-                  onStartCreate={() => setCreating(true)} onCancelCreate={() => setCreating(false)}
-                  onCreated={onCreated} onDelete={removeAgent}
-                />
+              {tab === "create" && (
+                <div>
+                  <p className="mb-3 inline-flex items-center gap-1.5 text-[11px] leading-relaxed text-muted">
+                    <Sparkles size={12} aria-hidden style={{ color: violet }} />
+                    Describe a need — Claude authors the agent. Once you confirm, it goes
+                    <span className="font-semibold text-text"> live on the board</span> with a
+                    <span className="font-mono" style={{ color: violet }}> BOSS</span> badge. Manage it (edit skills / delete) from its board drawer.
+                  </p>
+                  <CreateAgentFlow key={createKey} skills={skills} onCreated={onCreated} onClose={() => setCreateKey((k) => k + 1)} />
+                </div>
               )}
               {tab === "skills" && <SkillCatalog skills={skills} mode="browse" />}
               {tab === "accounts" && (
@@ -147,101 +148,6 @@ export function AgentFactory({ builtinIds = [] }: { builtinIds?: string[] }) {
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-// ── Agents tab — create flow + gallery ────────────────────────────────────────
-function AgentsTab({
-  skills, agents, builtinIds, creating, onStartCreate, onCancelCreate, onCreated, onDelete,
-}: {
-  skills: Skill[]; agents: AgentSpec[]; builtinIds: string[]; creating: boolean;
-  onStartCreate: () => void; onCancelCreate: () => void; onCreated: (s: AgentSpec) => void; onDelete: (id: string) => void;
-}) {
-  const reduce = useReducedMotion();
-  const violet = tok("factory-violet");
-  const gold = tok("ceo-gold");
-  const skillLabel = (id: string) => skills.find((s) => s.id === id)?.label ?? id;
-
-  return (
-    <div>
-      {!creating && (
-        <button
-          type="button"
-          onClick={onStartCreate}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2"
-          style={{ color: violet, backgroundColor: `color-mix(in oklch, ${violet} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${violet} 34%, transparent)` }}
-        >
-          <Plus size={14} aria-hidden /> New Agent
-        </button>
-      )}
-      {creating && (
-        <div className="mb-4">
-          <CreateAgentFlow skills={skills} onCreated={onCreated} onClose={onCancelCreate} />
-        </div>
-      )}
-
-      {/* created-by-BOSS band */}
-      <div className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: violet }}>
-        <Crown size={11} aria-hidden /> Created by BOSS
-      </div>
-      {agents.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border/60 px-4 py-8 text-center text-[12px] text-muted">
-          No agents yet. Click <span className="font-semibold text-text">New Agent</span> and describe what you need.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {agents.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, y: reduce ? 0 : 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduce ? 0 : 0.2, ease: "easeOut", delay: reduce ? 0 : Math.min(i * 0.03, 0.3) }}
-              className="rounded-lg border p-3"
-              style={{ borderColor: `color-mix(in oklch, ${violet} 26%, var(--c-border))`, backgroundColor: "color-mix(in oklch, var(--c-bg) 30%, transparent)" }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5" style={{ color: violet }}>
-                  <Bot size={14} aria-hidden />
-                  <span className="text-[13px] font-semibold text-text">{a.title}</span>
-                </span>
-                <button type="button" onClick={() => onDelete(a.id)} aria-label={`Delete ${a.id}`} className="rounded p-1 text-muted outline-none hover:text-stale-red focus-visible:ring-2">
-                  <Trash2 size={12} aria-hidden />
-                </button>
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted">{a.role}</div>
-              <div className="mt-0.5 font-mono text-[9px] text-muted">{a.id}</div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {a.skills.slice(0, 4).map((s) => (
-                  <span key={s} className="rounded font-mono text-[9px]" style={{ padding: "1px 6px", color: violet, backgroundColor: `color-mix(in oklch, ${violet} 10%, transparent)`, border: `1px solid color-mix(in oklch, ${violet} 22%, transparent)` }}>
-                    {skillLabel(s)}
-                  </span>
-                ))}
-                {a.skills.length > 4 && <span className="font-mono text-[9px] text-muted">+{a.skills.length - 4}</span>}
-              </div>
-              {a.integrations.length > 0 && (
-                <div className="mt-1.5 inline-flex items-center gap-1 font-mono text-[9px]" style={{ color: gold }}>
-                  <Send size={9} aria-hidden /> can post: {a.integrations.join(", ")}
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* built-in swarm band (compact reference) */}
-      {builtinIds.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Built-in swarm · {builtinIds.length}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {builtinIds.map((id) => (
-              <span key={id} className="rounded font-mono text-[10px] text-text/80" style={{ padding: "2px 7px", backgroundColor: "color-mix(in oklch, var(--c-bg) 40%, transparent)", border: "1px solid var(--c-border)" }}>
-                {id}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
