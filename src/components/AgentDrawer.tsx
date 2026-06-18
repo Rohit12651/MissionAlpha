@@ -312,12 +312,13 @@ export function AgentDrawer({
           >
             <DrawerHeader agent={agent} nowMs={nowMs} titleId={titleId} onClose={onClose} />
 
+            {/* Item 4 — manage created agents (edit skills + delete) at the TOP so it's
+                immediately visible. Self-hides for built-ins (not in the factory
+                registry), so it's always safe to render and never shows a dead button. */}
+            <AgentManage agentId={agent.id} />
+
             {/* A5 — operator action: the first thing you can DO on drill-in. */}
             <AgentAction agent={agent} agents={agents} onCommand={onCommand} />
-
-            {/* Item 4 — manage created agents (skills + delete). Self-hides for
-                built-ins (not in the factory registry), so always safe to render. */}
-            <AgentManage agentId={agent.id} />
 
             <WhyStuck
               agent={agent}
