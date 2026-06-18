@@ -38,6 +38,8 @@ export interface AgentState {
   ttlSec: number;
   stale: boolean;
   dead: boolean;
+  /** True if this is a BOSS-created (Agent Factory) agent — gets a board badge + in-drawer manage. */
+  factory?: boolean;
   /** This agent's own inbox (TO=<id> SYNC messages), last ~15, attached by emit_state.py. */
   inbox: FeedEvent[];
   /** A5: the agent's intended NEXT step from its latest heartbeat `next=` field (null if absent). */

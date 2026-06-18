@@ -55,7 +55,9 @@ META = {
 # into META so parse_broadcast() accepts their BROADCAST rows (it drops any id not
 # in META). Re-read each emit so created/deleted agents appear/vanish within a tick.
 _REGISTRY_FILE = os.path.join(ROOT, "factory", "registry.json")
+_FACTORY_IDS = set()  # ids of BOSS-created agents (for the board's factory badge)
 def _merge_registry_meta():
+    _FACTORY_IDS.clear()
     try:
         with open(_REGISTRY_FILE, "r", encoding="utf-8") as f:
             arr = json.load(f)
@@ -65,7 +67,10 @@ def _merge_registry_meta():
         return
     for spec in arr:
         aid = spec.get("id") if isinstance(spec, dict) else None
-        if not aid or aid in META:
+        if not aid:
+            continue
+        _FACTORY_IDS.add(aid)
+        if aid in META:
             continue
         role = str(spec.get("role") or spec.get("title") or "Factory Agent")[:48]
         META[aid] = (role, "support", "build")
@@ -166,6 +171,7 @@ def parse_broadcast(now_e):
             "ttlSec": ttl,
             "stale": stale,
             "dead": is_dead,
+            "factory": aid in _FACTORY_IDS,  # BOSS-created → board badge
         })
     return agents
 

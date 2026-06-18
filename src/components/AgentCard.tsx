@@ -103,6 +103,20 @@ export const AgentCard = memo(function AgentCard({
             >
               {TIER_LABEL[agent.tier]}
             </span>
+            {agent.factory && (
+              <span
+                className="shrink-0 rounded font-mono text-[8px] font-semibold uppercase tracking-wide"
+                style={{
+                  padding: "1px 5px",
+                  color: tok("factory-violet"),
+                  backgroundColor: `color-mix(in oklch, ${tok("factory-violet")} 14%, transparent)`,
+                  border: `1px solid color-mix(in oklch, ${tok("factory-violet")} 32%, transparent)`,
+                }}
+                title="Created by BOSS via Agent Factory"
+              >
+                BOSS
+              </span>
+            )}
           </div>
           <p className="mt-0.5 truncate text-[11px] text-muted">{agent.role}</p>
 
