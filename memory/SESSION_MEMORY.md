@@ -335,3 +335,52 @@ security, principal-ux) authored content but were Write-blocked in sandbox → I
 ### Run: runtime `cd agent-runtime && RUNTIME_TOOLS=write RUNTIME_SANDBOX_ROOT=/tmp/ma-sb npm start` (cli/
 subscription, factory=on). dashboard `npm run dev`. Real posting needs COMPOSIO_API_KEY + connId→action
 wiring in factory.composioPost (currently throws if key set but unwired — fail-loud, never fake success).
+
+## ═══ AGENT FACTORY — BOSS REVIEW FIXES (2026-06-17) — DONE + TESTED ═══
+5 fixes from BOSS, built by senior-web-1 + senior-backend-2 swarm agents (Write worked; Bash blocked → I ran checks). Committed 9656b29, pushed.
+1. Removed "Dispatch task" box from agent drawer (AgentAction.tsx) — chat covers it.
+2+3. Drawer focus-steal + scroll-jump (same root): focus-trap effect had unstable `onClose` in deps → re-ran every 2s poll → re-focused close btn. Fix: onCloseRef + deps [open,agent?.id] + focus({preventScroll:true}). AgentDrawer.tsx.
+4. In-drawer agent management (NEW src/components/factory/AgentManage.tsx): edit skill set → PATCH /factory/:id, gated Delete. Self-hides for built-ins (returns null if id not in registry) → no dead buttons. Added factory.updateAgent (same validation as create) + PATCH route (server.mjs) + factoryClient.updateAgent.
+5. Created agents = first-class board citizens. ROOT FIX (not just sim): agent-heartbeat.sh awk now APPENDS a BROADCAST row if agent absent (was update-only); emit_state.py _merge_registry_meta() merges factory/registry.json into META (parse_broadcast dropped any id not in the hardcoded 16); sim_swarm.py heartbeats+chatters registry agents each tick. Created agent now shows on board w/ heartbeat, lifecycle motion, role/tier, bus traffic, persists across ticks. Verified: state.json 17 agents, java17-developer IDLE/idle col.
+TESTED: Playwright e2e all 5 (zero console errors) + UI Save-skills PATCH roundtrip + adversarial curl (Bash/integration/404 rejects). tsc clean. java17-developer (user's browser-created agent) kept in registry, restored to original skills.
+
+## ═══ UNIFIED WORKSPACE (chat-first + model tiers) — IN PROGRESS (2026-06-17) ═══
+Executing docs/ceo/workspace-plan.md. Turn MissionAlpha chat-first: chat = PRIMARY center panel
+(Claude-Code-style), per-chat Claude model-tier picker (Opus/Sonnet/Haiku), board demoted to a
+secondary toggle-able "Team" panel. Conversation history persists to disk.
+BOSS decisions locked: Claude tiers ONLY (opus→claude-opus-4-8, sonnet→claude-sonnet-4-6,
+haiku→claude-haiku-4-5), subscription via cli --model, default=sonnet, NO GPT/Gemini. Board stays
+fully functional. Phases P0 ceo→P1 ADRs→P2 ux→P3 model plumbing∥P4 persistence→P5 UI reflow→
+P6 security→P7 QA→P8 memory. STRICT model allowlist (no raw --model passthrough). threads/ gitignored.
+
+## ═══ UNIFIED WORKSPACE — COMPLETE + TESTED (2026-06-18) ═══
+All phases P0→P8 done, tested (curl + real-cli + Playwright e2e + adversarial), tsc clean, SECURITY_APPROVED, committed+pushed. MissionAlpha is now CHAT-FIRST: chat = primary center panel (Claude-Code-style), per-thread model-tier picker, board demoted to a secondary collapsible "Team" panel. No feature lost.
+
+### Docs (P1/P2)
+- docs/adr/ADR-022-model-tiers.md — STRICT closed tier allowlist {opus:claude-opus-4-8, sonnet:claude-sonnet-4-6, haiku:claude-haiku-4-5}, default sonnet. Security invariant: only an allowlisted tier KEY influences the model; raw input NEVER reaches the claude argv. Unknown tier→400.
+- docs/adr/ADR-023-chat-first-shell.md — layout inversion + multi-thread conversation model + disk persistence.
+- docs/design/chat-first-ux.md — UX contract (rail/center/team, model picker, motion, a11y, responsive). OKLCH tokens only, no index.css change needed.
+
+### Backend (P3 model tiers + P4 persistence) — agent-runtime/server.mjs + factory.mjs
+- MODEL_TIERS = Object.freeze({opus,sonnet,haiku}); DEFAULT_TIER=sonnet; resolveTier(raw) uses hasOwnProperty + strict-type guard (rejects number/array/object → 400). /chat, /run, /factory/author accept optional {model}; 400-on-unknown BEFORE inflight++/spawn. cliReply + authorSpec push `--model <modelId>` as a DISTINCT argv token; modelId ONLY ever MODEL_TIERS[key], never raw input. API backend uses resolved modelId for SDK. meta SSE event carries {tier, model}. /runtime/health reports {tiers, defaultTier}.
+- THREAD PERSISTENCE: in-memory `threads` Map now disk-backed → agent-runtime/threads/<safeId(id)>.json (mode 0600, gitignored). loadThreads() at startup hydrates Map; persistThread() after every turn (last-THREAD_KEEP=40 msgs, 256KB byte cap + trim fallback). threadSafeId strips path-traversal chars; content already egress-scrubbed. Survives restart (verified).
+
+### Frontend (P5) — src/
+- lib/modelTiers.ts — tier list + per-thread localStorage (ma.model.<threadId>), default sonnet.
+- components/workspace/ModelTierPicker.tsx — custom listbox (Opus smartest / Sonnet balanced / Haiku fastest), keyboard a11y (↑↓/Home/End/Enter/Esc/typeahead), emil motion, OKLCH.
+- components/workspace/ChatPane.tsx — UNIFIED primary center chat for every thread. Boss thread = dispatch bridge (parseDispatch + F3 PermissionGate + fireDispatch → /api/command + /run with tier). Agent thread = F2b sandbox /changes panel + gated /apply. Controlled messages (lifted to App) so history survives thread-switch; runtime persists to disk too. Sends {model:tier} on /chat + /run. role=main, aria-live streaming, errors role=alert.
+- components/workspace/ThreadRail.tsx — left nav: Boss pinned (gold) + per-agent (cyan / factory=violet); active = bg+3px bar+aria-current; collapsible icon rail.
+- components/workspace/TeamPanel.tsx — collapsible right aside (role=complementary, id=team-panel); desktop 420px static, mobile full-screen overlay sheet. Hosts the board ONCE, unchanged.
+- App.tsx — reflowed into chat-first shell: rail | ChatPane(flex-1) | TeamPanel(board). All board features (Cycle1/2 control plane, BulkAction, ControlPlane, Sessions, Factory, replay/scrubber, kanban, feed, globe, AgentDrawer drilldown) preserved inside TeamPanel. Layout state persisted (ma.activeThread/rail.collapsed/team.open). Mobile: rail+team = overlays via header buttons. BossConsole.tsx left in place but UNMOUNTED (its dispatch fn now in ChatPane) — not deleted (ADR-023 non-goal).
+
+### Security (P6) — senior-security-engineer: SECURITY_APPROVED, no HIGH/CRITICAL
+Verified invariant empirically + by inspection: frozen map, hasOwnProperty + strict-type guard, 400-before-spawn in all 3 routes, --model distinct argv token no shell:true, SDK uses resolved id, thread store no traversal (0600, gitignored, scrubbed, byte-capped), all existing host/origin/token gates + egress scrub + MAX_INFLIGHT intact. Applied the one LOW hardening (strict-type guard). Adversarial matrix all PASS: --dangerously-…, "haiku --add-dir /etc", constructor/toString/__proto__, gpt-4o, number/array/object → all 400; missing→sonnet.
+
+### QA (P7) — TESTS_GREEN
+- Playwright headless e2e (1440px + 375px mobile): chat-first shell present (main+threads nav+picker), model picker switch→Opus, message streams reply, Team panel toggle off→on, 18 thread rows, agent-thread opens, mobile renders. CONSOLE_ERRORS: [].
+- Real cli verified: `claude -p --model claude-haiku-4-5` accepted by the subscription binary, streamed "PONG"; meta reports tier:haiku model:claude-haiku-4-5 (resolves the ADR-022 CLI-flag caveat).
+- Persistence: chat→restart runtime→threads=1 reloaded.
+- tsc --noEmit clean.
+
+### Run: runtime `cd agent-runtime && RUNTIME_TOOLS=write RUNTIME_SANDBOX_ROOT=/tmp/ma-sb npm start` · dashboard `npm run dev` (binds IPv6 localhost:3004 — curl `localhost` not `127.0.0.1`) · sim `TICK_SECONDS=6 python3 scripts/sim_swarm.py`. Mock backend for free UI tests: prefix `RUNTIME_BACKEND=mock`.
+### NOTE for BOSS: unrelated uncommitted churn left untouched (NOT this feature) — factory/registry.json + .claude/agents/java17-engineer.md (your browser-created agent), and docs/SESSION_MEMORY.md (133KB) + docs/ceo/master-roadmap.md appeared from another process. Surfaced, not committed.

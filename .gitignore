@@ -19,6 +19,7 @@ agent-status/*.log
 agent-status/*.pid
 agent-status/.sched.lock
 agent-runtime/sandboxes/
+agent-runtime/threads/
 agent-status/BROADCAST.md
 agent-status/SCHEDULER.md
 agent-status/*.md

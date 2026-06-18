@@ -21,6 +21,30 @@ import { writeFileSync } from "node:fs";
 
 const PORT = Number(process.env.RUNTIME_PORT || 3005);
 const MODEL = process.env.RUNTIME_MODEL || "claude-sonnet-4-6";
+
+// ── Model tiers (ADR-022) — STRICT closed allowlist ─────────────────────────
+// User code names a TIER KEY, never a model id. The id that reaches spawn/SDK is
+// read out of this frozen map BY KEY. Unknown key → 400, no spawn. Raw user input
+// NEVER becomes an argv token (defense-in-depth on top of the argv-array spawn).
+const MODEL_TIERS = Object.freeze({
+  opus: "claude-opus-4-8",
+  sonnet: "claude-sonnet-4-6",
+  haiku: "claude-haiku-4-5",
+});
+const DEFAULT_TIER = "sonnet";
+const TIER_KEYS = Object.keys(MODEL_TIERS);
+// Resolve a tier key → fixed model id. hasOwnProperty (not `in`) so prototype keys
+// (toString/constructor) can't resolve as valid. Returns {error} on unknown tier.
+function resolveTier(raw) {
+  // strict-typing: only a string, null, or undefined is acceptable. Reject
+  // numbers/arrays/objects outright (no coercion surprises) — sr-security LOW.
+  if (raw != null && typeof raw !== "string") return { error: "unknown model tier", valid: TIER_KEYS };
+  const tier = raw == null || raw === "" ? DEFAULT_TIER : raw;
+  if (!Object.prototype.hasOwnProperty.call(MODEL_TIERS, tier)) {
+    return { error: "unknown model tier", valid: TIER_KEYS };
+  }
+  return { tier, modelId: MODEL_TIERS[tier] };
+}
 const MAX_TOKENS = Number(process.env.RUNTIME_MAX_TOKENS || 1024);
 const KEY = process.env.ANTHROPIC_API_KEY || "";
 // Backend: "api" (Anthropic key, costs credits) · "cli" (local `claude` CLI =
@@ -35,7 +59,7 @@ const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 // the live repo) — gated/opt-in. Bash stays OFF in all modes for now.
 import { dirname, join, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { cp, readdir, readFile, writeFile, mkdir, stat, lstat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 // Agent Factory — registry, agent-creator, credential broker, posting (own module).
@@ -109,9 +133,55 @@ function hostOk(req) {
 const MAX_INFLIGHT = Number(process.env.RUNTIME_MAX_INFLIGHT || 4);
 let inflight = 0;
 
-// Per-agent conversation history (in-memory; resets on restart).
+// Per-agent conversation history. In-memory Map, backed by disk (ADR-023 §3B) so
+// history survives a runtime restart. Each thread → agent-runtime/threads/<id>.json
+// (gitignored). Loaded on startup, persisted after every completed turn.
 /** @type {Map<string, Array<{role:string, content:string}>>} */
 const threads = new Map();
+const THREADS_DIR = process.env.RUNTIME_THREADS_DIR || join(__dir, "threads");
+const THREAD_KEEP = Number(process.env.RUNTIME_THREAD_KEEP || 40); // last-N messages
+const THREAD_MAX_BYTES = 256 * 1024; // per-file cap (bound disk + replay cost)
+const threadSafeId = (id) => String(id).replace(/[^a-z0-9_-]/gi, "_").slice(0, 64);
+const threadFile = (id) => join(THREADS_DIR, `${threadSafeId(id)}.json`);
+
+// Hydrate all persisted threads into the Map at startup.
+function loadThreads() {
+  try {
+    mkdirSync(THREADS_DIR, { recursive: true });
+    for (const name of readdirSync(THREADS_DIR)) {
+      if (!name.endsWith(".json")) continue;
+      try {
+        const obj = JSON.parse(readFileSync(join(THREADS_DIR, name), "utf-8"));
+        if (obj && obj.id && Array.isArray(obj.messages)) {
+          threads.set(obj.id, obj.messages.slice(-THREAD_KEEP));
+        }
+      } catch {
+        /* skip a corrupt thread file */
+      }
+    }
+  } catch {
+    /* threads dir unavailable — fall back to in-memory only */
+  }
+}
+// Persist one thread to disk (fire-and-forget). Capped + scrubbed already.
+function persistThread(id, hist, tier) {
+  const rec = JSON.stringify({ id, tier: tier || DEFAULT_TIER, messages: hist.slice(-THREAD_KEEP), updatedAt: new Date().toISOString() });
+  if (Buffer.byteLength(rec) > THREAD_MAX_BYTES) {
+    // too large even after last-N trim → keep only the most recent half
+    const trimmed = hist.slice(-Math.floor(THREAD_KEEP / 2));
+    try {
+      writeFileSync(threadFile(id), JSON.stringify({ id, tier: tier || DEFAULT_TIER, messages: trimmed, updatedAt: new Date().toISOString() }), { mode: 0o600 });
+    } catch {
+      /* non-fatal */
+    }
+    return;
+  }
+  try {
+    writeFileSync(threadFile(id), rec, { mode: 0o600 });
+  } catch {
+    /* non-fatal */
+  }
+}
 
 const CAVEMAN_SYSTEM = (agentId) =>
   `You are the "${agentId}" agent in the MissionAlpha swarm (a multi-agent dev org building the Waahyu platform). ` +
@@ -475,7 +545,7 @@ function reportBack(agentId, summary) {
 // SUBSCRIPTION (logged-in), NOT an API key. Single-shot per turn; we embed the
 // system persona + prior thread into the prompt (claude -p is stateless here).
 // Streams assistant text deltas out via SSE; ignores hook/system noise.
-function cliReply(agentId, system, hist, stream, onDone) {
+function cliReply(agentId, system, hist, stream, onDone, modelId) {
   const transcript = hist
     .map((h) => `${h.role === "user" ? "BOSS" : "YOU"}: ${h.content}`)
     .join("\n\n");
@@ -488,6 +558,9 @@ function cliReply(agentId, system, hist, stream, onDone) {
     "--verbose",
     "--no-session-persistence",
   ];
+  // modelId is ALWAYS a server-resolved allowlisted id (ADR-022) — NEVER the raw
+  // request field. Distinct argv token, no shell → cannot flag-inject.
+  if (modelId) args.push("--model", modelId);
   // F2 tool scoping. Bash NEVER allowed yet. Unlisted tools are auto-denied in -p.
   let cwd = REPO_ROOT;
   if (TOOLS === "read") {
@@ -557,20 +630,25 @@ function cliReply(agentId, system, hist, stream, onDone) {
   child.stdin.end();
 }
 
-async function handleChat(agentId, message, res) {
+async function handleChat(agentId, message, res, tier, modelId) {
   const stream = sse(res);
   const hist = threads.get(agentId) || [];
   hist.push({ role: "user", content: message });
+  const save = (acc) => {
+    hist.push({ role: "assistant", content: acc });
+    const trimmed = hist.slice(-THREAD_KEEP);
+    threads.set(agentId, trimmed);
+    persistThread(agentId, trimmed, tier);
+  };
 
   // CLI backend — Claude Code subscription, no key/credits.
   if (BACKEND === "cli") {
-    stream.meta({ mode: "cli", model: "claude-code (subscription)", tools: TOOLS, agentId });
+    stream.meta({ mode: "cli", model: modelId, tier, tools: TOOLS, agentId });
     if (TOOLS === "write") await seedSandbox(agentId); // isolated copy ready before edits
     cliReply(agentId, systemFor(agentId), hist, stream, (acc) => {
-      hist.push({ role: "assistant", content: acc || "(no output)" });
-      threads.set(agentId, hist.slice(-20));
+      save(acc || "(no output)");
       stream.done();
-    });
+    }, modelId);
     return;
   }
 
@@ -578,7 +656,7 @@ async function handleChat(agentId, message, res) {
 
   if (!client) {
     // MOCK mode — stream caveman reply word by word.
-    stream.meta({ mode: "mock", model: "none", agentId });
+    stream.meta({ mode: "mock", model: "none", tier, agentId });
     const reply = mockReply(agentId, message);
     const words = reply.split(" ");
     let acc = "";
@@ -588,18 +666,17 @@ async function handleChat(agentId, message, res) {
       stream.token(chunk);
       await new Promise((r) => setTimeout(r, 45));
     }
-    hist.push({ role: "assistant", content: acc });
-    threads.set(agentId, hist.slice(-20));
+    save(acc);
     stream.done();
     return;
   }
 
-  // REAL mode — stream from Claude.
+  // REAL mode — stream from Claude. modelId is the allowlisted id (ADR-022).
   try {
-    stream.meta({ mode: "live", model: MODEL, agentId });
+    stream.meta({ mode: "live", model: modelId, tier, agentId });
     let acc = "";
     const s = await client.messages.stream({
-      model: MODEL,
+      model: modelId,
       max_tokens: MAX_TOKENS,
       system: systemFor(agentId),
       messages: hist.map((h) => ({ role: h.role, content: h.content })),
@@ -609,8 +686,7 @@ async function handleChat(agentId, message, res) {
       stream.token(t);
     });
     await s.finalMessage();
-    hist.push({ role: "assistant", content: acc });
-    threads.set(agentId, hist.slice(-20));
+    save(acc);
     stream.done();
   } catch (e) {
     stream.error(e?.message || e);
@@ -645,8 +721,11 @@ const server = createServer(async (req, res) => {
     });
     req.on("end", () => {
       let message = "";
+      let rawModel;
       try {
-        message = String(JSON.parse(body || "{}").message || "").slice(0, 4000);
+        const j = JSON.parse(body || "{}");
+        message = String(j.message || "").slice(0, 4000);
+        rawModel = j.model;
       } catch {
         /* empty */
       }
@@ -655,11 +734,18 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "message required" }));
         return;
       }
+      // STRICT model-tier allowlist (ADR-022). Unknown tier → 400, no spawn.
+      const t = resolveTier(rawModel);
+      if (t.error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: t.error, valid: t.valid }));
+        return;
+      }
       inflight++;
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
       });
-      void handleChat(agentId, message, res);
+      void handleChat(agentId, message, res, t.tier, t.modelId);
     });
     return;
   }
@@ -730,14 +816,23 @@ const server = createServer(async (req, res) => {
     });
     req.on("end", () => {
       let task = "";
+      let rawModel;
       try {
-        task = String(JSON.parse(body || "{}").task || "").slice(0, 4000);
+        const j = JSON.parse(body || "{}");
+        task = String(j.task || "").slice(0, 4000);
+        rawModel = j.model;
       } catch {
         /* empty */
       }
       if (!task.trim()) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "task required" }));
+        return;
+      }
+      const t = resolveTier(rawModel);
+      if (t.error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: t.error, valid: t.valid }));
         return;
       }
       const prompt =
@@ -748,7 +843,7 @@ const server = createServer(async (req, res) => {
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
       });
-      void handleChat(mr[1], prompt, res);
+      void handleChat(mr[1], prompt, res, t.tier, t.modelId);
     });
     return;
   }
@@ -812,8 +907,10 @@ const server = createServer(async (req, res) => {
       const body = await readBody(16_000);
       const description = String(body.description || "").slice(0, 4000);
       if (!description.trim()) return ok2(res, { error: "description required" }, 400);
+      const t = resolveTier(body.model);
+      if (t.error) return ok2(res, { error: t.error, valid: t.valid }, 400);
       const stream = sse(res);
-      stream.meta({ mode: BACKEND === "cli" ? "cli" : "mock", phase: "authoring" });
+      stream.meta({ mode: BACKEND === "cli" ? "cli" : "mock", phase: "authoring", tier: t.tier, model: t.modelId });
       const finish = (raw) => {
         const parsed = factory.parseSpecFromText(raw);
         res.write(`event: spec\ndata: ${JSON.stringify(scrub(JSON.stringify(parsed)))}\n\n`);
@@ -822,7 +919,7 @@ const server = createServer(async (req, res) => {
       if (BACKEND === "cli") {
         inflight++;
         res.on("close", () => (inflight = Math.max(0, inflight - 1)));
-        factory.authorSpec(description, stream, finish);
+        factory.authorSpec(description, stream, finish, t.modelId);
       } else {
         // mock author (no claude binary) — emit reasoning then a parsed spec.
         const mk = factory.mockAuthorSpec(description);
@@ -887,7 +984,7 @@ const server = createServer(async (req, res) => {
   // GET /runtime/health
   if (req.method === "GET" && url.pathname === "/runtime/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none" }));
+    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none", tiers: TIER_KEYS, defaultTier: DEFAULT_TIER }));
     return;
   }
   res.writeHead(404, { "Content-Type": "application/json" });
@@ -895,10 +992,12 @@ const server = createServer(async (req, res) => {
 });
 
 factory.loadRegistry(); // hydrate created-agent personas before serving
+loadThreads(); // hydrate persisted conversation threads (ADR-023 §3B)
 server.listen(PORT, "127.0.0.1", () => {
   console.log(
     `agent-runtime: listening :${PORT} · backend=${BACKEND}` +
       (BACKEND === "cli" ? " (Claude Code subscription — no API key)" : BACKEND === "api" ? ` (${MODEL})` : "") +
-      ` · tools=${TOOLS} · factory=on (composio:${factory.factoryMeta.composio})`,
+      ` · tools=${TOOLS} · tiers=[${TIER_KEYS.join(",")}] default=${DEFAULT_TIER}` +
+      ` · threads=${threads.size} · factory=on (composio:${factory.factoryMeta.composio})`,
   );
 });

@@ -323,10 +323,13 @@ export function parseSpecFromText(text) {
 // Run the local `claude` CLI to author a spec from a BOSS description. Streams the
 // model's reasoning to `stream` (SSE tokens), then resolves with the raw text so the
 // caller can parse+validate. No tools — authoring is pure text generation.
-export function authorSpec(description, stream, onDone) {
+export function authorSpec(description, stream, onDone, modelId) {
   const prompt =
     `${AGENT_CREATOR_SYSTEM}\n\n--- BOSS NEED ---\n${description}\n\n--- now design the agent (reasoning then ONE \`\`\`spec block) ---`;
   const args = ["-p", "--output-format", "stream-json", "--include-partial-messages", "--verbose", "--no-session-persistence"];
+  // modelId is ALWAYS a server-resolved allowlisted id (ADR-022) — never raw user
+  // input. Appended as a distinct argv token (no shell), so it cannot flag-inject.
+  if (modelId) args.push("--model", modelId);
   // strip secret-shaped env from the child (same posture as server.cliReply)
   const childEnv = {};
   for (const [k, v] of Object.entries(process.env)) {

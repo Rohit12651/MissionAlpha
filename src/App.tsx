@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { Menu, PanelRight } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import { useTick } from "./lib/ticker";
 import type { Counts, DashboardState } from "./data/types";
@@ -15,27 +16,23 @@ import { BulkActionBar } from "./components/BulkActionBar";
 import { ControlPlanePanel } from "./components/ControlPlanePanel";
 import { SessionsBrowser } from "./components/SessionsBrowser";
 import { AgentFactory } from "./components/factory/AgentFactory";
-import { BossConsole } from "./components/BossConsole";
+import { ThreadRail, type ThreadInfo } from "./components/workspace/ThreadRail";
+import { ChatPane, type Msg } from "./components/workspace/ChatPane";
+import { TeamPanel } from "./components/workspace/TeamPanel";
+import { tok } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
-// Phase 5 — final polish + a11y + perf harden. The board shows STATE; the strip
-// shows DEMAND-ON-ME + LIVENESS + PULSE; the globe is a decorative hero band.
-// Perf: the 1s clock no longer lives here (App is now stable across ticks) — it
-// is provided via <TickProvider> and consumed only by the leaf components that
-// display a live-counting age, so the globe + static chrome never re-render at 1Hz.
+// Chat-first shell (ADR-023): chat is the PRIMARY center column; the board is a
+// secondary, collapsible "Team" panel. Left = thread switcher (Boss/CEO + agents).
+// All prior board features (Cycle1/2 control plane, dispatch loop, F2b, sessions,
+// factory, replay) live UNCHANGED inside the Team panel.
 
-// If the snapshot is older than this, the poll has likely stalled (server down /
-// scheduler stopped) — surface a calm "reconnecting" hint.
 const STALE_SNAPSHOT_MS = 15_000;
 
 function formatClock(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 const STAT_TILES: ReadonlyArray<{ key: keyof Counts; label: string; tone: string }> = [
@@ -47,59 +44,37 @@ const STAT_TILES: ReadonlyArray<{ key: keyof Counts; label: string; tone: string
   { key: "offline", label: "Offline", tone: "text-muted" },
 ];
 
-/** "updated 12:01:33" that also flips to a reconnecting hint when the poll stalls. */
 function FreshnessClock({ generatedAt }: { generatedAt: string }) {
   const now = useTick();
   const t = Date.parse(generatedAt);
   const ageMs = Number.isNaN(t) ? 0 : now - t;
-  const stale = ageMs > STALE_SNAPSHOT_MS;
-
-  if (stale) {
+  if (ageMs > STALE_SNAPSHOT_MS) {
     return (
-      <span
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-stale-red"
-        role="status"
-      >
+      <span className="inline-flex items-center gap-1.5 font-mono text-xs text-stale-red" role="status">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-stale-red" aria-hidden />
         reconnecting…
       </span>
     );
   }
-  return (
-    <span className="font-mono text-xs text-muted">updated {formatClock(generatedAt)}</span>
-  );
+  return <span className="font-mono text-xs text-muted">updated {formatClock(generatedAt)}</span>;
 }
 
-function Header({ state }: { state: DashboardState }) {
+function BoardHeader({ state }: { state: DashboardState }) {
   const live = state.scheduler.running;
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-          Agent Command Tower
-        </h1>
-        <span className="hidden text-sm text-muted sm:inline">MissionAlpha</span>
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-base font-semibold tracking-tight">Command Tower</h2>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <FreshnessClock generatedAt={state.generatedAt} />
-        <span
-          className="flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs"
-          role="status"
-        >
+        <span className="flex items-center gap-2 rounded-full border border-border bg-panel px-2.5 py-1 text-[11px]" role="status">
           <span
-            className={`inline-block h-2 w-2 rounded-full ${
-              live ? "bg-done-green" : "bg-stale-red"
-            }`}
-            style={{
-              boxShadow: live
-                ? "0 0 8px 1px var(--c-done-green)"
-                : "0 0 8px 1px var(--c-stale-red)",
-            }}
+            className={`inline-block h-2 w-2 rounded-full ${live ? "bg-done-green" : "bg-stale-red"}`}
+            style={{ boxShadow: live ? "0 0 8px 1px var(--c-done-green)" : "0 0 8px 1px var(--c-stale-red)" }}
             aria-hidden
           />
-          <span className="text-muted">
-            scheduler {live ? "online" : "offline"} · {state.scheduler.cadenceSec}s
-          </span>
+          <span className="text-muted">{live ? "online" : "offline"} · {state.scheduler.cadenceSec}s</span>
         </span>
         <ThemeToggle />
       </div>
@@ -109,24 +84,19 @@ function Header({ state }: { state: DashboardState }) {
 
 function StatTiles({ counts }: { counts: Counts }) {
   return (
-    <section aria-label="Swarm counts" className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+    <section aria-label="Swarm counts" className="grid grid-cols-3 gap-2.5">
       {STAT_TILES.map((tile) => (
-        <div
-          key={tile.key}
-          className="rounded-panel border border-border bg-panel/80 px-4 py-4 backdrop-blur-sm"
-        >
+        <div key={tile.key} className="rounded-panel border border-border bg-panel/80 px-3 py-3 backdrop-blur-sm">
           <motion.div
             key={counts[tile.key]}
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className={`font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${tile.tone}`}
+            className={`font-mono text-xl font-semibold tabular-nums ${tile.tone}`}
           >
             {counts[tile.key]}
           </motion.div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-muted sm:text-xs">
-            {tile.label}
-          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-muted">{tile.label}</div>
         </div>
       ))}
     </section>
@@ -135,42 +105,82 @@ function StatTiles({ counts }: { counts: Counts }) {
 
 function LoadingShell() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center" role="status" aria-live="polite">
+    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
       <div className="flex items-center gap-3 text-muted">
-        <span
-          className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-accent-cyan"
-          aria-hidden
-        />
+        <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-accent-cyan" aria-hidden />
         <span className="font-mono text-sm">connecting to swarm…</span>
       </div>
     </div>
   );
 }
 
+// Persisted layout helpers.
+const lsGet = (k: string, fallback: string): string => {
+  try {
+    return localStorage.getItem(k) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const lsSet = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* ignore */
+  }
+};
+
 export default function App() {
-  const { state, error, sendCommand, getAudit, getCommandStatus, listSessions } =
-    useAgentState();
-  // Boss Console docked on the LEFT (like Claude's chat pane). Open by default.
-  const [bossOpen, setBossOpen] = useState(true);
+  const { state, error, sendCommand, getAudit, getCommandStatus, listSessions } = useAgentState();
+
+  // ── chat-first shell state ──────────────────────────────────────────────
+  const [activeThread, setActiveThread] = useState<string>(() => lsGet("ma.activeThread", "boss"));
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => lsGet("ma.rail.collapsed", "0") === "1");
+  const [railOpenMobile, setRailOpenMobile] = useState(false);
+  const [teamOpen, setTeamOpen] = useState<boolean>(() => {
+    const v = lsGet("ma.team.open", "");
+    if (v === "1") return true;
+    if (v === "0") return false;
+    return typeof window !== "undefined" && window.innerWidth >= 1024; // default open on desktop
+  });
+  const [threadMsgs, setThreadMsgs] = useState<Record<string, Msg[]>>({});
+
+  const selectThread = useCallback((id: string) => {
+    setActiveThread(id);
+    lsSet("ma.activeThread", id);
+    setRailOpenMobile(false);
+  }, []);
+  const toggleRail = useCallback(() => {
+    setRailCollapsed((c) => {
+      lsSet("ma.rail.collapsed", c ? "0" : "1");
+      return !c;
+    });
+  }, []);
+  const toggleTeam = useCallback(() => {
+    setTeamOpen((o) => {
+      lsSet("ma.team.open", o ? "0" : "1");
+      return !o;
+    });
+  }, []);
+
+  const setActiveMsgs = useCallback(
+    (updater: (prev: Msg[]) => Msg[]) => {
+      setThreadMsgs((all) => ({ ...all, [activeThread]: updater(all[activeThread] ?? []) }));
+    },
+    [activeThread],
+  );
+
+  // ── board / replay state ──────────────────────────────────────────────────
   const [view, setView] = useState<BoardView>("state");
-  // A3 replay: null = LIVE; a number = a pinned past moment (epoch ms). While
-  // replaying, the 2s poll keeps updating state.heartbeats (so the scrubber's
-  // endMs/markers grow) but the rendered board stays pinned at replayMs.
   const [replayMs, setReplayMs] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const replaying = replayMs !== null;
-
-  // A1 drill-down: the agent whose drawer is open. Resolved live from current
-  // state so the drawer updates as the swarm moves while it's open.
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const selectedAgent = useMemo(
     () => state?.agents.find((a) => a.id === selectedAgentId) ?? null,
     [state?.agents, selectedAgentId],
   );
 
-  // The board/strip/counts render this set: live agents, or the swarm rebuilt
-  // as it was at replayMs. Same shape → the kanban's shared layoutId makes cards
-  // GLIDE between columns as you scrub. The feed is filtered to events ≤ replayMs.
   const viewAgents = useMemo(
     () =>
       state == null
@@ -195,162 +205,169 @@ export default function App() {
 
   const enterReplay = (ms: number) => {
     setReplayMs(ms);
-    setSelectedAgentId(null); // drawer runs off live data; close it on scrub
+    setSelectedAgentId(null);
   };
   const goLive = () => {
     setReplayMs(null);
     setPlaying(false);
   };
-
-  // The globe only needs a "now" for recomputing recent-talk edges; it animates
-  // off its own RAF clock. Feed it the poll's generatedAt epoch (changes ~every
-  // 2s) rather than the 1s tick, so the 3D scene never re-renders at 1Hz.
   const globeNowMs = useMemo(
     () => (state ? Date.parse(state.generatedAt) || Date.now() : Date.now()),
     [state?.generatedAt],
   );
-
-  // A1: NEEDS-YOU pill + card clicks both OPEN THE DRILL-DOWN DRAWER for that
-  // agent — going from "I see it" → "I understand it" without leaving the screen.
   const openAgent = (id: string) => setSelectedAgentId(id);
+  const allOffline = !!state && state.agents.length > 0 && state.agents.every((a) => a.dead);
 
-  const allOffline =
-    !!state && state.agents.length > 0 && state.agents.every((a) => a.dead);
+  // ── thread list (Boss pinned + per-agent) ──────────────────────────────────
+  const threads = useMemo<ThreadInfo[]>(() => {
+    const list: ThreadInfo[] = [{ id: "boss", title: "Boss Console", accent: "ceo-gold", pinned: true }];
+    for (const a of state?.agents ?? []) {
+      list.push({ id: a.id, title: a.id, accent: a.factory ? "factory-violet" : "accent-cyan" });
+    }
+    return list;
+  }, [state?.agents]);
+
+  const activeInfo = threads.find((t) => t.id === activeThread) ?? threads[0];
+  const isBoss = activeInfo.id === "boss";
+  const subtitle = isBoss
+    ? "you (BOSS) → CEO · supreme over swarm"
+    : `agent · ${state?.agents.find((a) => a.id === activeInfo.id)?.role ?? activeInfo.id}`;
+
+  const headerExtra = (
+    <>
+      <button
+        type="button"
+        onClick={() => setRailOpenMobile(true)}
+        aria-label="Open threads"
+        className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2 lg:hidden"
+        style={{ color: tok("muted") }}
+      >
+        <Menu size={18} aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={toggleTeam}
+        aria-pressed={teamOpen}
+        aria-controls="team-panel"
+        aria-label="Toggle Team panel"
+        className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2"
+        style={{ color: teamOpen ? tok("text") : tok("muted"), backgroundColor: teamOpen ? tok("panel-2") : "transparent" }}
+      >
+        <PanelRight size={18} aria-hidden />
+      </button>
+    </>
+  );
 
   return (
-    <div
-      className="mx-auto flex min-h-full max-w-[1500px] flex-col gap-6 px-4 py-7 transition-[padding] duration-200 sm:px-6 lg:px-8"
-      style={bossOpen ? { paddingLeft: "404px" } : undefined}
-    >
-      {/* Boss Console — global chat docked LEFT (BOSS → CEO), like Claude's pane. */}
-      <BossConsole open={bossOpen} onOpenChange={setBossOpen} onCommand={sendCommand} />
+    <div className="flex h-[100dvh] w-full overflow-hidden" style={{ backgroundColor: tok("bg") }}>
+      {/* desktop rail */}
+      <div className="hidden lg:block">
+        <ThreadRail threads={threads} activeId={activeThread} onSelect={selectThread} collapsed={railCollapsed} onToggleCollapsed={toggleRail} />
+      </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="rounded-panel border border-stale-red bg-panel px-4 py-3 text-sm text-stale-red"
-        >
-          {error}
+      {/* mobile rail overlay */}
+      {railOpenMobile && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Threads">
+          <div className="absolute inset-0" style={{ backgroundColor: `color-mix(in oklch, ${tok("bg")} 70%, transparent)` }} onClick={() => setRailOpenMobile(false)} aria-hidden />
+          <div className="absolute inset-y-0 left-0">
+            <ThreadRail threads={threads} activeId={activeThread} onSelect={selectThread} collapsed={false} onToggleCollapsed={() => setRailOpenMobile(false)} />
+          </div>
         </div>
       )}
 
-      {state ? (
-        <>
-          <PulseGlobe
-            agents={state.agents}
-            feed={state.feed}
-            scheduler={state.scheduler}
-            nowMs={globeNowMs}
-          />
+      {/* center chat — PRIMARY */}
+      <div className="flex min-w-0 flex-1">
+        <ChatPane
+          threadId={activeInfo.id}
+          title={activeInfo.title}
+          subtitle={subtitle}
+          accent={activeInfo.accent}
+          isBoss={isBoss}
+          messages={threadMsgs[activeInfo.id] ?? []}
+          setMessages={setActiveMsgs}
+          onCommand={sendCommand}
+          headerExtra={headerExtra}
+        />
+      </div>
 
-          {/* Text alternative for the decorative globe — read by screen readers. */}
-          <p className="sr-only" role="status" aria-live="polite">
-            {`Live swarm constellation: ${state.counts.active} active, ${state.counts.blocked} blocked, ${state.counts.stale} stale, ${state.counts.offline} offline of ${state.counts.total} agents.`}
-          </p>
+      {/* secondary Team panel — the board, demoted */}
+      <TeamPanel open={teamOpen} onClose={toggleTeam}>
+        {error && (
+          <div role="alert" className="mb-4 rounded-panel border border-stale-red bg-panel px-4 py-3 text-sm text-stale-red">
+            {error}
+          </div>
+        )}
+        {state ? (
+          <div className="flex flex-col gap-5">
+            <BoardHeader state={state} />
 
-          <Header state={state} />
+            <PulseGlobe agents={state.agents} feed={state.feed} scheduler={state.scheduler} nowMs={globeNowMs} />
+            <p className="sr-only" role="status" aria-live="polite">
+              {`Live swarm constellation: ${state.counts.active} active, ${state.counts.blocked} blocked, ${state.counts.stale} stale, ${state.counts.offline} offline of ${state.counts.total} agents.`}
+            </p>
 
-          <TimeScrubber
-            heartbeats={state.heartbeats}
-            feed={state.feed}
-            replayMs={replayMs}
-            playing={playing}
-            onScrub={enterReplay}
-            onLive={goLive}
-            onTogglePlay={() => setPlaying((p) => !p)}
-          />
-
-          {replaying && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-panel border border-ceo-gold bg-panel/70 px-4 py-2.5 text-sm"
-              style={{ boxShadow: "0 0 16px -6px var(--c-ceo-gold)" }}
-            >
-              <span className="font-mono text-xs font-semibold uppercase tracking-widest text-ceo-gold">
-                Replay Mode
-              </span>
-              <span className="text-muted">
-                Viewing the swarm as it was — columns reconstructed from heartbeat
-                history. Task / blocker / TTL shown are current-frame approximations.
-                Press <span className="font-mono text-text">LIVE</span> to return to now.
-              </span>
-            </div>
-          )}
-
-          {!replaying && !state.scheduler.running && (
-            <div
-              role="alert"
-              className="rounded-panel border border-stale-red bg-panel/70 px-4 py-2.5 text-sm text-stale-red"
-            >
-              Scheduler offline — data may be stale.
-            </div>
-          )}
-          {!replaying && allOffline && state.scheduler.running && (
-            <div
-              role="status"
-              className="rounded-panel border border-border bg-panel/70 px-4 py-2.5 text-sm text-muted"
-            >
-              All agents are currently offline. Waiting for the next wake cycle.
-            </div>
-          )}
-
-          <main className="flex flex-col gap-6">
-            <MissionStrip
-              agents={viewAgents}
-              scheduler={state.scheduler}
+            <TimeScrubber
               heartbeats={state.heartbeats}
-              onFocusAgent={openAgent}
+              feed={state.feed}
+              replayMs={replayMs}
+              playing={playing}
+              onScrub={enterReplay}
+              onLive={goLive}
+              onTogglePlay={() => setPlaying((p) => !p)}
             />
-            <StatTiles counts={viewCounts ?? state.counts} />
 
-            {/* F6 bulk actions + F3 permission gate — live control plane (Cycle 1).
-                Hidden in replay (acting on a past snapshot makes no sense). */}
-            {!replaying && <BulkActionBar agents={viewAgents} onCommand={sendCommand} />}
-
-            {/* F5 audit-log viewer + F7 command feedback — read-only control plane. */}
-            {!replaying && (
-              <ControlPlanePanel getAudit={getAudit} getCommandStatus={getCommandStatus} />
+            {replaying && (
+              <div role="status" aria-live="polite" className="rounded-panel border border-ceo-gold bg-panel/70 px-4 py-2.5 text-sm" style={{ boxShadow: "0 0 16px -6px var(--c-ceo-gold)" }}>
+                <span className="font-mono text-xs font-semibold uppercase tracking-widest text-ceo-gold">Replay Mode</span>
+                <span className="ml-2 text-muted">Viewing the swarm as it was. Press <span className="font-mono text-text">LIVE</span> to return.</span>
+              </div>
+            )}
+            {!replaying && !state.scheduler.running && (
+              <div role="alert" className="rounded-panel border border-stale-red bg-panel/70 px-4 py-2.5 text-sm text-stale-red">
+                Scheduler offline — data may be stale.
+              </div>
+            )}
+            {!replaying && allOffline && state.scheduler.running && (
+              <div role="status" className="rounded-panel border border-border bg-panel/70 px-4 py-2.5 text-sm text-muted">
+                All agents are currently offline. Waiting for the next wake cycle.
+              </div>
             )}
 
-            {/* F4 session history — recall + summarize past swarm sessions. */}
-            {!replaying && <SessionsBrowser listSessions={listSessions} />}
+            <MissionStrip agents={viewAgents} scheduler={state.scheduler} heartbeats={state.heartbeats} onFocusAgent={openAgent} />
+            <StatTiles counts={viewCounts ?? state.counts} />
 
-            {/* Agent Factory — create wizard. Created agents live on the board (BOSS badge). */}
+            {!replaying && <BulkActionBar agents={viewAgents} onCommand={sendCommand} />}
+            {!replaying && <ControlPlanePanel getAudit={getAudit} getCommandStatus={getCommandStatus} />}
+            {!replaying && <SessionsBrowser listSessions={listSessions} />}
             {!replaying && <AgentFactory />}
 
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-muted">
-                {view === "state" ? "By lifecycle state" : "By pipeline stage"}
-              </h2>
+              <h3 className="text-sm font-medium text-muted">{view === "state" ? "By lifecycle state" : "By pipeline stage"}</h3>
               <ViewToggle view={view} onChange={setView} />
             </div>
 
-            <KanbanBoard
-              agents={viewAgents}
-              view={view}
-              onSelect={replaying ? undefined : openAgent}
-            />
-
+            <KanbanBoard agents={viewAgents} view={view} onSelect={replaying ? undefined : openAgent} />
             <LiveFeed feed={viewFeed} agents={viewAgents} />
-          </main>
 
-          <AgentDrawer
-            agent={selectedAgent}
-            agents={state.agents}
-            feed={state.feed}
-            heartbeats={state.heartbeats}
-            onClose={() => setSelectedAgentId(null)}
-            onCommand={sendCommand}
-          />
+            <footer className="pt-1 text-center font-mono text-[11px] text-muted">
+              {replaying ? "REPLAY" : "live poll @2s"} · {viewAgents.length} agents · {(viewCounts ?? state.counts).active} active
+            </footer>
+          </div>
+        ) : (
+          <LoadingShell />
+        )}
+      </TeamPanel>
 
-          <footer className="pt-1 text-center font-mono text-[11px] text-muted">
-            {replaying ? "REPLAY" : "Phase 5 · live poll @2s"} · {viewAgents.length} agents ·{" "}
-            {(viewCounts ?? state.counts).active} active
-          </footer>
-        </>
-      ) : (
-        <LoadingShell />
+      {/* agent drilldown drawer (from board card clicks) — overlay at root */}
+      {state && (
+        <AgentDrawer
+          agent={selectedAgent}
+          agents={state.agents}
+          feed={state.feed}
+          heartbeats={state.heartbeats}
+          onClose={() => setSelectedAgentId(null)}
+          onCommand={sendCommand}
+        />
       )}
     </div>
   );
