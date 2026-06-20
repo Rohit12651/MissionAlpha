@@ -120,6 +120,35 @@ export function ChatPane({
     document.addEventListener("keydown", onEsc);
     return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onEsc); };
   }, [plusOpen]);
+  // Composer height. `composerH` is the MANUAL floor set by dragging the top handle
+  // (up = taller, down = shorter). The box ALSO auto-grows to fit large content up to
+  // COMPOSER_MAX, then scrolls. Effective height = clamp(max(floor, contentHeight)).
+  const COMPOSER_MIN = 44, COMPOSER_MAX = 400;
+  const [composerH, setComposerH] = useState<number>(() => {
+    const n = Number(localStorage.getItem("ma.composerH"));
+    return Number.isFinite(n) && n >= COMPOSER_MIN && n <= COMPOSER_MAX ? n : 56;
+  });
+  useEffect(() => { try { localStorage.setItem("ma.composerH", String(composerH)); } catch { /* ignore */ } }, [composerH]);
+  // Auto-grow to content (capped) + honor the dragged floor. Runs on text + floor change.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto"; // reset so scrollHeight reflects content, not prior height
+    el.style.height = Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, Math.max(composerH, el.scrollHeight))) + "px";
+  }, [input, composerH]);
+  const startComposerResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY, startH = composerH;
+    document.body.style.userSelect = "none";
+    const onMove = (ev: PointerEvent) => setComposerH(Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, startH + (startY - ev.clientY))));
+    const onUp = () => {
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [composerH]);
 
   // Boss dispatch bridge state.
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
@@ -483,7 +512,19 @@ export function ChatPane({
       </div>
 
       {/* sticky input */}
-      <div className="border-t px-5 py-3" style={{ borderColor: tok("border") }}>
+      <div className="relative border-t px-5 py-3" style={{ borderColor: tok("border") }}>
+        {/* drag the top edge up to enlarge the input box */}
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize input box"
+          onPointerDown={startComposerResize}
+          onDoubleClick={() => setComposerH(56)}
+          title="Drag to resize · double-click to reset"
+          className="group absolute inset-x-0 top-0 z-10 flex h-2 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
+        >
+          <span className="h-0.5 w-8 rounded-full opacity-40 transition-opacity group-hover:opacity-100" style={{ backgroundColor: tok("accent-cyan") }} />
+        </div>
         {dispatchMsg && (
           <p className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("done-green") }} role="status" aria-live="polite">
             <Check size={12} aria-hidden /> {dispatchMsg}
@@ -617,10 +658,9 @@ export function ChatPane({
               }
             }}
             placeholder={isBoss ? "Message your CEO…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
-            rows={2}
             disabled={streaming}
             aria-label={isBoss ? "Message the CEO" : `Message ${threadId}`}
-            className="w-full resize-y rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
+            className="w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
             style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
           <button
