@@ -8,7 +8,7 @@
 // non-root, all caps dropped, read-only rootfs, resource-bounded, ephemeral.
 
 import { spawn, execFile } from "node:child_process";
-import { realpathSync, existsSync, statSync, readdirSync, lstatSync } from "node:fs";
+import { realpathSync, existsSync, statSync, readdirSync, lstatSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
@@ -112,6 +112,18 @@ export function createSandbox(opts = {}) {
     return new Promise((resolve) => {
       let real;
       try { real = resolveMount(worktreeDir); } catch (e) { return resolve({ stdout: "", stderr: e.message, exitCode: -1, error: e.message }); }
+      // The container runs as non-root nobody (uid 65534). On Linux, bind-mount perms
+      // are ENFORCED: a worktree created with mkdtemp (mode 0700) is owned by the host
+      // user and not even traversable by nobody → every /work write fails. macOS Docker
+      // ignores this, which is why it only surfaces on Linux/CI. Make the mount point
+      // writable by the sandbox uid. Safe: the worktree is an ephemeral, per-task scratch
+      // dir; container isolation is unchanged (rootfs --read-only, --cap-drop ALL,
+      // --network none, non-root all still hold — /work is the ONLY writable host path).
+      // Mode 0o777 (not 0o711): nobody is "other", and CREATING files in /work needs dir
+      // w+x for other — 0o711 grants only traverse (x), so writes would still fail. Mode
+      // bits can't grant-write-to-nobody while denying-read-to-others (both are "other");
+      // the residual host-side exposure is accepted for the single-operator/CI target.
+      try { chmodSync(real, 0o777); } catch { /* best-effort; a write would otherwise fail loudly */ }
       const { args, name } = buildDockerArgs({ worktreeDir: real, command: String(command), callId: o.callId, network: !!o.network, image: o.image || image, limits: o.limits || {} });
       const child = spawn(DOCKER, args, { stdio: ["ignore", "pipe", "pipe"] });
       let stdout = "", stderr = "", killed = false, timedOut = false, diskExceeded = false, done = false;
