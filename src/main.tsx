@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ThemeProvider } from "./theme/ThemeProvider";
+import { SettingsProvider } from "./lib/settingsContext";
 import { TickProvider } from "./lib/ticker";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import "./index.css";
@@ -13,12 +14,14 @@ if (!rootEl) {
 
 createRoot(rootEl).render(
   <StrictMode>
-    <ThemeProvider>
-      <TickProvider>
-        <AppErrorBoundary>
-          <App />
-        </AppErrorBoundary>
-      </TickProvider>
-    </ThemeProvider>
+    <SettingsProvider>
+      <ThemeProvider>
+        <TickProvider>
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
+        </TickProvider>
+      </ThemeProvider>
+    </SettingsProvider>
   </StrictMode>,
 );

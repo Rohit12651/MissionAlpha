@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X, AlertTriangle, Link2, Inbox, Radio, HeartPulse } from "lucide-react";
 import type { AgentState, FeedEvent, Heartbeat, CommandRequest, CommandResult } from "../data/types";
@@ -18,6 +18,9 @@ import { StateBadge } from "./StateBadge";
 import { TtlRing } from "./TtlRing";
 import { AgentAction } from "./AgentAction";
 import { AgentManage } from "./factory/AgentManage";
+import { ModelTierPicker } from "./workspace/ModelTierPicker";
+import { loadAgentModel, saveAgentModel } from "../lib/agentModel";
+import { type ModelTier } from "../lib/modelTiers";
 
 // A1 — Agent Drill-Down Drawer + A2 Why-Stuck. Right-side slide-in, spring/ease-out,
 // reduced-motion → instant. a11y: role=dialog, aria-modal, focus trap, Esc, focus
@@ -367,6 +370,13 @@ function DrawerHeader({
   const age = liveAgeSec(agent, nowMs);
   const overdue = !agent.dead && age !== null && age > agent.ttlSec;
   const tierAccent = TIER_ACCENT[agent.tier];
+
+  // Per-agent Claude model (separate from the org tier above). Persists; seeded from
+  // the chosen value or the configured default. Re-syncs when the drawer switches agent.
+  const [model, setModel] = useState<ModelTier>(() => loadAgentModel(agent.id));
+  useEffect(() => { setModel(loadAgentModel(agent.id)); }, [agent.id]);
+  const changeModel = (t: ModelTier) => { setModel(t); saveAgentModel(agent.id, t); };
+
   return (
     <header className="flex items-start gap-3 px-5 pb-4 pt-5">
       <div className="min-w-0 flex-1">
@@ -380,6 +390,13 @@ function DrawerHeader({
           <span className="text-muted">·</span>
           <span className="truncate text-muted">{agent.role}</span>
         </div>
+
+        {/* Per-agent model picker — sits right under the role line. */}
+        <div className="mt-2.5">
+          <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.07em] text-muted">Model</div>
+          <ModelTierPicker value={model} onChange={changeModel} />
+        </div>
+
         <div className="mt-2.5">
           <StateBadge state={agent.state} accent={accent} />
         </div>

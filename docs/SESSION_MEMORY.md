@@ -1522,3 +1522,4406 @@ Command channel = N-verb capable (adding verbs = same 5-file pattern). missionco
     2026-06-17T13:29:36Z senior-qa HEARTBEAT IN_PROGRESS E2E bulk + gate test next=a11y axe pass
     2026-06-17T13:29:36Z senior-code-reviewer HEARTBEAT AWAITING_REVIEW wait TESTS_GREEN next=merge gate
     2026-06-17T13:29:36Z memory-updater HEARTBEAT DONE_CYCLE persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T15:45:06Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M agent-runtime/server.mjs
+ M memory/SESSION_MEMORY.md
+ M vite.config.ts
+?? .claude/agents/growth-marketer.md
+?? agent-runtime/factory.mjs
+?? docs/adr/
+?? docs/design/
+?? docs/security/
+?? factory/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T15:19:40Z FROM=senior-web-1 TO=senior-qa TOPIC=ready-for-test REF=AuditPanel BODY="AuditPanel + chips done. Verify."
+    2026-06-17T15:19:40Z FROM=senior-qa TO=senior-code-reviewer TOPIC=tests-green REF=control-plane BODY="TESTS_GREEN. Bulk + gate + a11y pass."
+    2026-06-17T15:19:40Z FROM=senior-code-reviewer TO=senior-lead-dev TOPIC=merge-ok REF=cycle1 BODY="Merge OK. No sev>=Medium."
+    2026-06-17T15:19:41Z FROM=memory-updater TO=ceo TOPIC=persisted REF=cycle1 BODY="Cycle 1 decisions persisted. Dep map updated."
+    2026-06-17T15:19:41Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T15:19:40Z senior-backend-2 HEARTBEAT IDLE no backend this cycle next=stand by
+    2026-06-17T15:19:40Z senior-qa HEARTBEAT IN_PROGRESS E2E bulk + gate test next=a11y axe pass
+    2026-06-17T15:19:40Z senior-code-reviewer HEARTBEAT IN_PROGRESS wait TESTS_GREEN next=merge gate
+    2026-06-17T15:19:40Z memory-updater HEARTBEAT AWAITING_REVIEW persist Cycle 1 decisions next=update dep map
+    2026-06-17T15:44:37Z growth-marketer HEARTBEAT IDLE spawned by BOSS: Growth Marketer next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-17T16:44:58Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T16:15:49Z FROM=principal-ux-design TO=senior-web-2 TOPIC=motion-spec REF=PermissionGate BODY="Gate enter: ease-out 180ms, scale .95."
+    2026-06-17T16:15:49Z FROM=senior-web-1 TO=senior-qa TOPIC=ready-for-test REF=AuditPanel BODY="AuditPanel + chips done. Verify."
+    2026-06-17T16:15:49Z FROM=senior-qa TO=senior-code-reviewer TOPIC=tests-green REF=control-plane BODY="TESTS_GREEN. Bulk + gate + a11y pass."
+    2026-06-17T16:15:49Z FROM=senior-code-reviewer TO=senior-lead-dev TOPIC=merge-ok REF=cycle1 BODY="Merge OK. No sev>=Medium."
+    2026-06-17T16:15:49Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T16:15:49Z senior-backend-1 HEARTBEAT IDLE no backend this cycle next=stand by
+    2026-06-17T16:15:49Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T16:15:49Z senior-qa HEARTBEAT IN_PROGRESS E2E bulk + gate test next=a11y axe pass
+    2026-06-17T16:15:49Z senior-code-reviewer HEARTBEAT AWAITING_REVIEW wait TESTS_GREEN next=merge gate
+    2026-06-17T16:15:49Z memory-updater HEARTBEAT DONE_CYCLE persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T17:18:32Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T17:18:28Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-17T17:18:28Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-17T17:18:28Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-17T17:18:28Z FROM=principal-ux-design TO=senior-web-2 TOPIC=motion-spec REF=PermissionGate BODY="Gate enter: ease-out 180ms, scale .95."
+    2026-06-17T17:18:28Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T17:18:28Z senior-backend-1 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-17T17:18:28Z senior-backend-2 HEARTBEAT DONE_CYCLE no backend this cycle next=stand by
+    2026-06-17T17:18:28Z senior-qa HEARTBEAT IDLE E2E bulk + gate test next=a11y axe pass
+    2026-06-17T17:18:28Z senior-code-reviewer HEARTBEAT IN_PROGRESS wait TESTS_GREEN next=merge gate
+    2026-06-17T17:18:28Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T18:43:20Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-developer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T18:43:13Z FROM=memory-updater TO=ceo TOPIC=persisted REF=cycle1 BODY="Cycle 1 decisions persisted. Dep map updated."
+    2026-06-17T18:43:13Z FROM=architect TO=senior-cicd-engineer TOPIC=endpoint-spec REF=/api/commands/status BODY="GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    2026-06-17T18:43:13Z FROM=senior-cicd-engineer TO=senior-lead-dev TOPIC=flag-live REF=VITE_CONTROL_PLANE BODY="VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    2026-06-17T18:43:13Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-17T18:43:13Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T18:43:13Z senior-backend-1 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T18:43:13Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-17T18:43:13Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-17T18:43:13Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-17T18:43:13Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T20:21:13Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-developer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T19:40:42Z FROM=architect TO=senior-cicd-engineer TOPIC=endpoint-spec REF=/api/commands/status BODY="GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    2026-06-17T19:40:42Z FROM=senior-cicd-engineer TO=senior-lead-dev TOPIC=flag-live REF=VITE_CONTROL_PLANE BODY="VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    2026-06-17T19:40:42Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-17T19:40:42Z FROM=principal-ux-design TO=senior-web-1 TOPIC=tokens-out REF=tokens.css BODY="OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    2026-06-17T19:40:42Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T19:40:42Z senior-backend-1 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T19:40:42Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T19:40:42Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-17T19:40:42Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-17T19:40:42Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T23:25:49Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-developer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T23:14:30Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-17T23:14:30Z FROM=principal-ux-design TO=senior-web-1 TOPIC=tokens-out REF=tokens.css BODY="OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    2026-06-17T23:14:30Z FROM=senior-security-engineer TO=architect TOPIC=threat-note REF=/api/command/bulk BODY="POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    2026-06-17T23:14:30Z FROM=principal-db-engineer TO=architect TOPIC=no-delta REF=schema BODY="No schema delta. Audit reads existing log. Web-only confirm."
+    2026-06-17T23:14:30Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+  HEARTBEAT (last 5):
+    2026-06-17T23:14:30Z senior-backend-1 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T23:14:30Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-17T23:14:30Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-17T23:14:30Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-17T23:14:30Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+
+---
+
+## ⟢ Session close — 2026-06-17T23:50:11Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M agent-runtime/factory.mjs
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M scripts/agent-heartbeat.sh
+ M scripts/emit_state.py
+ M scripts/sim_swarm.py
+ M src/components/AgentAction.tsx
+ M src/components/AgentDrawer.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-developer.md
+?? src/components/factory/AgentManage.tsx
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-17T23:48:24Z FROM=senior-lead-dev TO=senior-web-1 TOPIC=assign REF=AuditPanel BODY="Own AuditPanel + status chips."
+    2026-06-17T23:48:24Z FROM=senior-lead-dev TO=senior-web-2 TOPIC=assign REF=BulkBar BODY="Own BulkBar + gate. F3 hard-gate F6."
+    2026-06-17T23:48:24Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-17T23:48:24Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-17T23:48:24Z FROM=java17-developer TO=ceo TOPIC=status REF=java17-developer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-17T23:48:23Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-17T23:48:23Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-17T23:48:23Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-17T23:48:23Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+    2026-06-17T23:48:23Z java17-developer HEARTBEAT IDLE repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T01:15:40Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T01:15:34Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T01:15:34Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T01:15:34Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T01:15:34Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T01:15:34Z FROM=java17-engineer TO=ceo TOPIC=status REF=java17-engineer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-18T01:15:34Z senior-backend-2 HEARTBEAT DONE_CYCLE no backend this cycle next=stand by
+    2026-06-18T01:15:34Z senior-qa HEARTBEAT IDLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T01:15:34Z senior-code-reviewer HEARTBEAT IN_PROGRESS wait TESTS_GREEN next=merge gate
+    2026-06-18T01:15:34Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T01:15:34Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T03:33:47Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T03:33:42Z FROM=senior-cicd-engineer TO=senior-lead-dev TOPIC=flag-live REF=VITE_CONTROL_PLANE BODY="VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    2026-06-18T03:33:42Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-18T03:33:42Z FROM=principal-ux-design TO=senior-web-1 TOPIC=tokens-out REF=tokens.css BODY="OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    2026-06-18T03:33:43Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T03:33:43Z FROM=java17-engineer TO=ceo TOPIC=status REF=java17-engineer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-18T03:33:42Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-18T03:33:42Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-18T03:33:42Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-18T03:33:42Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+    2026-06-18T03:33:42Z java17-engineer HEARTBEAT IDLE repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T03:35:32Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T03:35:32Z FROM=senior-web-1 TO=senior-code-reviewer TOPIC=pr-up REF=AuditPanel BODY="PR up. AuditEntry[] render + tail-200 virtualized."
+    2026-06-18T03:35:32Z FROM=architect TO=ceo TOPIC=seam-locked REF=ADR-014 BODY="BulkResult seam locked. No couple to LLM driver. On-arch."
+    2026-06-18T03:35:32Z FROM=memory-updater TO=architect TOPIC=dep-map REF=ARCHITECTURE_MEMORY BODY="Dep map: control-plane edges added. 3 endpoints node-d."
+    2026-06-18T03:35:32Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T03:35:32Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T03:35:32Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-18T03:35:32Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-18T03:35:32Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-18T03:35:32Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+    2026-06-18T03:35:32Z java17-engineer HEARTBEAT IDLE repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T04:34:57Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T04:34:53Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T04:34:53Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T04:34:53Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T04:34:53Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T04:34:53Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T04:34:53Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-18T04:34:53Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-18T04:34:53Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-18T04:34:53Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+    2026-06-18T04:34:53Z java17-engineer HEARTBEAT IDLE repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T04:36:17Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T04:36:15Z FROM=senior-cicd-engineer TO=senior-lead-dev TOPIC=flag-live REF=VITE_CONTROL_PLANE BODY="VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    2026-06-18T04:36:15Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-18T04:36:15Z FROM=principal-ux-design TO=senior-web-1 TOPIC=tokens-out REF=tokens.css BODY="OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    2026-06-18T04:36:15Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T04:36:15Z FROM=java17-engineer TO=ceo TOPIC=status REF=java17-engineer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-18T04:36:14Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T04:36:14Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T04:36:15Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T04:36:15Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T04:36:15Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T05:01:22Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+?? .claude/agents/java17-engineer.md
+?? docs/adr/ADR-022-model-tiers.md
+?? docs/adr/ADR-023-chat-first-shell.md
+?? docs/design/chat-first-ux.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T04:52:58Z FROM=senior-security-engineer TO=architect TOPIC=threat-note REF=/api/command/bulk BODY="POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    2026-06-18T04:52:58Z FROM=principal-db-engineer TO=architect TOPIC=no-delta REF=schema BODY="No schema delta. Audit reads existing log. Web-only confirm."
+    2026-06-18T04:52:58Z FROM=senior-qa TO=senior-web-2 TOPIC=a11y-fail REF=PermissionGate BODY="axe flags gate. No focus-trap on modal. Fix."
+    2026-06-18T04:52:58Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T04:52:58Z FROM=java17-engineer TO=ceo TOPIC=status REF=java17-engineer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-18T04:52:58Z senior-backend-2 HEARTBEAT IN_PROGRESS no backend this cycle next=stand by
+    2026-06-18T04:52:58Z senior-qa HEARTBEAT AWAITING_REVIEW E2E bulk + gate test next=a11y axe pass
+    2026-06-18T04:52:58Z senior-code-reviewer HEARTBEAT DONE_CYCLE wait TESTS_GREEN next=merge gate
+    2026-06-18T04:52:58Z memory-updater HEARTBEAT IDLE persist Cycle 1 decisions next=update dep map
+    2026-06-18T04:52:58Z java17-engineer HEARTBEAT IDLE repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T05:31:20Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+ M memory/SESSION_MEMORY.md
+ M src/App.tsx
+?? .claude/agents/java17-engineer.md
+?? docs/adr/ADR-022-model-tiers.md
+?? docs/adr/ADR-023-chat-first-shell.md
+?? docs/ceo/master-roadmap.md
+?? docs/design/chat-first-ux.md
+?? src/components/workspace/
+?? src/lib/modelTiers.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:18Z FROM=architect TO=senior-cicd-engineer TOPIC=endpoint-spec REF=/api/commands/status BODY="GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    2026-06-18T05:31:18Z FROM=senior-cicd-engineer TO=senior-lead-dev TOPIC=flag-live REF=VITE_CONTROL_PLANE BODY="VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    2026-06-18T05:31:18Z FROM=senior-web-1 TO=principal-ux-design TOPIC=token-req REF=tokens.css BODY="Need OKLCH tokens for status chips. green/amber/red?"
+    2026-06-18T05:31:18Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:18Z FROM=java17-engineer TO=ceo TOPIC=status REF=java17-engineer BODY="alive. repo-read. await dispatch."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:18Z senior-backend-2 HEARTBEAT IDLE no backend this cycle next=stand by
+    2026-06-18T05:31:18Z senior-qa HEARTBEAT IN_PROGRESS E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:18Z senior-code-reviewer HEARTBEAT IN_PROGRESS wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:18Z memory-updater HEARTBEAT AWAITING_REVIEW persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:18Z java17-engineer HEARTBEAT AWAITING_REVIEW repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T06:03:37Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T06:03:36Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T06:03:37Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T14:19:44Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## 2026-06-18 — MASTER ROADMAP locked (CEO) — "MissionAlpha = Claude Code, end to end"
+
+**Ultimate goal (BOSS):** MissionAlpha = full Claude-Code app in one surface — chat-first, per-chat Claude tier (Opus/Sonnet/Haiku), MCP connectors, full approved tool loop, swarm orchestration. Already wraps `claude -p` => alignment, not a pivot. Claude only (no GPT/Gemini).
+
+**Docs:** `docs/ceo/master-roadmap.md` (6-stage plan, 18 ADRs 024-041, governance, risks, decision record) + `docs/ceo/BUILD-EXECUTION-KICKOFF.md` (do-it-now for a fresh session).
+
+**Code-confirmed state (read of `agent-runtime/server.mjs`):** autonomous loop is LIVE, not skeleton — `/run` (L800) -> write-mode sandbox -> `/changes` (L438) -> `/apply` broker (L469) -> `reportBack` (L523). Model tiers (`resolveTier` L38) + thread persist (L167) live. Sandbox = copy (L350), NOT a git worktree, NOT an exec boundary.
+
+**Build order (each its own gated cycle, ship+test before next):** S1 engine (auto-chain/parallel/worktree/queue/retry/policy) -> S2 finish (cost meter API-only + fork/resume) -> S2.5 MCP connectors (spike .mcp.json injection first) -> S3 deep review+PR+conflict -> S3.5 full tool loop (REAL container sandbox, escape suite before broker — NOT worktree) -> S4 polish -> S6 full-program verify.
+
+**Key corrections this session:** (1) loop is live not skeleton; (2) S2 already shipped before S1 — deviation accepted, re-anchor next=S1; (3) exec boundary MUST be a real OS sandbox (container), a git worktree is NOT a security boundary — biggest fix; (4) cost meter = API real $ only, subscription = estimate; (5) MCP passthrough needs a spike (claude reads .mcp.json, not argv).
+
+**BOSS rules:** do NOT push code until BOSS tests; no half-stages; Claude-only; update memory each stage. Acceptance test = "give a task to create a project, see it built end-to-end."
+
+**Status:** PLAN COMPLETE + build-ready. Build deferred to a FRESH context (prior session hit context limit). New session: read both docs, execute Build Order #1 (S1).
+
+---
+
+## ⟢ Session close — 2026-06-18T14:42:43Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T14:45:14Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T14:47:37Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T15:07:08Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T15:21:56Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ STAGE 1 — AUTONOMOUS LOOP ENGINE — BUILT + GATED (2026-06-18) — AWAITING BOSS TEST
+
+> Build Order #1 of `docs/ceo/master-roadmap.md` / `BUILD-EXECUTION-KICKOFF.md`. Branch `s1-engine` (NOT committed/pushed — BOSS tests first, per rule 1).
+> **DELTA on the live loop — the proven `/run→/changes→/apply→reportBack` broker/guards were NOT rewritten, only extended around.**
+
+### What S1 delivers (gaps #1–5, #9)
+BOSS goal auto-chains end-to-end: enqueue → per-task **git worktree** → agent edits in worktree → diff via shared broker → **policy gate** (auto-apply safe / hold risky) → `broker.applyChanges` (SOLE repo-write path) → `reportBack` → chain next → DONE. Parallel dispatch over the shared `inflight` budget, durable backlog, retry/self-heal + rollback, idempotent crash recovery.
+
+### ADRs (deltas) — docs/adr/ ADR-024 engine spine · 025 scheduler · 026 worktree (HARD) · 027 queue · 028 retry · 029 policy (HARD).
+
+### New modules — agent-runtime/ (TDD, node:test)
+- guards.mjs — F2b guards moved VERBATIM from server.mjs (security confirmed byte-equivalent).
+- broker.mjs — walk/listChanges/applyChanges moved VERBATIM, parameterized by workdirFor(id); shared by engine+server+tests.
+- queue.mjs — durable file queue: atomic write+rename, idemKey dedupe, priority+round-robin+per-agent-cap, lease/reclaim, MAX_QUEUED.
+- policy.mjs — isAutoSafe ⟹ applyAllowed (strict subset), all-or-nothing per diff, HMAC over RUNTIME_TOKEN, fail-closed to manual. Default manual.
+- worktree.mjs — git worktree per task: branch/path from [a-z0-9_-] server parts (ma/task/ prefix → no flag injection), argv-array git, hooksPath=/dev/null, base pinned SHA, root OUTSIDE repo. Git-state isolation only — Bash OFF.
+- self-heal.mjs — classify→{kind,retryable}; apply-rejected NON-retryable; bounded backoff; sanitized bus escalation.
+- scheduler.mjs — slot-bounded drain over SHARED inflight/MAX_INFLIGHT (no 2nd counter); one release per dispatch; auto-re-drain.
+- engine.mjs — the spine; injectable dispatch (tests deterministic; prod = headless claude write-run in worktree).
+
+### server.mjs (additive): guard/broker extraction (logic unchanged); engineDispatch (cli); routes POST /runtime/engine/{enqueue,apply,cancel,policy} + GET /runtime/engine/{runs,changes} (token+origin+host gated, before generic agentId routes); health.engine block; await reconcile() then start() on boot. Manual /run copy-sandbox path intact.
+
+### Decisions: explicit step-list chain (no planner); in-process dispatch + shared semaphore; MAX_PER_AGENT=2; LEASE 10m/TTL 7d/MAX_QUEUED 500; maxAttempts=3; pause+escalate; all agents manual; .mjs/.js always-hold; HMAC over RUNTIME_TOKEN fail-closed; hooks neutralized per git call.
+
+### Gates — ALL CLEARED
+- senior-security-engineer (HARD): PASS — broker/guards byte-equivalent; policy cannot widen; no worktree/branch/flag injection; single-counter fork-bomb bound; engine never writes repo directly. 1 LOW (env-scrub) + 2 INFO ticketed.
+- senior-qa: TESTS_GREEN — 75/75; 2 HIGH + medium coverage gaps flagged → all closed.
+- senior-code-reviewer: 5 MEDIUM blockers → fixed → re-review CLEAR. (cancel-race killed-guard after apply; chainNext backlog-full escalates; reconcile zero-okPaths→failTerminal; boot reconcile-before-start; enqueueGoal backlog-full {error}; + broker workdir-missing guard + SIGKILL fallback.) BUG caught by new tests: handleRetryable wasn't carrying attempts counter → retries never exhausted → FIXED.
+
+### Tests: cd agent-runtime && npm test → 75 pass / 0 fail. queue 18 · policy 14 · worktree 11 · self-heal 7 · scheduler 5 · broker 6 · engine 14 (incl. ACCEPTANCE auto-chain, hold, operator-apply, retry-to-DONE, exhaustion-escalation, apply-rejected, parallel, cancel-during-EDITING, reconcile re-apply + empty-diff, backlog-full).
+
+### ACCEPTANCE (BOSS will test): give a goal "create a project", watch end-to-end. Live HTTP verified: enqueue → 201, worktree branch ma/task/... created, real claude dispatched (EDITING), bad tier → 400.
+
+### STATUS: S1 BUILT + GREEN + GATED. NOT committed/pushed. STOPPED — not rolling into S2.
+
+---
+
+## ⟢ Session close — 2026-06-18T16:32:34Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ STAGE 2 — FINISH COCKPIT (usage meter + fork/resume) — BUILT + GATED (2026-06-18) — AWAITING BOSS TEST
+
+> Build Order #2. Branch s1-engine (S2 continues on it). NOT committed/pushed (rule 1). Subscription CLI only — NO API, NO dollars anywhere (rule 3).
+
+### SPIKE results (mandated, run first)
+- `claude -p --output-format stream-json` RETURNS real token counts in the `result` event: usage{input_tokens, cache_creation_input_tokens, cache_read_input_tokens, output_tokens, output_tokens_details.thinking_tokens} + num_turns. → show REAL counts (no estimate). It also returns total_cost_usd → IGNORED, never read/surfaced.
+- `--model claude-haiku-4-5` (non-dated alias) accepted → ADR-022 alias map stands.
+
+### Delivered (gaps #8 usage, #12 fork/resume)
+- #8 USAGE METER (ADR-030, renamed from cost): tokens + context-window %, modeled on Claude Code /context. NO $ EVER. Backend captures result.usage in cliReply → new SSE `usage` event → per-thread lifetime rollup persisted. Frontend UsageMeter in ChatPane header (ctx% bar green/amber/red + ↑in ↓out + ~est badge for mock). CONTEXT_WINDOW=200000 const (env-overridable).
+- #12 FORK/RESUME (ADR-031): "session" = a chat thread (threads/<id>.json). New auth-gated endpoints GET /runtime/threads, GET+DELETE /runtime/:id/thread, POST /runtime/:id/fork {upTo?} (server-minted <id>__fork_<hex>, fresh meter). Frontend: ThreadRail shows forks (persisted to localStorage), Fork button in ChatPane header, resume hydrates a thread's history on first open (survives reload/restart).
+
+### Files
+- NEW agent-runtime/usage.mjs (pure token/context math, no $). 
+- agent-runtime/server.mjs: usage capture in cliReply (ignores total_cost_usd) → onDone(acc,usage); save() rollup+persist+stream.usage(); sse().usage(); thread persistence + usage rollup; listThreads/getThreadRecord(scrubbed)/forkThread/deleteThread; thread routes; needsAuth extended (thread|fork + /runtime/threads).
+- NEW src/lib/runtimeToken.ts (shared token; ChatPane now imports it). NEW src/components/workspace/UsageMeter.tsx. ChatPane.tsx (usage parse + meter + Fork). App.tsx (forkedThreads + resume hydration effect + onFork).
+- ADR-030, ADR-031 (PROPOSED); ADR-022/023 S2 ratifications (api backend OUT of product).
+- tests: usage.test.mjs (6), threads.test.mjs (8 HTTP integration), chat-usage.test.mjs (2: SSE usage no-$ + persist across restart).
+
+### Decisions (resolved architect OQs): CONTEXT_WINDOW=200000 const; rollup = lifetime-of-thread; added DELETE /runtime/:id/thread to clean forks; numeric usage payload needs no extra scrub.
+
+### Gates — ALL CLEARED
+- senior-security-engineer: PASS — no $ ever (total_cost_usd never read; verified grep + test); model allowlist intact (no regression); thread endpoints token+origin+host gated incl DELETE; no path traversal (threadSafeId + server-minted fork ids); scrub on resume; S1 engine/broker UNTOUCHED; DoS bounds ok. 2 INFO only.
+- senior-qa: TESTS_GREEN — 91/91 (75 S1 regression re-ran green + 16 S2), tsc exit 0, npm run build success. Flagged 2 MEDIUM coverage gaps (usage persistence-across-restart + SSE usage e2e) → BOTH CLOSED via chat-usage.test.mjs.
+- senior-code-reviewer: CLEAR — no sev>=MEDIUM blockers (the one MEDIUM hydrate-race disproven: functional-update guard makes duplicate hydrate idempotent). Applied LOW DRY fix (ChatPane imports shared runtimeToken). Remaining LOWs noted (hydrate in-flight dedupe, silent fork-fail toast, fork upTo doc) — non-blocking.
+
+### Tests: cd agent-runtime && npm test → 91 pass / 0 fail. tsc clean. vite build clean.
+
+### Live verification: runtime :3005 (cli) healthy w/ engine+usage; vite :3004 serves updated modules, zero transform errors. Browser click-test is BOSS's (preview tooling scoped to sibling WaahyuPython root; not forced).
+
+### ACCEPTANCE (BOSS will test): switch tier per chat (ModelTierPicker, persisted); usage readout tokens + context% NO $ (UsageMeter in chat header); Fork button branches a thread → appears in rail → switch; resume hydrates history; restart runtime → history + usage persist (chat-usage test proves it).
+
+### STATUS: S2 BUILT + GREEN (91) + GATED. NOT committed/pushed. STOPPED — not rolling into S2.5 (MCP connectors).
+
+---
+
+## ⟢ Session close — 2026-06-18T17:21:25Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+?? src/components/workspace/UsageMeter.tsx
+?? src/lib/runtimeToken.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T17:21:26Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+?? src/components/workspace/UsageMeter.tsx
+?? src/lib/runtimeToken.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T17:38:43Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+?? src/components/workspace/UsageMeter.tsx
+?? src/lib/runtimeToken.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ STAGE 2.5 — MCP CONNECTOR LAYER (gap #29) — BUILT + GATED (2026-06-18) — AWAITING BOSS TEST
+
+> Build Order #3. Branch s1-engine. NOT committed/pushed (rule 1). Subscription CLI only, no API, no $. Reused existing AES broker (rule 3).
+
+### SPIKE (mandated, run FIRST) — mechanism PROVEN
+`claude -p` v2.1.140: `--mcp-config <file> --strict-mcp-config` loads ONLY the injected MCP servers (ignores host/global .mcp.json) + `--allowed-tools mcp__<name>` (whole-server) permits its tools. Verified end-to-end: injected a filesystem MCP server, agent CALLED mcp__fsspike__read_file + read real content. stdio confirmed; http via headers. `--strict-mcp-config` = the claude-layer per-agent allowlist enforcer.
+
+### Delivered
+- In-app MCP connector mgmt: add/configure/toggle MCP servers (stdio/http) + per-agent grant matrix + masked cred entry. Granted+enabled connectors injected into the agent's `claude -p` session via a per-session scoped .mcp.json (0o600, OUTSIDE the worktree, deleted after spawn) + --mcp-config + --strict-mcp-config + --allowed-tools mcp__<name>.
+- Creds reuse the EXISTING factory.mjs AES-256-GCM broker (added generic addCred/getCredValue/deleteCred/credExists/listCredIds). Decrypt ONLY at spawn frame. System prompt gains an "MCP CONNECTORS GRANTED" note so the agent knows it has the tools (overrides chat-only framing).
+
+### Files
+- NEW agent-runtime/mcp-registry.mjs (connector store + default-deny grants + composeConfig + collectSecretValues + grantedNames; launcher allowlist [npx,node,uvx,python,python3,bunx — docker dropped], https-only, cred-ref validation, command-must-be-string, proto-key reject).
+- NEW agent-runtime/secret-scrub.mjs (ref-counted per-spawn cred egress scrub + once() guard).
+- agent-runtime/factory.mjs: generic MCP creds (AES broker reuse; min 8 chars).
+- agent-runtime/server.mjs: registry instance; cliReply scoped-config injection + once()-guarded cleanup; scrub uses mcpScrubber; system-prompt MCP note; /factory/connectors* routes (CRUD + cred + grant + enable) in the authed block.
+- NEW src/components/factory/ConnectorPanel.tsx (list/add/toggle/delete + grant matrix + masked secret); src/lib/factoryClient.ts (connector calls); App.tsx mounts ConnectorPanel.
+- ADR-032 (registry), ADR-033 (creds+allowlist, HARD gate). 
+- tests: mcp-registry (16), mcp-inject (8, fake-claude e2e), secret-scrub (6). 122 total.
+
+### Decisions (architect OQs): generic addCred (platform-less); launcher allowlist drops docker; https mandatory (host allowlist optional); engine-path MCP DEFERRED (chat/interactive cliReply only — gap #29 = connectors usable from agent sessions); added DELETE cred route.
+
+### Gates — ALL CLEARED
+- senior-security-engineer (HEAVY): PASS — all 6 ADR-033 HARD invariants hold under adversarial probing (no plaintext cred in logs/SSE/record; decrypt only at spawn frame; scoped config 0o600 outside worktree + deleted; bad launcher/non-https/unknown-cred rejected; default-deny + --strict-mcp-config double allowlist; ungranted agent cannot call; egress scrub; auth on all routes; AES broker reused, no new store; S1/S2 untouched). Low/Info only.
+- senior-code-reviewer: initially CHANGES REQUIRED — found a real HIGH: mcpCleanup ran on BOTH child error+close → removeSpawnSecrets double-decrement → concurrent-spawn shared-cred leak. FIXED via once() guard + ref-counted createSecretScrubber; proven by secret-scrub.test ("THE HIGH BUG" + without-once control) + mcp-inject SSE-redaction e2e. Re-review: CLEAR.
+- senior-qa: TESTS_GREEN — 122/122 (75 S1 + 16 S2 + 31 S2.5), tsc 0, build clean. Full S1+S2 regression re-ran green.
+
+### Live verification (real claude through the runtime): added a filesystem MCP connector via API → granted agent_a → agent_a READ /MissonAlpha/package.json via the MCP tool (name="missionalpha"); ungranted agent_b got nothing; cred (SECRET_LIVE_9999) never in SSE or runtime log; scoped config cleaned up; bad command (bash) rejected 400.
+
+### Tests: cd agent-runtime && npm test → 122 pass / 0 fail. tsc clean. vite build clean.
+
+### ACCEPTANCE (BOSS will test): add an MCP connector in-app (ConnectorPanel in the Team panel) → grant to one agent via the matrix → that agent uses it → an ungranted agent cannot → no credential in logs → bad server command rejected.
+
+### KNOWN: filesystem MCP server roots at claude's cwd (=REPO_ROOT for chat) — point a filesystem connector at the repo (or a subdir) for the demo; http connectors (GitHub etc.) are cwd-independent. Follow-ups (non-blocking, noted by reviewer): orphaned-cred GC + creds list UI; spawn sync-throw cleanup (unreachable, fail-safe).
+
+### STATUS: S2.5 BUILT + GREEN (122) + GATED. NOT committed/pushed. STOPPED — not rolling into S3 (deep review UX + git workflow).
+
+---
+
+## ⟢ Session close — 2026-06-18T18:27:21Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+?? src/components/factory/ConnectorPanel.tsx
+?? src/components/workspace/UsageMeter.tsx
+?? src/lib/runtimeToken.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T18:38:43Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+?? docs/ceo/master-roadmap.md
+?? src/components/factory/ConnectorPanel.tsx
+?? src/components/workspace/UsageMeter.tsx
+?? src/lib/runtimeToken.ts
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T22:27:20Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T22:28:03Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-18T22:28:48Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ STAGE 3.5 — FULL TOOL LOOP + APPROVAL UX (gap #30) — BUILT + GATED (2026-06-18) — AWAITING BOSS TEST
+
+> Build Order #5. Highest-risk stage. Branch s1-engine. NOT committed/pushed. Subscription CLI only, no $.
+
+### EXEC-BOUNDARY DECISION (Phase 3.5.0) — Docker container (BOSS chose it)
+A git worktree is NOT a security boundary. Exec is jailed in a real Docker/OCI container. Docker Desktop reachable (27.3.1, linux). Rule-3 honored — real sandbox, never worktree-exec.
+PROVEN docker invocation: `docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --read-only --tmpfs /tmp:rw,size=64m,noexec,nosuid --pids-limit 128 --memory 512m --memory-swap 512m --cpus 1 -v <realpath worktree>:/work:rw -w /work <image> sh -c <command>`. Worktree bind-mounted /work (edits flow back for diff/apply); host / + network unreachable by default; non-root; caps dropped; ephemeral; no docker socket.
+
+### Build order (mandated, followed): sandbox FIRST → escape suite GREEN before broker → broker → approval UX.
+- NEW agent-runtime/sandbox.mjs — createSandbox().runInSandbox/kill/preflight/buildDockerArgs. Mount-injection guard (realpath+isDirectory). Kill-switch (timeout + AbortSignal + docker kill). Random container name when callId absent (no collision).
+- NEW agent-runtime/tool-broker.mjs — classify(command) FORBIDDEN(host-escape/priv/exfil/host-paths /etc /Users /root /home /proc ~ .ssh .claude ../ /forkbomb) / SAFE(single read-only verb, no shell-ctrl incl. glob metachars) / SENSITIVE(default-deny). execTool refuses forbidden then runs in sandbox.
+- server.mjs — sandbox+broker instances; per-agent exec git-worktree; routes POST /runtime/:id/exec (classify→forbidden:reject/safe|session:run/sensitive:pending), POST /runtime/exec/:callId/approve {once|session|deny}, POST /runtime/exec/:callId/kill. Session-grant memory; MAX_INFLIGHT shared with try/finally (no slot leak); output scrubbed; audit every run/forbidden/approved/denied/kill via factory.audit (now exported).
+- NEW src/components/factory/ExecConsole.tsx — approval UX: command input + network toggle → classify → SAFE auto / SENSITIVE approval prompt (allow-once/session/deny + preview + capabilities) / FORBIDDEN refused → jailed output. Mounted in Team panel. factoryClient: proposeExec/approveExec/killExec.
+- ADR-037 (exec sandbox), ADR-038 (tool-loop broker), ADR-039 (approval UX) — all sr-security HARD, signed.
+
+### ESCAPE SUITE (rule 4 — green BEFORE broker): sandbox.test.mjs 13 live tests — host /Users + ~/.ssh unreachable, write flows back to worktree, rootfs read-only, network blocked, non-root uid 65534, no docker socket, kill-switch terminates runaway, mount-injection refused. Deterministic 13/13 across repeated runs.
+
+### Gates — ALL CLEARED (heaviest of the program)
+- senior-security-engineer (independent adversarial, "single escape = BLOCK"): boundary PASS — NO escape found across FS/network/privilege/syscall/socket/secret-exfil/approval-bypass/cross-agent/resource vectors (all live). Conditional items FIXED: (1) escape-suite flakiness (anon container-name race → random names); (2) MEDIUM glob/`/proc` classifier bypass (`cat /et*/passwd`, `/proc/self/environ` → now sensitive/forbidden, never auto-SAFE) FIXED. /work disk-DoS MEDIUM → ticketed (accepted dev posture, not a boundary breach). Re-verify: PASS.
+- senior-qa: initially NOT GREEN — HIGH /exec inflight-slot leak (no try/finally) + flaky kill test. Both FIXED (try/finally on both exec paths; random container names). Re-verify: TESTS_GREEN 154/154, tsc 0, build clean. npm test serialized (--test-concurrency=1) for deterministic CI.
+
+### Tests: cd agent-runtime && npm test → 154 pass / 0 fail (75 S1 + 16 S2 + 31 S2.5 + 32 S3.5: sandbox 13, tool-broker 12, exec-loop 7 live e2e + glob/proc). tsc clean. build clean.
+
+### Live e2e (exec-loop.test.mjs, real docker): SAFE auto-runs jailed; FORBIDDEN refused (never runs); SENSITIVE → pending → approve-once → sandboxed run, write persists in worktree; deny blocks; allow-for-session skips re-approval; forbidden can't be smuggled via chaining; auth required.
+
+### ACCEPTANCE (BOSS will test): Team panel → Sandbox Exec → pick agent → run a command. SAFE (ls/cat) runs jailed immediately; SENSITIVE (npm install, writes) → approval prompt (once/session/deny) → runs in Docker over the worktree; FORBIDDEN (sudo, cat /etc, curl|sh) auto-rejected; output shown; agent cannot touch host / or network (default). "create a project": run scaffolding commands (e.g. npm create ...) with network granted + approved → files land in the worktree → review diff → apply.
+
+### KNOWN / follow-ups (non-blocking): /work disk-DoS quota (ticketed); exec is OPERATOR-DRIVEN (BOSS issues commands through the gated console) — fully-autonomous agent-emits-commands-in-chat loop is the remaining glue (S4/next); network-grant positive-control live test + ExecConsole UI test harness; image pinned by tag not digest (OQ-037.2).
+
+### STATUS: S3.5 BUILT + GREEN (154) + GATED (heaviest security pass clean). NOT committed/pushed. STOPPED — not rolling into S4 (polish/DX).
+
+---
+
+## ⟢ Session close — 2026-06-18T22:49:27Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+?? docs/ceo/BUILD-EXECUTION-KICKOFF.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T00:16:18Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T00:16:19Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+?? .claude/agents/java17-engineer.md
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+?? docs/adr/ADR-033-mcp-creds-and-allowlist.md
+?? docs/adr/ADR-037-execution-sandbox.md
+?? docs/adr/ADR-038-full-tool-loop-broker.md
+?? docs/adr/ADR-039-approval-permission-ux.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T00:28:30Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+?? docs/adr/ADR-032-mcp-connector-registry.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T00:32:07Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T00:35:15Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## STAGE 4 — POLISH / DX / OBSERVABILITY (Build Order #6) — BUILT + TESTED + GATED (2026-06-18)
+
+> Per master-roadmap Stage 4 + BUILD-EXECUTION-KICKOFF order #6. Low-risk, no new dangerous surface. NOT committed/pushed (BOSS rule 1). STOPPED — not rolling into S6 (rule 6).
+
+### ADRs (architect)
+- ADR-040-settings-theming.md — settings store (default tier, theme, accent/tab colors, connector defaults, tool-loop + sandbox policy toggles), OKLCH token system, persisted. Policy toggles = CLIENT DEFAULTS only, never weaken server enforcement. Section 2.2 amended to document the implemented accent mechanism (direct override of --c-accent-cyan + -bright, re-applied on theme change via MutationObserver).
+- ADR-041-audit-trail-ui.md — searchable/filterable READ view over exec+approval+connector+agent+operator+heartbeat history. READ MODEL ONLY: sole backend delta = ?limit= (clamped [1,2000]) on existing GET /factory/audit; factory.audit() writer + log format byte-for-byte UNCHANGED.
+
+### Built (gaps #25/#26/#27/#22/#28)
+- #25 Onboarding — src/components/onboarding/Onboarding.tsx (ONBOARDED_KEY ma.onboarded.v1). First-run 4-step tour (chat / model picker / connectors / Team board) -> "Try a first goal" prefills Boss composer + opens Team. Focus-trap, Esc, reduced-motion. Replayable from palette.
+- #26 Settings/theming — src/lib/settings.ts (pure, anti-tamper coerce), src/lib/settingsContext.tsx (SettingsProvider + MotionConfig reduced-motion + MutationObserver theme-sync), src/components/settings/SettingsPanel.tsx (Appearance/Defaults/Policy/Accessibility, focus-trap modal). Accent override of --c-accent-cyan per-theme (contrast-vetted closed enum). defaultTier mirrored to ma.default.tier -> modelTiers.configuredDefaultTier().
+- #27 Command palette — src/components/CommandPalette.tsx + src/lib/paletteCommands.ts (pure fuzzy matcher). Cmd/Ctrl-K. Reaches: new chat, fork, dispatch goal, open connectors/team/settings, replay tour, switch model (Opus/Sonnet/Haiku), jump to any thread/agent. Arrow/Home/End/Enter/Esc nav, focus trap, combobox/listbox a11y.
+- #22 Audit-trail UI — src/components/audit/AuditTrailPanel.tsx + src/lib/auditModel.ts (pure normalize/merge/filter). Unified READ view: factory /factory/audit?limit=2000 + operator /api/audit + live heartbeats -> normalized AuditRecord; search + source/agent/time facets; expandable raw rows (content-keyed). Mounted in Team panel beside ControlPlanePanel.
+- #28 CI — .github/workflows/ci.yml: job runtime (cd agent-runtime && npm ci && npm test -> full S1->S3.5 regression + S4) + job frontend (npm ci -> typecheck -> build -> test:unit). Node 24. claude stubbed (fixtures/fake-claude.mjs), docker tests self-skip -> CI-portable. Root scripts added: typecheck, test:unit.
+
+### Wiring
+- src/main.tsx: SettingsProvider outermost. src/App.tsx: Cmd-K listener, palette command list, settings+palette header buttons, onboarding (first-run via !hasOnboarded()), AuditTrailPanel in Team panel, prefill/tierReloadKey bridge to ChatPane. src/components/workspace/ChatPane.tsx: optional prefill/tierReloadKey props + effects. tsconfig.json: exclude src/**/__tests__/** (run via node --test).
+
+### Tests (TDD)
+- Frontend pure-logic: src/lib/__tests__/{settings,auditModel,paletteCommands}.test.ts -> 17/17 (node --test, Node-25 type-strip).
+- Runtime: agent-runtime/test/audit-read.test.mjs (4) pins the audit TSV write format as a read-only guard. Full suite 158/158 (154 S1->S3.5 regression re-ran green + 4 new). tsc clean, vite build clean.
+
+### Gates
+- senior-security-engineer: PASS (HARD) — verified (a) audit READ-ONLY, writer/log-format untouched, endpoint inside auth gate, no POST/PUT/DELETE audit path, client GETs only; (b) policy toggles cannot escalate (no settings value sent as authorization; server authorities never read client settings); (c) applyAccent only sets vetted OKLCH from closed map; (d) 158/158. No HIGH/CRITICAL.
+- senior-code-reviewer: CLEAR — first pass 5 Mediums (M1 reduce-motion dead -> MotionConfig + CSS net; M2 theme-toggle->settings drift broke accent contrast -> MutationObserver theme-sync; M3 ADR/impl divergence -> ADR 2.2 amended; M4 audit expansion keyed by index -> content-keyed; M5 palette no focus trap -> Tab trap + doc Escape) + L4 (empty dispatch no-op -> focus composer). ALL FIXED + re-reviewed CLEAR.
+
+### STATUS: S4 BUILT + GREEN (158 runtime + 17 frontend) + GATED (security PASS, review CLEAR). NOT committed/pushed. Awaiting BOSS test.
+
+---
+
+## ⟢ STAGE 4 — POLISH / DX / OBSERVABILITY — BUILT + GATED (2026-06-18) — AWAITING BOSS TEST
+
+> Build Order #6. Low-risk, additive. Branch s1-engine. NOT committed/pushed. Subscription CLI only, no $.
+
+### Delivered (gaps #25 onboarding, #26 settings/theming, #27 command palette, #22 audit-trail READ UI, #28 CI)
+- #25 Onboarding: src/components/onboarding/Onboarding.tsx (+ hasOnboarded localStorage gate) — first-run flow explaining chat/model picker/connectors/Team board + "try a goal" prefill.
+- #26 Settings/theming (ADR-040): src/components/settings/SettingsPanel.tsx + src/lib/settings.ts + settingsContext.tsx — default tier, theme, tab colors, connector defaults, tool-loop/sandbox policy toggles; persisted localStorage; OKLCH tokens; coerceSettings anti-tamper (closed enums, never throws). Toggles are CLIENT prefs only — cannot widen server enforcement (security-verified).
+- #27 Command palette (Cmd/Ctrl-K): src/components/CommandPalette.tsx + src/lib/paletteCommands.ts — fuzzy match/score; switch model, new chat, open panels, dispatch goal, open settings, jump thread. Focus trap + ESC + arrow nav.
+- #22 Audit-trail READ UI (ADR-041): src/components/audit/AuditTrailPanel.tsx + src/lib/auditModel.ts; client getRuntimeAudit(limit) → GET /factory/audit?limit=N (clamped [1,2000], default 200, READ-ONLY — factory.readAudit; writer/format UNCHANGED). Searchable/filterable over factory+operator+heartbeat+approval+exec history (source/agent/time/text facets).
+- #28 CI: .github/workflows/ci.yml — 2 jobs on push/PR: runtime (agent-runtime npm test, serialized) + frontend (typecheck/build/test:unit). Docker live tests self-skip if daemon absent; claude stubbed via fake-claude.mjs. Both lockfiles present.
+- ALSO landed: /work disk-DoS watchdog in sandbox.mjs (dirSizeBytes + DEFAULT_DISK_CAP_BYTES + kill-on-cap) — closes the S3.5 MEDIUM follow-up.
+
+### Gates — ALL CLEARED
+- senior-security-engineer: PASS — audit READ-ONLY (no new write path; writer/format byte-identical), limit clamp [1,2000] DoS-bound, auth-gated (token+origin+host), no secret in audit log, settings toggles CANNOT relax server guards (classify/approval/sandbox/apply authoritative), palette = client actions only, S1→S3.5 enforcement untouched. No Low+.
+- senior-qa: TESTS_GREEN — backend 160/160 deterministic ×3 (docker live not flaky), frontend 17/17, tsc 0, build clean, CI wiring correct (node 24, npm ci, self-skip docker, no clean-checkout red risk). Coverage adequate (auditModel/settings/paletteCommands); .tsx components untested boundary (no jsdom) — BOSS manual acceptance.
+- senior-code-reviewer: CLEAR — 0 ≥MEDIUM. 3 LOW found + FIXED: (1) sandbox spawn-error appended after resolve → reordered; (2) CommandPalette dead exit-animation → {open&&} inside AnimatePresence; (3) AuditTrailPanel poll unguarded → try/catch.
+
+### Tests: cd agent-runtime && npm test → 160 pass / 0 fail. root npm run test:unit → 17 pass. tsc clean. build clean. CI green-by-construction.
+
+### ACCEPTANCE (BOSS will test): open fresh → onboarding flow; change theme + a default → persists across reload; Cmd/Ctrl-K palette → keyboard-nav everywhere; audit trail (Team panel) → search a past action; CI runs full S1→S3.5+S4 suite green on push/PR.
+
+### STATUS: S4 BUILT + GREEN (160 backend + 17 frontend) + GATED. NOT committed/pushed. STOPPED — not rolling into S6.
+
+---
+
+## ⟢ Session close — 2026-06-19T01:02:51Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## STAGE 6 — FULL-PROGRAM VERIFICATION ("done + tested in one go") — PASSED (2026-06-19)
+
+> Final gate over the assembled S1->S4 whole. NO new features — verification + one Low bug-fix surfaced by review. NOT committed/pushed (BOSS rule 1). Live runtime :3005 (subscription claude -p, authed), dev :3004, docker UP.
+
+### Phase 6.1 — golden-path e2e (live)
+- Runtime boot confirms locked architecture: backend=cli (Claude Code subscription, no API key) · tiers=[opus,sonnet,haiku] default=sonnet · threads=5.
+- LIVE chat (real claude): POST /runtime/boss/chat {model:"haiku"} -> meta model=claude-haiku-4-5 (allowlisted), reply streamed, usage event = inputTokens/outputTokens/cache/contextTokens + contextPct 0.373 + contextWindow 200000, tier=haiku, estimated:false, and NO cost/usd/$ field. ADR-030 confirmed (tokens+context%, no $). server.mjs:614 "total_cost_usd intentionally IGNORED".
+- LIVE sandboxed exec (the "create a project" headline): SAFE/chained -> SENSITIVE default-deny pending; FORBIDDEN (cat /etc/passwd) -> refused "host /etc", never runs; SENSITIVE scaffold (mkdir myapp + write index.html) -> approve once -> ran in Docker exitCode 0, files landed in the agent git worktree (missionalpha-worktrees/builder/myapp/index.html, positive control); audit recorded exec.approved -> exec.run -> exec.done + exec.forbidden.
+- Engine auto-chain/parallel/worktree/queue/retry, fork/resume, persistence-across-restart, MCP connectors: covered green by engine/queue/scheduler/worktree/self-heal/threads/mcp-* tests (live docker exec-loop proves SENSITIVE write persists in worktree).
+- UI golden surfaces (chat-first shell, model picker, usage meter, palette, settings, onboarding, audit trail, connector panel, exec console): build clean + 17 frontend logic tests + live dev-server compiles all S4 modules + live backend behind it. NOTE: automated browser click-through not run here (preview MCP is rooted at the sibling WaahyuPython repo); reserved for BOSS visual acceptance — app left running.
+- HONEST SEAM (not a regression): operator-driven ExecConsole writes to the exec git worktree (execWorktreeFor), while GET /runtime/:id/changes reads the F2b copy-sandbox (sandboxDir) — two distinct review paths by design. Engine-dispatched task diffs surface via /runtime/engine/changes. The ad-hoc operator-exec diff is not shown by the F2b panel. Known S3.5 operator-exec glue gap, documented, not new.
+
+### Phase 6.2 — adversarial sweep (senior-security-engineer, independent, HARD) -> SECURITY 6.2: CLEAN
+- Re-confirmed (BOSS rule 4): host / and network UNREACHABLE from the sandbox by default — proven by LIVE tests AND live probe (approved glob read returned the Alpine container passwd, not host macOS passwd).
+- All vectors PASS: sandbox escape (FS/net/syscall/priv/socket — all forbidden or jailed); model-param injection -> 400 allowlist; MCP cred leak/cmd injection -> refs only, launcher allowlist, https-only; auth/host/origin -> 401/403, token not mounted in sandbox; approval bypass -> SENSITIVE never auto-runs, FORBIDDEN never approvable; cross-agent connector -> default-deny; fork-bomb -> 429 at MAX_INFLIGHT; secret exfil -> egress scrub redacts; S4 audit -> POST 404 (no write path), limit clamped.
+- 3 INFO non-blocking (deferred, default-off): network-grant has no per-destination egress filter (OQ-037); exec image pinned by tag not digest (OQ-037.2); approved SENSITIVE runs sh -c inside the container by design.
+
+### Phase 6.3 — regression + sign-off (senior-code-reviewer) -> REVIEW 6.3: CLEAR / APPROVED_FOR_MERGE
+- Gates: tsc --noEmit clean · agent-runtime npm test 160/160 · frontend node --test 17/17 · vite build clean. CI (.github/workflows/ci.yml) runs the full suite, no injection sink.
+- Integration seams coherent: provider nesting SettingsProvider>ThemeProvider>TickProvider>ErrorBoundary>App; route ordering sound (/runtime/engine/* before :agentId; sensitive handlers all after the auth gate; /chat intentionally ungated); GET /factory/audit?limit clamped + inside auth block.
+- LINT GAP (honest): npm run lint references eslint which is NOT installed -> lint cannot run. tsc is the enforced static gate. Recommend adding eslint+config to devDeps+CI or removing the dead script. Non-blocking.
+- Low finding FIXED: exec.run audit cmd was returned unscrubbed on the read path (inconsistent with SSE). server.mjs /factory/audit now egress-scrubs the read payload (writer/log format still unchanged; read-only). Suite re-ran 160/160; live audit endpoint verified returning valid entries post-fix.
+
+### PROGRAM STATUS: S1->S4 COMPLETE + S6 VERIFIED. Golden path live-verified, adversarial sweep CLEAN, full regression GREEN (160 runtime + 17 frontend), tsc+build clean. NOT committed/pushed — awaiting BOSS test. Deferred (out of program): Desktop/Tauri (#16-20), Enterprise (#21,23,24). Open hygiene: eslint not installed; per-destination egress filter + image digest pin before any prod exposure.
+
+---
+
+## ⟢ Session close — 2026-06-19T01:11:02Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T01:20:41Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T01:31:02Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T04:51:14Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T04:51:33Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T05:29:55Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T05:31:36Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T05:42:16Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T06:21:43Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T14:57:50Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T14:57:53Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T14:58:07Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T14:58:08Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T15:10:22Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T15:42:22Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T15:52:06Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T16:42:28Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T16:52:46Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## POST-S6 — OPS-COCKPIT SHELL REDESIGN (ADR-048) — BUILT + GATED (2026-06-19)
+
+> BOSS UX feedback: Command Tower buried, agents stacked as per-agent chats on the left, FORK confusing + undeletable, "feels like time pass not real-time." Frontend-shell-only redesign. No agent-runtime change. NOT committed/pushed (rule 1).
+
+### Decision (ADR-048-ops-cockpit-shell.md, plan: docs/ceo/ops-cockpit-redesign-PLAN.md)
+2-pane ops cockpit: LEFT = single Boss command chat (goal in → CEO dispatches; model picker + usage); RIGHT = Command Tower (primary, always visible) with view switcher Cards|Kanban|Globe|Feed|Replay|Audit|Tools. Cards = live agent status grid (click → read-only AgentDrawer). Top bar = brand + always-on CountPills (aria-live) + ⌘K + settings; mobile = Command|Tower pane toggle. Supersedes ADR-023 layout (intent kept).
+
+### Built (frontend only)
+- NEW src/lib/cockpitView.ts (pure view model + nav) + test (6); src/components/cockpit/CommandTower.tsx (tablist + per-view host, hosts every prior board surface UNCHANGED); src/components/cockpit/AgentStatusGrid.tsx (reuses AgentCard).
+- REWROTE src/App.tsx → 2-pane shell; dropped per-agent threads/rail/team-drawer/fork state; one-time localStorage migration removes ma.forkedThreads/ma.activeThread/ma.rail.collapsed/ma.team.open (existing forks vanish on load); palette rewired (drop fork+jump-to-thread; add Show<view> + Inspect<agent>; model switch targets Boss).
+- TRIMMED src/components/workspace/ChatPane.tsx — removed FORK button + onFork prop + GitBranch import (Boss-only).
+- Removed from shell: ThreadRail, TeamPanel (files kept, unmounted). MissionStrip/StatTiles folded into top-bar CountPills.
+
+### Gates
+- senior-code-reviewer: 1st pass CHANGES REQUIRED — 1 Medium (mobile pane divs missing role=tabpanel) + write ADR-048 + viewCounts dead-prop/Globe-replay-count nit + minors. Confirmed: (a) NO Command Tower view lost, (b) NO agent-runtime file changed, (c) fork/per-agent-chat fully removed. ALL FIXED: ADR-048 written; mobile panes now role=tabpanel + id + aria-controls/labelledby; CommandTower consumes viewCounts (Globe sr-only replay-accurate) + full tab/panel id linkage; enterReplay/goLive memoized.
+- Verify: tsc clean · frontend unit 23/23 (17 S4 + 6 cockpitView) · vite build clean · full runtime regression 160/160 (backend untouched).
+- Reviewer process WARNING (noted, for commit time): working tree mixes uncommitted S1/S3/S3.5/S4 runtime + this shell change — when BOSS approves commit, split runtime vs shell into clean commits.
+
+### STATUS: redesign BUILT + GREEN + gated (Medium fixed, ADR written). Servers left running (dev :3004, runtime :3005). NOT committed. Awaiting BOSS visual test. Fixes all four complaints.
+
+---
+
+## ⟢ Session close — 2026-06-19T17:38:34Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+?? docs/adr/ADR-031-session-fork-resume.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## MISSION-CONTROL REDESIGN (ADR-048 rev2, clean reference-driven) — BUILT (2026-06-19)
+
+> BOSS gave a "Mission Control HQ" reference (clean/light) + wanted: cleaner look, globe ambient, chat history always visible, full live feed kept, agents NOT renamed. Frontend-only. NOT committed (rule 1).
+
+### Layout (3-zone, design-taste: light/airy, hairline, one accent, whitespace)
+- TOP BAR: ● MissionAlpha + reassurance line ("All agents working · nothing needs you" / "N need you") + count pills (active/blocked/stale/offline) + nav [Audit][Tools][Replay] + ⌘K + Settings + theme.
+- LEFT: AgentRoster — real agent ids from state.json (NEVER renamed), avatar initials, status dot, role, live age; click → read-only AgentDrawer.
+- CENTER (primary): KanbanBoard (existing) + ViewToggle (state/pipeline), "Squad missions" header.
+- RIGHT: RightPanel — Chat | Feed tabs. Chat = Boss ChatPane (history always visible + command input). Feed = full filterable LiveFeed. Both stay mounted (scroll/draft/poll preserved); persist tab ma.rightpanel.tab.
+- Audit/Tools/Replay → UtilityDrawer (right slide-over, tabs) reusing ControlPlanePanel/AuditTrailPanel/BulkActionBar/ConnectorPanel/ExecConsole/AgentFactory/SessionsBrowser/TimeScrubber unchanged.
+- Globe = faint ambient backdrop (10% opacity, pointer-events none, aria-hidden).
+- Mobile (<lg): pane toggle Agents|Board|Chat.
+
+### Files
+- NEW: src/components/cockpit/AgentRoster.tsx, RightPanel.tsx, UtilityDrawer.tsx.
+- REWROTE: src/App.tsx (3-zone shell + top-nav + overlays + migration removes ma.tower.view too).
+- REMOVED (orphaned by redesign): src/components/cockpit/CommandTower.tsx, AgentStatusGrid.tsx, src/lib/cockpitView.ts (+test).
+- ChatPane unchanged (Boss-only, fork already gone).
+
+### Verify: tsc clean · frontend unit 17/17 · vite build clean · dev compiles all modules · runtime regression 160/160 (backend untouched). NOT committed. Awaiting BOSS visual test (hard-refresh :3004). Pending: senior-code-reviewer gate on the new shell.
+
+---
+
+## ⟢ Session close — 2026-06-19T18:29:33Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? Untitled.png
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+?? docs/adr/ADR-030-usage-tracking.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T19:31:45Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? Untitled.png
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T20:38:15Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .github/
+?? Untitled.png
+?? agent-runtime/broker.mjs
+?? agent-runtime/engine.mjs
+?? agent-runtime/guards.mjs
+?? agent-runtime/mcp-registry.mjs
+?? agent-runtime/policy.mjs
+?? agent-runtime/queue.mjs
+?? agent-runtime/sandbox.mjs
+?? agent-runtime/scheduler.mjs
+?? agent-runtime/secret-scrub.mjs
+?? agent-runtime/self-heal.mjs
+?? agent-runtime/test/
+?? agent-runtime/tool-broker.mjs
+?? agent-runtime/usage.mjs
+?? agent-runtime/worktree.mjs
+?? docs/adr/ADR-024-autonomous-loop-engine.md
+?? docs/adr/ADR-025-parallel-dispatch-scheduler.md
+?? docs/adr/ADR-026-git-worktree-isolation.md
+?? docs/adr/ADR-027-task-queue-backlog.md
+?? docs/adr/ADR-028-retry-self-heal.md
+?? docs/adr/ADR-029-auto-apply-policy.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-19T23:58:24Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+?? .claude/skills/internal-comms/
+?? .claude/skills/mcp-builder/
+?? .claude/skills/pdf/
+?? .claude/skills/pptx/
+?? .claude/skills/receiving-code-review/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T07:16:09Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+?? .claude/skills/internal-comms/
+?? .claude/skills/mcp-builder/
+?? .claude/skills/pdf/
+?? .claude/skills/pptx/
+?? .claude/skills/receiving-code-review/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T16:19:25Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T17:20:15Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T18:00:31Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T18:00:31Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T18:00:31Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T18:56:35Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T19:12:51Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T19:37:33Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T19:58:43Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T20:09:03Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T20:44:07Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T20:44:25Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T20:50:40Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-20T20:51:21Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M .gitignore
+ M agent-runtime/factory.mjs
+ M agent-runtime/package.json
+ M agent-runtime/server.mjs
+ M docs/SESSION_MEMORY.md
+ M docs/adr/ADR-022-model-tiers.md
+ M docs/adr/ADR-023-chat-first-shell.md
+ M factory/registry.json
+ M package.json
+ M src/App.tsx
+ M src/components/AgentDrawer.tsx
+ M src/components/workspace/ChatPane.tsx
+ M src/index.css
+ M src/lib/factoryClient.ts
+ M src/lib/modelTiers.ts
+ M src/main.tsx
+ M tsconfig.json
+?? .claude/agents/agent-creator.md
+?? .claude/agents/java17-engineer.md
+?? .claude/commands/
+?? .claude/skills/agent-development-plugindev/
+?? .claude/skills/agent-development/
+?? .claude/skills/agent-introspection-debugging/
+?? .claude/skills/algorithmic-art/
+?? .claude/skills/api-design/
+?? .claude/skills/brainstorming/
+?? .claude/skills/brand-guidelines/
+?? .claude/skills/canvas-design/
+?? .claude/skills/claude-api/
+?? .claude/skills/coding-standards/
+?? .claude/skills/dispatching-parallel-agents/
+?? .claude/skills/doc-coauthoring/
+?? .claude/skills/docx/
+?? .claude/skills/e2e-testing/
+?? .claude/skills/error-handling/
+?? .claude/skills/executing-plans/
+?? .claude/skills/finishing-a-development-branch/
+?? .claude/skills/frontend-design/
+?? .claude/skills/hallmark/
+?? .claude/skills/impeccable/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-18T05:31:40Z senior-backend-2 HEARTBEAT AWAITING_REVIEW no backend this cycle next=stand by
+    2026-06-18T05:31:40Z senior-qa HEARTBEAT DONE_CYCLE E2E bulk + gate test next=a11y axe pass
+    2026-06-18T05:31:40Z senior-code-reviewer HEARTBEAT IDLE wait TESTS_GREEN next=merge gate
+    2026-06-18T05:31:40Z memory-updater HEARTBEAT IN_PROGRESS persist Cycle 1 decisions next=update dep map
+    2026-06-18T05:31:40Z java17-engineer HEARTBEAT IN_PROGRESS repo-read next=await dispatch

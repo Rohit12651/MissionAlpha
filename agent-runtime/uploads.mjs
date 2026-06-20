@@ -1,0 +1,128 @@
+// Multimodal chat attachments (Feature #8 / ADR-049) — file intake for /chat.
+//
+// SECURITY model (files are NEVER executed and NEVER served over HTTP):
+//   • Stored under tmpdir, mode 0o700, OUTSIDE the repo + every agent sandbox.
+//   • Client filename is NEVER used to build a path — we generate `f<n><ext>`.
+//   • Extension allowlist is hard; binary types also get a best-effort magic-byte
+//     sniff (defense-in-depth). Text types pass by extension.
+//   • Size + count caps are enforced at the busboy layer (DoS brake) — the values
+//     here are the source of truth the server reads.
+// The CLI reads these by absolute path via a Read tool scoped to the upload dir.
+
+import { tmpdir } from "node:os";
+import { join, extname } from "node:path";
+import { mkdirSync, rmSync, readdirSync, statSync, existsSync } from "node:fs";
+
+export const UPLOADS_ROOT =
+  process.env.RUNTIME_UPLOADS_ROOT || join(tmpdir(), "missionalpha-uploads");
+
+export const MAX_FILE_BYTES = Number(process.env.RUNTIME_MAX_FILE_BYTES || 25 * 1024 * 1024); // 25 MB
+export const MAX_FILES = Number(process.env.RUNTIME_MAX_FILES || 8);
+export const UPLOAD_TTL_MS = Number(process.env.RUNTIME_UPLOAD_TTL_MS || 24 * 60 * 60 * 1000); // 24 h
+
+// ext → { kind, magic? }. `magic` is an array of leading byte values (or null slots
+// = "any byte here", used for the RIFF/WEBP split). Absent magic = text (pass by ext).
+const ALLOWED = Object.freeze({
+  ".png":  { kind: "image", magic: [0x89, 0x50, 0x4e, 0x47] },
+  ".jpg":  { kind: "image", magic: [0xff, 0xd8, 0xff] },
+  ".jpeg": { kind: "image", magic: [0xff, 0xd8, 0xff] },
+  ".gif":  { kind: "image", magic: [0x47, 0x49, 0x46, 0x38] },
+  ".webp": { kind: "image", magic: [0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50] },
+  ".pdf":  { kind: "pdf",   magic: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+  ".csv":  { kind: "text" },
+  ".txt":  { kind: "text" },
+  ".md":   { kind: "text" },
+});
+
+export const ALLOWED_EXTS = Object.freeze(Object.keys(ALLOWED));
+
+// Lowercased extension of a client filename, or "" if none/unknown.
+export function extOf(name) {
+  return extname(String(name || "")).toLowerCase();
+}
+
+// Is this filename an allowed type? (extension allowlist — the hard gate.)
+export function extAllowed(name) {
+  return Object.prototype.hasOwnProperty.call(ALLOWED, extOf(name));
+}
+
+export function kindFor(name) {
+  const e = ALLOWED[extOf(name)];
+  return e ? e.kind : null;
+}
+
+// Best-effort magic-byte check against the declared extension. Text types always
+// pass (no reliable signature). Binary types must match their leading bytes.
+// `head` is a Buffer of the file's first chunk.
+export function sniffOk(head, name) {
+  const e = ALLOWED[extOf(name)];
+  if (!e) return false;
+  if (!e.magic) return true; // text
+  if (!head || head.length < e.magic.length) return false;
+  for (let i = 0; i < e.magic.length; i++) {
+    if (e.magic[i] == null) continue; // wildcard slot
+    if (head[i] !== e.magic[i]) return false;
+  }
+  return true;
+}
+
+// Server-generated, traversal-proof on-disk name. Client filename is metadata only.
+export function safeName(index, clientName) {
+  const e = extOf(clientName);
+  const ext = Object.prototype.hasOwnProperty.call(ALLOWED, e) ? e : ".bin";
+  return `f${index}${ext}`;
+}
+
+// Sanitize a client filename for DISPLAY only (manifest/UI) — never for a path.
+export function displayName(clientName) {
+  return String(clientName || "file")
+    .replace(/[\r\n\t]/g, " ")
+    .replace(/[^\w.\- ]/g, "")
+    .slice(0, 80) || "file";
+}
+
+export function uploadMsgDir(threadId, msgId) {
+  const safe = (s) => String(s).replace(/[^a-z0-9_-]/gi, "_").slice(0, 64);
+  return join(UPLOADS_ROOT, safe(threadId), safe(msgId));
+}
+
+export function ensureUploadDir(dir) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return dir;
+}
+
+// Prompt block appended to the CLI prompt so the agent reads files by absolute path.
+export function buildManifest(attachments) {
+  if (!attachments || !attachments.length) return "";
+  const lines = attachments.map((a) => {
+    const note = a.kind === "text" ? "text" : a.kind;
+    const from = a.note ? `, ${a.note}` : "";
+    return `- ${a.absPath}  (${note}, "${displayName(a.origName)}"${from})`;
+  });
+  return (
+    `\n\n--- attached files (read them with the Read tool by absolute path) ---\n` +
+    lines.join("\n") +
+    `\n--- end attached files ---`
+  );
+}
+
+// Delete a thread's whole upload tree (best-effort).
+export function pruneThreadUploads(threadId) {
+  const safe = String(threadId).replace(/[^a-z0-9_-]/gi, "_").slice(0, 64);
+  try { rmSync(join(UPLOADS_ROOT, safe), { recursive: true, force: true }); } catch { /* */ }
+}
+
+// Boot sweep — remove upload dirs older than the TTL (bounds disk). Best-effort.
+export function sweepStaleUploads(ttlMs = UPLOAD_TTL_MS, now = Date.now()) {
+  let removed = 0;
+  if (!existsSync(UPLOADS_ROOT)) return removed;
+  let threads;
+  try { threads = readdirSync(UPLOADS_ROOT); } catch { return removed; }
+  for (const t of threads) {
+    const p = join(UPLOADS_ROOT, t);
+    try {
+      if (now - statSync(p).mtimeMs > ttlMs) { rmSync(p, { recursive: true, force: true }); removed++; }
+    } catch { /* */ }
+  }
+  return removed;
+}

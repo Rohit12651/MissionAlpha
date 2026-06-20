@@ -83,6 +83,17 @@ async function authedJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await r.json()) as T;
 }
 
+// Runtime factory-audit tail (ADR-041) — READ-ONLY. Returns {at,event,data} rows,
+// newest first. `limit` is clamped server-side to [1,2000].
+export interface RuntimeAuditEntry {
+  at: string;
+  event: string;
+  data: Record<string, unknown>;
+}
+export const getRuntimeAudit = (limit = 200) =>
+  authedJson<{ entries: RuntimeAuditEntry[] }>(`/factory/audit?limit=${encodeURIComponent(String(limit))}`)
+    .catch(() => ({ entries: [] as RuntimeAuditEntry[] }));
+
 export const getSkills = () =>
   fetch("/factory/skills").then((r) => r.json()) as Promise<{ skills: Skill[]; platforms: Platform[] }>;
 export const getFactoryHealth = () =>
@@ -129,6 +140,94 @@ export const executePost = (agentId: string, connId: string, content: string, co
     method: "POST",
     body: JSON.stringify({ agentId, connId, content, confirmToken }),
   });
+
+// ── MCP connectors (ADR-032/033) ─────────────────────────────────────────────
+export interface Connector {
+  connectorId: string;
+  name: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  envRefNames: string[];
+  headerRefNames: string[];
+  scopes: string[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ConnectorsView {
+  connectors: Connector[];
+  grants: Record<string, string[]>; // agentId → connectorId[]
+  creds: { credId: string; createdAt: string }[];
+}
+export const listConnectors = () => authedJson<ConnectorsView>("/factory/connectors");
+export const addCred = (secret: string) =>
+  authedJson<{ credId?: string; error?: string }>("/factory/connectors/cred", {
+    method: "POST",
+    body: JSON.stringify({ secret }),
+  });
+export interface NewConnector {
+  name: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  envRefs?: Record<string, string>;
+  headersRef?: Record<string, string>;
+}
+export const addConnector = (spec: NewConnector) =>
+  authedJson<{ connector?: Connector; error?: string }>("/factory/connectors", {
+    method: "POST",
+    body: JSON.stringify(spec),
+  });
+export const setConnectorEnabled = (connectorId: string, enabled: boolean) =>
+  authedJson<{ ok?: boolean; enabled?: boolean; error?: string }>(
+    `/factory/connectors/${encodeURIComponent(connectorId)}/enable`,
+    { method: "POST", body: JSON.stringify({ enabled }) },
+  );
+export const removeConnector = (connectorId: string) =>
+  authedJson<{ ok?: boolean; error?: string }>(`/factory/connectors/${encodeURIComponent(connectorId)}`, {
+    method: "DELETE",
+  });
+export const grantConnector = (agentId: string, connectorId: string, action: "grant" | "revoke") =>
+  authedJson<{ ok?: boolean; error?: string }>("/factory/connectors/grant", {
+    method: "POST",
+    body: JSON.stringify({ agentId, connectorId, action }),
+  });
+
+// ── Full tool loop / sandboxed exec (ADR-038/039) ────────────────────────────
+export interface ExecResult {
+  ran?: boolean;
+  pending?: boolean;
+  refused?: boolean;
+  denied?: boolean;
+  callId?: string;
+  klass?: "safe" | "sensitive" | "forbidden";
+  reason?: string;
+  network?: boolean;
+  preview?: string;
+  capabilities?: string[];
+  exitCode?: number;
+  timedOut?: boolean;
+  killed?: boolean;
+  stdout?: string;
+  stderr?: string;
+  scope?: string;
+  error?: string;
+}
+export const proposeExec = (agentId: string, command: string, network: boolean) =>
+  authedJson<ExecResult>(`/runtime/${encodeURIComponent(agentId)}/exec`, {
+    method: "POST",
+    body: JSON.stringify({ command, network }),
+  });
+export const approveExec = (callId: string, scope: "once" | "session" | "deny") =>
+  authedJson<ExecResult>(`/runtime/exec/${encodeURIComponent(callId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ scope }),
+  });
+export const killExec = (callId: string) =>
+  authedJson<{ ok?: boolean }>(`/runtime/exec/${encodeURIComponent(callId)}/kill`, { method: "POST" });
 
 // Stream the agent-creator: yields reasoning tokens, resolves with the parsed spec
 // (or an error). onToken receives streamed reasoning text for the live "authoring" UI.
