@@ -140,3 +140,17 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+  Explicit reduce-motion override (Settings → Accessibility, ADR-040). `on` forces
+  the same CSS net as the media query above; `off` lets motion run even for a
+  system-reduce user. framer surfaces are handled by <MotionConfig> in settingsContext.
+*/
+[data-reduce-motion="on"] *,
+[data-reduce-motion="on"] *::before,
+[data-reduce-motion="on"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

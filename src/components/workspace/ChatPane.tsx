@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { Send, Loader2, Bot, User, AlertTriangle, Zap, Check, FileEdit } from "lucide-react";
+import { Send, Loader2, Bot, User, AlertTriangle, Zap, Check, FileEdit, Paperclip, X, FileText, Image as ImageIcon, Table, Plus } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import { PermissionGate } from "../PermissionGate";
 import { ModelTierPicker } from "./ModelTierPicker";
+import { UsageMeter, type TurnUsage } from "./UsageMeter";
+import { QuotaChip } from "./QuotaChip";
 import { loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
+import { loadAgentModel } from "../../lib/agentModel";
+import { filterSkills, KIND_LABEL, type MissionSkill } from "../../lib/missionSkills";
+import { runtimeToken } from "../../lib/runtimeToken";
 import type { CommandRequest, CommandResult, CommandType } from "../../data/types";
 
 export interface Msg {
@@ -12,17 +17,20 @@ export interface Msg {
   content: string;
 }
 
-// ── shared runtime-token (same-origin via vite), cached ──────────────────────
-let tokenPromise: Promise<string> | null = null;
-function runtimeToken(): Promise<string> {
-  if (!tokenPromise) {
-    tokenPromise = fetch("/api/runtime-token", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { token: "" }))
-      .then((j) => (j as { token?: string }).token ?? "")
-      .catch(() => "");
-  }
-  return tokenPromise;
+// ADR-049 — client-side attachment caps (mirror agent-runtime/uploads.mjs; server
+// re-validates). Instant feedback only — never the security boundary.
+const ATTACH_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.csv,.txt,.md,image/*";
+const ATTACH_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".txt", ".md"]);
+const ATTACH_MAX_FILES = 8;
+const ATTACH_MAX_BYTES = 25 * 1024 * 1024;
+const extLower = (n: string) => { const i = n.lastIndexOf("."); return i < 0 ? "" : n.slice(i).toLowerCase(); };
+function attachKind(n: string): "image" | "pdf" | "text" {
+  const e = extLower(n);
+  if (e === ".pdf") return "pdf";
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(e)) return "image";
+  return "text";
 }
+const fmtBytes = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`);
 
 interface Directive {
   type: CommandType;
@@ -71,6 +79,8 @@ export function ChatPane({
   setMessages,
   onCommand,
   headerExtra,
+  prefill,
+  tierReloadKey,
 }: {
   threadId: string;
   title: string;
@@ -81,15 +91,64 @@ export function ChatPane({
   setMessages: (updater: (prev: Msg[]) => Msg[]) => void;
   onCommand: (cmd: CommandRequest) => Promise<CommandResult>;
   headerExtra?: ReactNode;
+  // Externally-driven input prefill (onboarding "try a goal" / palette "dispatch a goal").
+  prefill?: { text: string; nonce: number };
+  // Bumped by the palette's "switch model" so the picker reflects the new tier (S4).
+  tierReloadKey?: number;
 }) {
   const reduce = useReducedMotion();
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [mode, setMode] = useState("");
   const [err, setErr] = useState("");
+  const [usage, setUsage] = useState<TurnUsage | null>(null); // ADR-030 usage meter
   const [tier, setTier] = useState<ModelTier>(() => loadTier(threadId));
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // ADR-049 chat attachments (images/pdf/csv/txt). Mirror the server caps client-side
+  // for instant feedback; the server re-validates everything (type/size/count) anyway.
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  // "+" add-menu (Attach lives here, like the Claude composer). Closes on outside click / Esc.
+  const [plusOpen, setPlusOpen] = useState(false);
+  const plusRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onDown = (e: PointerEvent) => { if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false); };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setPlusOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onEsc); };
+  }, [plusOpen]);
+  // Composer height. `composerH` is the MANUAL floor set by dragging the top handle
+  // (up = taller, down = shorter). The box ALSO auto-grows to fit large content up to
+  // COMPOSER_MAX, then scrolls. Effective height = clamp(max(floor, contentHeight)).
+  const COMPOSER_MIN = 44, COMPOSER_MAX = 400;
+  const [composerH, setComposerH] = useState<number>(() => {
+    const n = Number(localStorage.getItem("ma.composerH"));
+    return Number.isFinite(n) && n >= COMPOSER_MIN && n <= COMPOSER_MAX ? n : 56;
+  });
+  useEffect(() => { try { localStorage.setItem("ma.composerH", String(composerH)); } catch { /* ignore */ } }, [composerH]);
+  // Auto-grow to content (capped) + honor the dragged floor. Runs on text + floor change.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto"; // reset so scrollHeight reflects content, not prior height
+    el.style.height = Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, Math.max(composerH, el.scrollHeight))) + "px";
+  }, [input, composerH]);
+  const startComposerResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY, startH = composerH;
+    document.body.style.userSelect = "none";
+    const onMove = (ev: PointerEvent) => setComposerH(Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, startH + (startY - ev.clientY))));
+    const onUp = () => {
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [composerH]);
 
   // Boss dispatch bridge state.
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
@@ -102,11 +161,45 @@ export function ChatPane({
 
   const accentColor = tok(accent);
 
+  // "/" skill menu (Cursor-style) — typing "/" at the start of the composer opens a
+  // filterable list of MissionAlpha's own skills (prompt templates). Picking one drops
+  // its prompt into the box; the BOSS edits if wanted, then sends. App-scoped, portable.
+  const [skillIdx, setSkillIdx] = useState(0);
+  const slashQuery = input.startsWith("/") && !input.includes("\n") ? input.slice(1) : null;
+  const skillResults = useMemo(() => (slashQuery == null ? [] : filterSkills(slashQuery)), [slashQuery]);
+  const slashOpen = slashQuery !== null && skillResults.length > 0 && !streaming;
+  useEffect(() => { setSkillIdx(0); }, [slashQuery]);
+  const pickSkill = (s: MissionSkill) => {
+    setInput(s.prompt);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  // ADR-049 — stage attachments (file picker / drag-drop / paste). Validates against
+  // the mirrored caps and dedupes by name+size; server re-validates on send.
+  const addFiles = useCallback((list: FileList | null | undefined) => {
+    if (!list || !list.length) return;
+    setErr("");
+    setAttachments((cur) => {
+      const next = [...cur];
+      for (const f of Array.from(list)) {
+        if (next.length >= ATTACH_MAX_FILES) { setErr(`max ${ATTACH_MAX_FILES} files`); break; }
+        if (!ATTACH_EXTS.has(extLower(f.name))) { setErr(`unsupported type: ${f.name}`); continue; }
+        if (f.size > ATTACH_MAX_BYTES) { setErr(`${f.name} too large (max 25 MB)`); continue; }
+        if (next.some((x) => x.name === f.name && x.size === f.size)) continue;
+        next.push(f);
+      }
+      return next;
+    });
+  }, []);
+  const removeAttachment = useCallback((i: number) => setAttachments((c) => c.filter((_, j) => j !== i)), []);
+
   // Reload per-thread tier + reset transient state when the active thread changes.
   useEffect(() => {
     setTier(loadTier(threadId));
     setInput("");
+    setAttachments([]);
     setErr("");
+    setUsage(null);
     setStreaming(false);
     setFired(new Set());
     setGateForMsg(null);
@@ -117,6 +210,24 @@ export function ChatPane({
     if (!isBoss) void fetchChanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, isBoss]);
+
+  // External prefill — onboarding "try a goal" and palette "dispatch a goal" push
+  // text into the composer (keyed by nonce so the same text can be re-pushed). An
+  // empty goal still focuses the composer so "Dispatch a goal" is never a no-op.
+  useEffect(() => {
+    if (prefill && prefill.nonce > 0) {
+      if (prefill.text) setInput(prefill.text);
+      inputRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
+
+  // External tier reload — palette "switch model" wrote saveTier(); re-read it so
+  // the picker + outgoing {model} reflect the change without a thread switch.
+  useEffect(() => {
+    if (tierReloadKey != null) setTier(loadTier(threadId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tierReloadKey]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduce ? "auto" : "smooth" });
@@ -163,17 +274,33 @@ export function ChatPane({
 
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    const files = attachments;
+    if ((!text && !files.length) || streaming) return;
     setErr("");
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setAttachments([]);
+    const attachLine = files.length ? `\n📎 ${files.map((f) => f.name).join(", ")}` : "";
+    setMessages((m) => [...m, { role: "user", content: text + attachLine }, { role: "assistant", content: "" }]);
     setStreaming(true);
     try {
-      const res = await fetch(`/runtime/${encodeURIComponent(threadId)}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, model: tier }),
-      });
+      // multipart when files are attached (ADR-049); plain JSON otherwise (back-compat).
+      const url = `/runtime/${encodeURIComponent(threadId)}/chat`;
+      const res = files.length
+        ? await fetch(url, {
+            method: "POST",
+            body: (() => {
+              const fd = new FormData();
+              fd.append("message", text);
+              fd.append("model", tier);
+              for (const f of files) fd.append("files", f, f.name);
+              return fd; // NB: do NOT set Content-Type — browser sets the multipart boundary
+            })(),
+          })
+        : await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: text, model: tier }),
+          });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `HTTP ${res.status}`);
@@ -198,6 +325,7 @@ export function ChatPane({
             continue;
           }
           if (ev === "meta") setMode((data as { mode?: string }).mode ?? "");
+          else if (ev === "usage") setUsage(data as TurnUsage); // ADR-030 — tokens + context%, no $
           else if (ev === "token") {
             const t = String(data);
             setMessages((m) => {
@@ -214,7 +342,7 @@ export function ChatPane({
       setStreaming(false);
       if (!isBoss) void fetchChanges();
     }
-  }, [input, streaming, threadId, tier, isBoss, setMessages, fetchChanges]);
+  }, [input, attachments, streaming, threadId, tier, isBoss, setMessages, fetchChanges]);
 
   // Boss: directives for the message awaiting confirm.
   const gateDirectives = useMemo<Directive[]>(
@@ -239,8 +367,9 @@ export function ChatPane({
     );
     const ok = results.filter((r) => r.ok).length;
     setFired((f) => new Set(f).add(idx));
-    // Autonomous loop — trigger each task agent to run in its sandbox, with the
-    // BOSS thread's selected tier (allowlisted server-side).
+    // Autonomous loop — trigger each task agent to run in its sandbox on ITS OWN
+    // chosen model (set per agent in the inspect drawer; falls back to the configured
+    // default). Tier is allowlisted server-side.
     const token = await runtimeToken();
     const taskDirs = dirs.filter((d) => d.type === "task");
     void Promise.all(
@@ -248,7 +377,7 @@ export function ChatPane({
         fetch(`/runtime/${encodeURIComponent(d.target)}/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
-          body: JSON.stringify({ task: d.body || "see CEO directive", model: tier }),
+          body: JSON.stringify({ task: d.body || "see CEO directive", model: loadAgentModel(d.target) }),
         }).catch(() => {}),
       ),
     );
@@ -280,6 +409,8 @@ export function ChatPane({
             {mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}
           </span>
         )}
+        <UsageMeter usage={usage} />
+        <QuotaChip />
         <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
         {headerExtra}
       </header>
@@ -381,34 +512,161 @@ export function ChatPane({
       </div>
 
       {/* sticky input */}
-      <div className="border-t px-5 py-3" style={{ borderColor: tok("border") }}>
+      <div className="relative border-t px-5 py-3" style={{ borderColor: tok("border") }}>
+        {/* drag the top edge up to enlarge the input box */}
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize input box"
+          onPointerDown={startComposerResize}
+          onDoubleClick={() => setComposerH(56)}
+          title="Drag to resize · double-click to reset"
+          className="group absolute inset-x-0 top-0 z-10 flex h-2 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
+        >
+          <span className="h-0.5 w-8 rounded-full opacity-40 transition-opacity group-hover:opacity-100" style={{ backgroundColor: tok("accent-cyan") }} />
+        </div>
         {dispatchMsg && (
           <p className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("done-green") }} role="status" aria-live="polite">
             <Check size={12} aria-hidden /> {dispatchMsg}
           </p>
         )}
-        <div className="mx-auto flex max-w-[760px] items-end gap-2">
+        <div className="relative mx-auto max-w-[760px]">
+          {/* "/" skill menu — opens above the composer */}
+          {slashOpen && (
+            <div role="listbox" aria-label="Skills" className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-md border border-border bg-panel shadow-2xl">
+              <div className="border-b border-border px-3 py-1.5 text-[9px] font-medium uppercase tracking-wide text-muted">MissionAlpha skills · {skillResults.length}</div>
+              <div className="max-h-64 overflow-y-auto">
+                {skillResults.map((s, i) => {
+                  const showHeader = i === 0 || skillResults[i - 1].kind !== s.kind;
+                  return (
+                    <Fragment key={s.id}>
+                      {showHeader && (
+                        <div className="sticky top-0 bg-panel px-3 py-1 text-[9px] font-medium uppercase tracking-wide text-muted">
+                          {KIND_LABEL[s.kind]}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={i === skillIdx}
+                        onMouseEnter={() => setSkillIdx(i)}
+                        onClick={() => pickSkill(s)}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none"
+                        style={{ backgroundColor: i === skillIdx ? `color-mix(in oklch, ${accentColor} 14%, transparent)` : "transparent" }}
+                      >
+                        <span className="shrink-0 font-mono text-[12px] font-medium" style={{ color: accentColor }}>{s.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{s.hint}</span>
+                      </button>
+                    </Fragment>
+                  );
+                })}
+              </div>
+              <div className="border-t border-border px-3 py-1 text-[9px] text-muted">↑↓ pick · Enter insert · Esc close</div>
+            </div>
+          )}
+          {/* ADR-049 — staged attachment chips */}
+          {attachments.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5" aria-label="Attachments">
+              {attachments.map((f, i) => {
+                const k = attachKind(f.name);
+                const Icon = k === "image" ? ImageIcon : k === "pdf" ? FileText : Table;
+                return (
+                  <span
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border py-1 pl-2 pr-1 text-[11px]"
+                    style={{ borderColor: tok("border"), backgroundColor: tok("bg"), color: tok("text") }}
+                  >
+                    <Icon size={13} aria-hidden style={{ color: accentColor }} />
+                    <span className="max-w-[160px] truncate font-medium">{f.name}</span>
+                    <span className="text-muted">{fmtBytes(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(i)}
+                      aria-label={`Remove ${f.name}`}
+                      className="ml-0.5 rounded p-0.5 text-muted outline-none hover:text-[inherit] focus-visible:ring-2"
+                    >
+                      <X size={12} aria-hidden />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept={ATTACH_ACCEPT}
+            className="hidden"
+            onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
+          />
+          <div
+            className="flex items-end gap-2"
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer?.files); }}
+          >
+          <div ref={plusRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setPlusOpen((o) => !o)}
+              disabled={streaming}
+              aria-label="Add"
+              aria-haspopup="menu"
+              aria-expanded={plusOpen}
+              title="Add"
+              className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
+              style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
+            >
+              <Plus size={16} aria-hidden className="transition-transform" style={{ transform: plusOpen ? "rotate(45deg)" : "none" }} />
+            </button>
+            {plusOpen && (
+              <div
+                role="menu"
+                className="absolute bottom-[46px] left-0 z-30 min-w-[200px] overflow-hidden rounded-lg border py-1"
+                style={{ backgroundColor: tok("panel"), borderColor: tok("border"), boxShadow: "0 8px 24px -8px rgba(0,0,0,0.45)" }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setPlusOpen(false); fileRef.current?.click(); }}
+                  disabled={attachments.length >= ATTACH_MAX_FILES}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] outline-none transition-colors hover:bg-panel-2 focus-visible:bg-panel-2 disabled:opacity-40"
+                  style={{ color: tok("text") }}
+                >
+                  <Paperclip size={15} aria-hidden style={{ color: tok("muted") }} />
+                  <span className="flex-1">Attach files</span>
+                  <span className="text-[10px]" style={{ color: tok("muted") }}>image · pdf · csv · txt</span>
+                </button>
+              </div>
+            )}
+          </div>
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
             onKeyDown={(e) => {
+              if (slashOpen) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setSkillIdx((i) => (i + 1) % skillResults.length); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setSkillIdx((i) => (i - 1 + skillResults.length) % skillResults.length); return; }
+                if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSkill(skillResults[skillIdx]); return; }
+                if (e.key === "Escape") { e.preventDefault(); setInput(""); return; }
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 void send();
               }
             }}
-            placeholder={isBoss ? "Message your CEO…  (Enter to send, Shift+Enter newline)" : `Message ${threadId}…  (Enter to send)`}
-            rows={2}
+            placeholder={isBoss ? "Message your CEO…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
             disabled={streaming}
             aria-label={isBoss ? "Message the CEO" : `Message ${threadId}`}
-            className="w-full resize-y rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
+            className="w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
             style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
           <button
             type="button"
             onClick={() => void send()}
-            disabled={streaming || !input.trim()}
+            disabled={streaming || (!input.trim() && attachments.length === 0)}
             aria-label="Send"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
             style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
@@ -416,6 +674,10 @@ export function ChatPane({
             {streaming ? <Loader2 size={14} className={reduce ? "" : "animate-spin"} aria-hidden /> : <Send size={14} aria-hidden />}
             {streaming ? "…" : "Send"}
           </button>
+          </div>
+          <div className="mt-1 px-0.5 text-[10px] text-muted">
+            drag &amp; drop or paste · png jpg pdf csv txt · max {ATTACH_MAX_FILES} files · 25 MB each
+          </div>
         </div>
       </div>
 

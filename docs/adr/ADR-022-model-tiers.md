@@ -111,3 +111,13 @@ sr-security sign-off condition (Phase 1 exit + Phase 6): confirm (a) no code pat
 2. **Env-only model (status quo)** — one model per process (GAP 1); can't pick per-chat without restart.
 3. **Open registry from file/db** — adds a config-tamper surface for zero current benefit; 3 frozen tiers.
 4. **Per-agent fixed tier** — less flexible than per-chat; BOSS wants per-thread selection (persisted, see ADR-023).
+
+## S2 ratification (2026-06-18)
+
+- **Status:** ACCEPTED — holds, unchanged. No code change required for this ratification.
+
+The S1 engine (ADR-024..029) shipped on `s1-engine` after this ADR. It does NOT introduce a second model path: `engineDispatch` (`server.mjs` ~L578) resolves its model via the SAME `resolveTier(ctx.tier)` and pushes `args.push("--model", modelId)` (~L583) into an argv array on `spawn(CLAUDE_BIN, args, …)` — identical to `cliReply` (~L426). The `/runtime/engine/enqueue` route carries an OPTIONAL `tier?` field, resolved server-side; an unknown tier never reaches argv. The frozen `MODEL_TIERS` map + strict `resolveTier` therefore gate EVERY spawn in the product (manual `/chat`, manual `/run`, and the autonomous engine loop). Confirmed: no engine code path passes a raw `model`/`tier` request field to `spawn`.
+
+**Backend posture change (BOSS, locked):** the **`api` backend is OUT of the product**. The product + meter (ADR-030) target the **subscription `cli` path** (`claude -p`) exclusively — flat-rate, like Claude Code. The `api`/`mock` branches MAY remain in `server.mjs` (dead-but-present code for local dev), but they are not a product surface and are not part of the supported model path. This narrows, never widens, the allowlist surface: the only live model-param injection point is the `cli` argv, and it is already defended by the three layers below.
+
+**Re-affirmed security invariant (unchanged):** only an allowlisted tier KEY ever influences the model; raw user input is NEVER interpolated into the `claude` argv. The three layers stand exactly as specified — (1) allowlist-only key resolution, (2) argv-array `spawn` with no `shell:true`, (3) `Object.freeze(MODEL_TIERS)` + `hasOwnProperty` guard. The attack→mitigation table above is unchanged and now covers all three spawn sites (`cliReply`, `engineDispatch`, dead `api` branch). sr-security S2 sign-off: confirm (a) no path — chat, run, or engine — passes raw `model`/`tier` to `spawn`; (b) unknown tier → 400 with no spawn; (c) map still frozen. BLOCKING gate retained.

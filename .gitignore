@@ -24,3 +24,9 @@ agent-status/BROADCAST.md
 agent-status/SCHEDULER.md
 agent-status/*.md
 .vite/
+
+# S1 engine durable store (ADR-024/027) — runtime data, not source
+agent-runtime/engine-store/
+
+# vendored Anthropic skill libs (not project source)
+.claude/skills/

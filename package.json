@@ -7,6 +7,8 @@
     "dev": "vite --port 3004",
     "build": "tsc && vite build",
     "preview": "vite preview --port 3004",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --test src/lib/__tests__/*.test.ts",
     "lint": "eslint . --ext ts,tsx --max-warnings 0"
   },
   "dependencies": {

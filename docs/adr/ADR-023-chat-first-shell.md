@@ -94,3 +94,17 @@ Security (Phase 6): thread store writes ONLY under `agent-runtime/threads/` via 
 
 - Layout: `WorkspaceShell` behind a client flag; off → fall back to left-dock + center-board. Same backend → frontend-only rollback.
 - Persistence: additive; delete `agent-runtime/threads/` + revert hydration → in-memory behavior, no data-contract change, no repo trace (gitignored).
+
+## S2 ratification (2026-06-18)
+
+- **Status:** ACCEPTED — shell stands, unchanged. No reflow, no layout change.
+
+The chat-first shell shipped and holds: `ThreadRail` (left), `ChatPane` (center primary, `src/components/workspace/ChatPane.tsx`), `TeamPanel` (right, board verbatim). Threads persist to `agent-runtime/threads/<id>.json` via `persistThread` (~L170) + hydrate via `loadThreads` (~L151). The per-thread model tier (ADR-022) is live through `ModelTierPicker` in the `ChatPane` header (~L283). Dispatch→autonomous loop preserved.
+
+**S2 adds two things ON TOP of this shell — both additive, NO reflow:**
+
+1. **Usage meter (ADR-030).** A compact USAGE readout in the `ChatPane` sticky header (~L264, near `ModelTierPicker` at ~L283), modeled on Claude Code `/context`: real token counts (in/out, cache) + a context-window % bar + which tier ran. It fits in the existing `headerExtra` slot or beside the picker — no grid change. It is a USAGE meter, **never a cost meter; no `$` ever appears** (BOSS-locked; subscription = flat-rate). The `ChatPane` SSE loop (~L190) gains one branch for a new `event: usage` frame — the existing `event:`/`data:` parser already accepts arbitrary event names, so this is one `else if` next to the `meta`/`token`/`error` branches.
+
+2. **Thread fork/resume (ADR-031).** `ThreadRail` gains resume (select a persisted server thread → hydrate its messages into `App.tsx` `threadMsgs` at `src/App.tsx` L146, which today starts empty — see ADR-031) and a fork action (branch the current thread at the latest/chosen message into a new thread). These wire into the EXISTING `ThreadRail` list + `threadMsgs` record; no new column, no shell restructure.
+
+**Unchanged:** SSE shape extends additively (new `usage` event; `meta`/`token`/`done`/`error` untouched). Gates, inflight cap, scrub, disk-persistence model, and the responsive/a11y/motion contract all stand. sr-security posture from §3 (thread store writes only under `threads/` via `threadSafeId`, gitignored) is reused and extended — never relaxed — by ADR-031.

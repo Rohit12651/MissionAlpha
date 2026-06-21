@@ -1,0 +1,56 @@
+name: CI
+
+# Gap #28 — permanent regression suite (S1 → S3.5) + S4 wired into CI.
+# Every push / PR re-runs the FULL accumulated suite; nothing prior may break.
+# Live-docker tests (sandbox/exec-loop) run on the GitHub runner (docker present,
+# public images) and self-skip if the daemon is unavailable. `claude` is stubbed
+# (test/fixtures/fake-claude.mjs) so no subscription/auth is needed in CI.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    name: agent-runtime suite (S1→S3.5 + S4 audit-read)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: agent-runtime/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Run full runtime regression suite
+        # Serialized (matches the repo's npm test) for deterministic docker/exec tests.
+        run: npm test
+
+  frontend:
+    name: frontend typecheck + build + unit tests (S2…S4 UI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Unit tests (settings / audit model / palette)
+        run: npm run test:unit

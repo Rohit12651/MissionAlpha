@@ -24,8 +24,22 @@ export function isTier(v: unknown): v is ModelTier {
 }
 
 const KEY = (threadId: string) => `ma.model.${threadId}`;
+// Mirror of settings.defaultTier (ADR-040) — keeps modelTiers decoupled from the
+// settings store while still honoring the BOSS's chosen default for NEW threads.
+const DEFAULT_TIER_MIRROR_KEY = "ma.default.tier";
 
-/** Read a thread's persisted tier (falls back to default). */
+/** The BOSS's configured default tier for new threads (settings ADR-040), else sonnet. */
+export function configuredDefaultTier(): ModelTier {
+  try {
+    const v = localStorage.getItem(DEFAULT_TIER_MIRROR_KEY);
+    if (isTier(v)) return v;
+  } catch {
+    /* no storage */
+  }
+  return DEFAULT_TIER;
+}
+
+/** Read a thread's persisted tier (falls back to the configured default). */
 export function loadTier(threadId: string): ModelTier {
   try {
     const v = localStorage.getItem(KEY(threadId));
@@ -33,7 +47,7 @@ export function loadTier(threadId: string): ModelTier {
   } catch {
     /* no storage */
   }
-  return DEFAULT_TIER;
+  return configuredDefaultTier();
 }
 
 /** Persist a thread's chosen tier. */

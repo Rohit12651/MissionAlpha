@@ -56,6 +56,7 @@ const REGISTRY_FILE = join(FACTORY_DIR, "registry.json");
 // so no agent read-scope (cwd=REPO_ROOT in read mode) can reach them.
 const RUNTIME_DIR = process.env.RUNTIME_TOKEN_DIR || join(tmpdir(), "missionalpha-runtime");
 const CONN_FILE = join(RUNTIME_DIR, "connections.json");
+const CREDS_FILE = join(RUNTIME_DIR, "mcp-creds.json"); // generic (platform-less) MCP creds
 const BROKER_KEY_FILE = join(RUNTIME_DIR, ".broker-key");
 const AUDIT_FILE = join(RUNTIME_DIR, "factory-audit.log");
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
@@ -463,6 +464,49 @@ function getConn(connId) {
   return loadConnections().find((c) => c.connId === connId) || null;
 }
 
+// ── Generic MCP credentials (ADR-033) — platform-less secrets for MCP connectors.
+// Same AES-256-GCM broker as accounts; raw secret enters ONLY here, encrypted at once,
+// NEVER logged. getCredValue() (decrypt) is called ONLY at the spawn frame when the
+// scoped .mcp.json is composed. Public listings expose ids only, never values.
+function loadCreds() {
+  try { return JSON.parse(readFileSync(CREDS_FILE, "utf-8")); } catch { return []; }
+}
+function saveCreds(list) {
+  ensureDirs();
+  writeFileSync(CREDS_FILE, JSON.stringify(list), { mode: 0o600 });
+}
+export function addCred(secret) {
+  // min length 8: a too-short value would make the egress scrub redact common substrings
+  // (e.g. "a") and garble chat output (sr-review LOW). Real MCP tokens are long.
+  if (typeof secret !== "string" || secret.length < 8 || secret.length > 8000) return { error: "secret must be 8–8000 chars" };
+  const list = loadCreds();
+  const credId = "cred_" + randomUUID().slice(0, 12);
+  list.push({ credId, createdAt: new Date(nowMs()).toISOString(), enc: encrypt(secret) });
+  saveCreds(list);
+  audit("cred.create", { credId }); // secret NEVER logged
+  return { credId };
+}
+export function listCredIds() {
+  return loadCreds().map((c) => ({ credId: c.credId, createdAt: c.createdAt }));
+}
+export function deleteCred(credId) {
+  const list = loadCreds();
+  const next = list.filter((c) => c.credId !== credId);
+  if (next.length === list.length) return { error: "not found" };
+  saveCreds(next);
+  audit("cred.delete", { credId });
+  return { ok: true };
+}
+// SENSITIVE — decrypt a cred value. Call ONLY at the spawn frame (scoped-config compose).
+export function getCredValue(credId) {
+  const rec = loadCreds().find((c) => c.credId === credId);
+  if (!rec) return null;
+  try { return decrypt(rec.enc); } catch { return null; }
+}
+export function credExists(credId) {
+  return loadCreds().some((c) => c.credId === credId);
+}
+
 // ── POSTING (dry-run preview → BOSS-confirmed execute → audit) ────────────────
 // Rate limit: in-memory rolling-24h timestamps per connId, capped at the platform
 // dailyCap. Resets on restart (acceptable — caps are abuse guards, not billing).
@@ -604,7 +648,7 @@ async function composioPost(platform, handle, text, secret) {
 }
 
 // ── AUDIT (runtime log, outside the repo) ─────────────────────────────────────
-function audit(event, data) {
+export function audit(event, data) {
   try {
     ensureDirs();
     appendFileSync(AUDIT_FILE, `${new Date(nowMs()).toISOString()}\t${event}\t${JSON.stringify(data)}\n`, "utf-8");
