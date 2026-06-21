@@ -13,13 +13,27 @@ import { fileURLToPath } from "node:url";
 const __dir = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(__dir, ".."); // MissionAlpha repo root
 
-// Seeded + appliable scope. src/ + README + package.json. Still EXCLUDES
-// *.config.ts + scripts/ (pure exec). package.json IS appliable BUT its exec/
-// supply-chain keys are hard-guarded server-side (CONFIG_GUARD) — sr-security F2b.
-export const SEED_DIRS = ["src"];
+// Seeded + appliable scope. src/ + public/ + README + package.json. Still EXCLUDES
+// *.config.ts + scripts/ + infrastructure/ + .github/ (pure exec / CI). package.json
+// IS appliable BUT its exec/supply-chain keys are hard-guarded server-side
+// (CONFIG_GUARD) — sr-security F2b.
+//
+// public/ is the static-deliverable surface: a /run "build" (e.g. an agent producing
+// billsplit.html) writes its output here so it surfaces via /changes and is operator-
+// appliable. It carries no exec semantics (Vite serves it verbatim), and apply stays
+// gated by APPLY_DENY + containment + symlink/realpath checks. SEED_DIRS is the SINGLE
+// source of truth for both the copy-sandbox broker AND the engine worktree broker.
+export const SEED_DIRS = ["src", "public"];
 export const SEED_FILES = ["README.md", "package.json"];
 // apply() refuses any path matching these (defense beyond the .claude denylist).
 export const APPLY_DENY = /(^|\/)(\.env|\.git|\.claude|node_modules|.*\.(pem|key|p12))(\/|$)/i;
+// public/ is appliable for STATIC deliverables only. An agent's /run "build" must NOT
+// land: (a) public/index.html — Vite serves it at / AHEAD of the SPA shell on every
+// dashboard load, so an applied one could swap the UI + exfiltrate the runtime token
+// (fetched same-origin from localhost); or (b) any script/executable type — served
+// verbatim by Vite = browser RCE/XSS surface. Non-index .html / css / images / fonts /
+// json stay appliable (e.g. billsplit.html). sr-security: PUBLIC_GUARD.
+export const PUBLIC_DENY = /^public\/(index\.html$|.*\.(sh|bash|zsh|py|rb|pl|ps1|bat|cmd|exe|dll|so|dylib|wasm|mjs|cjs|jsx?|tsx?)$)/i;
 // Files whose exec-relevant keys must NEVER change via the broker. If any protected
 // key differs between repo + sandbox, the whole file apply is refused.
 export const CONFIG_GUARD = {
@@ -38,6 +52,8 @@ export function applyAllowed(relPath) {
   if (!dest.startsWith(rootPrefix)) return false; // containment (kills ../ escape)
   const relNorm = relative(REPO_ROOT, dest); // canonical
   if (APPLY_DENY.test(relNorm)) return false;
+  const relSlash = relNorm.split(sep).join("/"); // platform-stable for the public/ guard
+  if (PUBLIC_DENY.test(relSlash)) return false;
   const top = relNorm.split(sep)[0];
   return SEED_DIRS.includes(top) || SEED_FILES.includes(relNorm);
 }

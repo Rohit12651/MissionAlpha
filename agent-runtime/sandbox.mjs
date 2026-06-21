@@ -123,7 +123,7 @@ export function createSandbox(opts = {}) {
       // w+x for other — 0o711 grants only traverse (x), so writes would still fail. Mode
       // bits can't grant-write-to-nobody while denying-read-to-others (both are "other");
       // the residual host-side exposure is accepted for the single-operator/CI target.
-      try { chmodSync(real, 0o777); } catch { /* best-effort; a write would otherwise fail loudly */ }
+      try { chmodSync(real, 0o777); } catch (e) { console.warn(`sandbox: chmod 0777 on /work mount failed (${e.code || e.message}); container writes may EACCES`); }
       const { args, name } = buildDockerArgs({ worktreeDir: real, command: String(command), callId: o.callId, network: !!o.network, image: o.image || image, limits: o.limits || {} });
       const child = spawn(DOCKER, args, { stdio: ["ignore", "pipe", "pipe"] });
       let stdout = "", stderr = "", killed = false, timedOut = false, diskExceeded = false, done = false;

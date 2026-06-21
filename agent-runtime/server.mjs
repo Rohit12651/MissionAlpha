@@ -822,7 +822,11 @@ function handleChatMultipart(req, res, agentId) {
     if (t.error) { cleanup(); return jsonErr(400, { error: t.error, valid: t.valid }); }
     if (inflight >= MAX_INFLIGHT) { cleanup(); return jsonErr(429, { error: "busy — too many in-flight requests" }); }
     inflight++;
-    res.on("close", () => { inflight = Math.max(0, inflight - 1); });
+    // Release the slot AND delete the upload dir when the turn's response closes — the
+    // CLI has already read the files by then (read happens during the turn, before
+    // stream.done() → res.end() → close), so this is the success-path cleanup that
+    // prevents UPLOADS_ROOT from accumulating between restarts (code-review HIGH).
+    res.on("close", () => { inflight = Math.max(0, inflight - 1); cleanup(); });
     const note = tooManyFiles ? `\n(note: only the first ${MAX_FILES} files were kept)` : "";
     void handleChat(agentId, (message || "(see attached files)") + note, res, t.tier, t.modelId, accepted, dir);
   });
@@ -1295,6 +1299,9 @@ const server = createServer(async (req, res) => {
       const prompt =
         `TASK from BOSS: ${task}\n\n` +
         `Use your Write/Edit tools to make this change in your sandbox NOW. ` +
+        `IMPORTANT: write every file INSIDE src/ or public/ (e.g. public/billsplit.html). ` +
+        `Those are the ONLY paths the operator can review and apply — files written at the ` +
+        `sandbox root (or any other dir) are dropped and will NOT reach the live repo. ` +
         `Then summarize what you changed (caveman). The operator will review the diff before it reaches the live repo.`;
       inflight++;
       res.on("close", () => {
