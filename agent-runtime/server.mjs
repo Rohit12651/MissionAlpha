@@ -93,7 +93,7 @@ import { createWriteStream } from "node:fs";
 import {
   MAX_FILES, MAX_FILE_BYTES, extAllowed, kindFor, sniffOk,
   safeName, displayName, uploadMsgDir, ensureUploadDir, buildManifest,
-  sweepStaleUploads,
+  sweepStaleUploads, xlsxToCsv,
 } from "./uploads.mjs";
 // Quota guard — self-throttle (pre-gate) + 429 backoff around every `claude` spawn,
 // so a runaway swarm can't lock the BOSS out of his Claude subscription. File-based.
@@ -828,7 +828,32 @@ function handleChatMultipart(req, res, agentId) {
     // prevents UPLOADS_ROOT from accumulating between restarts (code-review HIGH).
     res.on("close", () => { inflight = Math.max(0, inflight - 1); cleanup(); });
     const note = tooManyFiles ? `\n(note: only the first ${MAX_FILES} files were kept)` : "";
-    void handleChat(agentId, (message || "(see attached files)") + note, res, t.tier, t.modelId, accepted, dir);
+
+    // ADR-049 §2 — XLSX→CSV conversion inside an async IIFE so we can await xlsxToCsv
+    // before dispatching handleChat. The outer bb "close" handler stays synchronous;
+    // the async work is fully enclosed and unhandled-rejection-safe (caught inside).
+    void (async () => {
+      // Convert spreadsheet attachments to CSV before the agent sees them.
+      // The model can't read binary xlsx; CSV is text the Read tool handles.
+      // Mutate the accepted entry (absPath+kind+note) or drop on failure (soft note).
+      const xlsxSoftNotes = [];
+      for (let i = accepted.length - 1; i >= 0; i--) {
+        const entry = accepted[i];
+        if (entry.kind !== "spreadsheet") continue;
+        const result = await xlsxToCsv(entry.absPath); // eslint-disable-line no-await-in-loop
+        if (result.error) {
+          xlsxSoftNotes.push(`(xlsx "${displayName(entry.origName)}" could not be converted — skipped)`);
+          accepted.splice(i, 1);
+        } else {
+          const truncNote = result.truncated ? ", truncated" : "";
+          entry.absPath = result.csvPath;
+          entry.kind = "text";
+          entry.note = `from Excel "${displayName(entry.origName)}", ${result.rows} rows${truncNote}`;
+        }
+      }
+      const softNote = xlsxSoftNotes.length ? `\n${xlsxSoftNotes.join("\n")}` : "";
+      await handleChat(agentId, (message || "(see attached files)") + note + softNote, res, t.tier, t.modelId, accepted, dir);
+    })();
   });
 
   req.pipe(bb);

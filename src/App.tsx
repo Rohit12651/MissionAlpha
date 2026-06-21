@@ -161,6 +161,9 @@ export default function App() {
   }, []);
   useEffect(() => { try { localStorage.setItem("ma.chat.w", String(chatW)); } catch { /* ignore */ } }, [chatW]);
   useEffect(() => { try { localStorage.setItem("ma.chat.collapsed", chatCollapsed ? "1" : "0"); } catch { /* ignore */ } }, [chatCollapsed]);
+  // Holds the teardown for an in-flight chat-divider drag so an unmount mid-drag
+  // can remove the window listeners and restore document.body.style.userSelect.
+  const chatDragCleanupRef = useRef<(() => void) | null>(null);
   const startChatResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     draggingRef.current = true;
@@ -175,10 +178,14 @@ export default function App() {
       document.body.style.userSelect = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      chatDragCleanupRef.current = null;
     };
+    chatDragCleanupRef.current = onUp;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, []);
+  // On unmount, tear down any drag still in progress (listeners + userSelect).
+  useEffect(() => () => { chatDragCleanupRef.current?.(); }, []);
 
   const openUtil = useCallback((t: UtilityTab) => { setUtilTab(t); setUtilOpen(true); }, []);
 

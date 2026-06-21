@@ -19,8 +19,8 @@ export interface Msg {
 
 // ADR-049 — client-side attachment caps (mirror agent-runtime/uploads.mjs; server
 // re-validates). Instant feedback only — never the security boundary.
-const ATTACH_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.csv,.txt,.md,image/*";
-const ATTACH_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".txt", ".md"]);
+const ATTACH_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.csv,.txt,.md,.xlsx,image/*";
+const ATTACH_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".txt", ".md", ".xlsx"]);
 const ATTACH_MAX_FILES = 8;
 const ATTACH_MAX_BYTES = 25 * 1024 * 1024;
 const extLower = (n: string) => { const i = n.lastIndexOf("."); return i < 0 ? "" : n.slice(i).toLowerCase(); };
@@ -28,6 +28,7 @@ function attachKind(n: string): "image" | "pdf" | "text" {
   const e = extLower(n);
   if (e === ".pdf") return "pdf";
   if ([".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(e)) return "image";
+  // .xlsx is converted to CSV server-side; treat as text for icon/chip purposes
   return "text";
 }
 const fmtBytes = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`);
@@ -136,6 +137,9 @@ export function ChatPane({
     el.style.height = "auto"; // reset so scrollHeight reflects content, not prior height
     el.style.height = Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, Math.max(composerH, el.scrollHeight))) + "px";
   }, [input, composerH]);
+  // Holds the teardown for an in-flight composer drag so an unmount mid-drag can
+  // remove the window listeners and restore document.body.style.userSelect.
+  const composerDragCleanupRef = useRef<(() => void) | null>(null);
   const startComposerResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const startY = e.clientY, startH = composerH;
@@ -145,10 +149,14 @@ export function ChatPane({
       document.body.style.userSelect = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      composerDragCleanupRef.current = null;
     };
+    composerDragCleanupRef.current = onUp;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, [composerH]);
+  // On unmount, tear down any drag still in progress (listeners + userSelect).
+  useEffect(() => () => { composerDragCleanupRef.current?.(); }, []);
 
   // Boss dispatch bridge state.
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
