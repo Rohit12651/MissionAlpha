@@ -143,18 +143,22 @@ export async function xlsxToCsv(absPath, { maxRows = 5000 } = {}) {
       return { error: "unreadable xlsx" };
     }
 
-    // SheetJS ships as CJS; dynamic import gives us the namespace. The actual API
-    // lives on `.default` when imported via ESM dynamic import.
+    // SheetJS dynamic import gives us the namespace; the API lives on `.default`
+    // when imported via ESM dynamic import.
     const ns = await import("xlsx");
     const XLSX = ns.default ?? ns;
+    // Parse from a Buffer via XLSX.read (not XLSX.readFile): the 0.20.x ESM build no
+    // longer wires `fs`, so the buffer API is the correct path and keeps fs out of the
+    // parser entirely.
     // SECURITY: bound the parse at the decompression stage with `sheetRows` so a zip
     // bomb (small compressed file → millions of sparse cells) can't exhaust heap BEFORE
     // the post-parse row cap applies. maxRows+1 reads one extra row so truncation is
-    // still detectable below. (xlsx@0.18.5 also carries CVE-2023-30533 prototype
-    // pollution — accepted for this single-operator/loopback tool; input is operator-
-    // supplied, and the post-parse path does no for-in over tainted objects. Real fix:
-    // migrate to a patched SheetJS source or exceljs — tracked follow-up.)
-    const wb = XLSX.readFile(absPath, { sheetRows: maxRows + 1 });
+    // still detectable below. (Pinned to SheetJS 0.20.3 from the patched upstream CDN
+    // tarball — past the npm-stale 0.18.5 that carried CVE-2023-30533 prototype
+    // pollution [fixed 0.19.3] and the ReDoS GHSA-5pgg-2g8v-p4x9 [fixed 0.20.2].
+    // See package.json: the npm registry never received these fixes.)
+    const { readFileSync } = await import("node:fs");
+    const wb = XLSX.read(readFileSync(absPath), { type: "buffer", sheetRows: maxRows + 1 });
     const sheetName = wb.SheetNames[0];
     if (!sheetName) return { error: "unreadable xlsx" };
     const ws = wb.Sheets[sheetName];

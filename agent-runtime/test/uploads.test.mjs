@@ -108,7 +108,8 @@ test("xlsxToCsv: normal 2-row workbook → csv sidecar, rows=2, truncated=false"
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
   const tmpFile = join(tmpdir(), `ma_test_${Date.now()}.xlsx`);
-  XLSX.writeFile(wb, tmpFile);
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(tmpFile, XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
   try {
     const result = await xlsxToCsv(tmpFile);
     assert.ok(!result.error, `unexpected error: ${result.error}`);
@@ -131,7 +132,8 @@ test("xlsxToCsv: maxRows=1 on 3-row sheet → truncated=true, rows capped", asyn
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
   const tmpFile = join(tmpdir(), `ma_test_trunc_${Date.now()}.xlsx`);
-  XLSX.writeFile(wb, tmpFile);
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(tmpFile, XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
   try {
     const result = await xlsxToCsv(tmpFile, { maxRows: 1 });
     assert.ok(!result.error, `unexpected error: ${result.error}`);
