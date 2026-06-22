@@ -418,9 +418,6 @@ export function ChatPane({
             {mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}
           </span>
         )}
-        <UsageMeter usage={usage} />
-        <QuotaChip />
-        <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
         {headerExtra}
       </header>
 
@@ -669,20 +666,27 @@ export function ChatPane({
             placeholder={isBoss ? "Message your CEO…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
             disabled={streaming}
             aria-label={isBoss ? "Message the CEO" : `Message ${threadId}`}
-            className="w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
+            className="min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
             style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={streaming || (!input.trim() && attachments.length === 0)}
-            aria-label="Send"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
-            style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
-          >
-            {streaming ? <Loader2 size={14} className={reduce ? "" : "animate-spin"} aria-hidden /> : <Send size={14} aria-hidden />}
-            {streaming ? "…" : "Send"}
-          </button>
+          </div>
+          {/* control row — quota · usage · model · Send. Wraps so nothing is pushed
+              off-screen at narrow panel widths (mockup .crow layout). */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <QuotaChip />
+            <UsageMeter usage={usage} />
+            <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={streaming || (!input.trim() && attachments.length === 0)}
+              aria-label="Send"
+              className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
+              style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
+            >
+              {streaming ? <Loader2 size={14} className={reduce ? "" : "animate-spin"} aria-hidden /> : <Send size={14} aria-hidden />}
+              {streaming ? "…" : "Send"}
+            </button>
           </div>
           <div className="mt-1 px-0.5 text-[10px] text-muted">
             drag &amp; drop or paste · png jpg pdf csv txt · max {ATTACH_MAX_FILES} files · 25 MB each
