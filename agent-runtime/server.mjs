@@ -75,7 +75,7 @@ import { createBroker } from "./broker.mjs";
 // worktree isolation, durable task queue, retry/self-heal, auto-apply policy.
 import { createQueue } from "./queue.mjs";
 import { createPolicy } from "./policy.mjs";
-import { createWorktreeMgr } from "./worktree.mjs";
+import { createWorktreeMgr, isGitRepo } from "./worktree.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createEngine } from "./engine.mjs";
 import { escalationArgs } from "./self-heal.mjs";
@@ -147,6 +147,20 @@ try {
   writeFileSync(TOKEN_FILE, RUNTIME_TOKEN, { mode: 0o600 });
 } catch {
   /* non-fatal */
+}
+// F5 — the sandbox/token/worktree roots MUST stay OUTSIDE REPO_ROOT (a read-mode
+// agent runs with cwd=REPO_ROOT; an in-root token/sandbox would be self-readable →
+// self-authorize /apply). Default tmpdir roots already satisfy this; assert it for
+// ANY configured root + any operator-set RUNTIME_*_ROOT. Fail closed.
+{
+  const rootPfx = resolve(REPO_ROOT) + sep;
+  const outside = (p, name) => {
+    if (resolve(p).startsWith(rootPfx)) throw new Error(`${name} must be OUTSIDE RUNTIME_REPO_ROOT: ${p}`);
+  };
+  outside(SANDBOX_ROOT, "RUNTIME_SANDBOX_ROOT");
+  outside(TOKEN_DIR, "RUNTIME_TOKEN_DIR");
+  outside(process.env.RUNTIME_WORKTREE_ROOT || join(tmpdir(), "missionalpha-worktrees"), "RUNTIME_WORKTREE_ROOT");
+  if (process.env.RUNTIME_EXEC_WT_ROOT) outside(process.env.RUNTIME_EXEC_WT_ROOT, "RUNTIME_EXEC_WT_ROOT");
 }
 // Constant-time token compare.
 function tokenOk(req) {
@@ -459,6 +473,11 @@ async function seedSandbox(agentId) {
 // unchanged) so the engine (ADR-024, worktree-backed) reuses the SAME broker. The
 // manual /run path keeps its copy-sandbox via workdirFor=sandboxDir below.
 const { listChanges, applyChanges } = createBroker({ repoRoot: REPO_ROOT, workdirFor: sandboxDir, scrub });
+// F5 — warn loudly if NOTHING is seedable under the configured root (foreign repo
+// with a different layout) so an empty sandbox fails loud, not silent.
+if (!SEED_DIRS.some((d) => existsSync(join(REPO_ROOT, d)))) {
+  console.warn(`[runtime] WARNING: none of SEED_DIRS [${SEED_DIRS.join(", ")}] exist under REPO_ROOT (${REPO_ROOT}). Set RUNTIME_SEED_DIRS to this repo's source dirs, or the agent sandbox will be empty.`);
+}
 
 // Report-back — after an operator-confirmed apply, tell the swarm bus the agent's
 // task is DONE: a heartbeat (→ kanban/board) + a sync TO BOSS (→ live feed + Boss
@@ -473,15 +492,9 @@ function reportBack(agentId, summary) {
   const clean = (s) => String(s).replace(/[\x00-\x1f"'`|$=]/g, " ").replace(/\s+/g, " ").trim();
   const safeId = String(agentId).replace(/[^a-z0-9_-]/gi, "");
   const sum = clean(summary).slice(0, 140);
-  const sh = (script, args) => {
-    try {
-      spawn("bash", [script, ...args.map(String)], { stdio: "ignore", cwd: REPO_ROOT });
-    } catch {
-      /* non-fatal */
-    }
-  };
-  sh(HB, [safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"]);
-  sh(SYNC, [safeId, "BOSS", "task-done", "-", `done: ${sum}`]);
+  // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
+  if (existsSync(HB)) { try { spawn("bash", [HB, ...[safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+  if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...[safeId, "BOSS", "task-done", "-", `done: ${sum}`].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
 }
 
 // CLI backend — drive the local `claude` CLI headless. Uses the Claude Code
@@ -857,8 +870,13 @@ const ENGINE_STORE = process.env.RUNTIME_ENGINE_STORE || join(__dir, "engine-sto
 const engineQueue = createQueue({ dir: ENGINE_STORE, scrub });
 const enginePolicy = createPolicy({ file: join(ENGINE_STORE, "policy.json"), token: RUNTIME_TOKEN });
 const engineWorktrees = createWorktreeMgr({ repoRoot: REPO_ROOT });
+// F5 — probe once at boot; if the target is not a git repo, the engine uses copy-sandbox
+// isolation (same as the manual path) instead of git worktrees.
+const targetIsGit = isGitRepo(REPO_ROOT);
+if (!targetIsGit) console.warn(`[runtime] REPO_ROOT is not a git repo — engine uses copy-sandbox isolation (worktrees disabled).`);
 // Worktree-backed broker: per-task isolation keyed by taskId (vs the manual path's copy-sandbox).
-const engineBroker = createBroker({ repoRoot: REPO_ROOT, workdirFor: (id) => engineWorktrees.pathFor(id), scrub });
+// F5 — non-git: fall back to sandboxDir (copy-sandbox), same boundary as the manual path.
+const engineBroker = createBroker({ repoRoot: REPO_ROOT, workdirFor: targetIsGit ? (id) => engineWorktrees.pathFor(id) : sandboxDir, scrub });
 // Slot helpers over the EXISTING inflight counter (ADR-025 §2 — shared budget, never a 2nd one).
 function tryAcquireSlot() { if (inflight >= MAX_INFLIGHT) return false; inflight++; return true; }
 function releaseSlot() { inflight = Math.max(0, inflight - 1); }
@@ -867,9 +885,13 @@ const engineScheduler = createScheduler({ tryAcquireSlot, releaseSlot, claimNext
 // Headless agent dispatch — runs `claude` write-mode in the per-task WORKTREE (cwd),
 // no SSE client. Mirrors cliReply's write args (Bash NEVER allowed). cli backend only;
 // other backends reject (the write-loop is the subscription path for S1).
-function engineDispatch(ctx) {
-  if (BACKEND !== "cli") return Promise.resolve({ error: "engine write-loop requires the cli backend (claude subscription)" });
+async function engineDispatch(ctx) {
+  if (BACKEND !== "cli") return { error: "engine write-loop requires the cli backend (claude subscription)" };
   const { modelId } = resolveTier(ctx.tier);
+  // F5 — non-git target: ctx.workdir is null (worktreeMgr was null → engine skipped create).
+  // Fall back to the copy-sandbox path (same as the manual /run path). The apply broker
+  // stays identical — only the workdir SOURCE changes.
+  const workdir = ctx.workdir ?? await seedSandbox(ctx.agentId);
   // One spawn attempt as a promise: resolves the agent's output text, REJECTS with a
   // 429-shaped error on a detected rate limit (so the guard backs off + retries), or a
   // plain error on spawn failure.
@@ -884,7 +906,7 @@ function engineDispatch(ctx) {
     } else {
       for (const t of WRITE_TOOLS) args.push("--allowed-tools", t);
     }
-    args.push("--add-dir", ctx.workdir, "--permission-mode", "acceptEdits");
+    args.push("--add-dir", workdir, "--permission-mode", "acceptEdits");
     const childEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
       if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
@@ -892,7 +914,7 @@ function engineDispatch(ctx) {
     }
     let child;
     try {
-      child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: ctx.workdir, env: childEnv });
+      child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: workdir, env: childEnv });
     } catch (e) {
       return reject(new Error(e.message));
     }
@@ -946,7 +968,9 @@ function engineDispatch(ctx) {
 const engine = createEngine({
   queue: engineQueue,
   policy: enginePolicy,
-  worktreeMgr: engineWorktrees,
+  // F5 — pass null when the target is not a git repo; engine.runStep skips worktree
+  // creation (workdir stays null), and engineDispatch seeds a copy-sandbox instead.
+  worktreeMgr: targetIsGit ? engineWorktrees : null,
   scheduler: engineScheduler,
   broker: engineBroker,
   dispatchFn: engineDispatch,
@@ -955,8 +979,9 @@ const engine = createEngine({
     const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
     const SYNC = join(REPO_ROOT, "scripts", "agent-sync.sh");
     const { heartbeat, sync } = escalationArgs(agentId, kind, attempts, reason);
-    try { spawn("bash", [HB, ...heartbeat.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ }
-    try { spawn("bash", [SYNC, ...sync.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ }
+    // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
+    if (existsSync(HB)) { try { spawn("bash", [HB, ...heartbeat.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+    if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...sync.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
   },
   watchdogMs: Number(process.env.RUNTIME_STEP_TIMEOUT_MS || 300_000),
   goalsDir: join(ENGINE_STORE, "goals"),
