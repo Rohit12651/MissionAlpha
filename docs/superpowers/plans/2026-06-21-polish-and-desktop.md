@@ -7,14 +7,13 @@
 > expect runnable code — expand it into a sub-plan first. (Validation 2026-06-21 corrected
 > this header: the earlier version over-claimed execution-readiness.)
 
-**Goal:** Raise swarm build throughput, give the CEO live web research, and ship MissionAlpha as
-a Docker-Desktop-styled Electron app (Lato). (A headless full-loop e2e test was scoped as F3
-and DROPPED — see "Dropped: F3" below.)
+**Goal:** Raise swarm build throughput, give the CEO live web research, make the target repo
+configurable, and ship MissionAlpha as a Docker-Desktop-styled Electron app (Lato).
 
 **Architecture:** agent-runtime (Node ESM, spawns `claude` CLI + Docker jail) stays the
-backend; the React/Vite cockpit stays the UI. F1/F2 are surgical runtime edits. F4 wraps
-both in Electron (main process spawns the runtime child; renderer = the built cockpit). F3
-adds a Docker+cli-gated end-to-end test. No architectural rewrite — additive only.
+backend; the React/Vite cockpit stays the UI. F1/F2/F5 are surgical runtime edits. F4 wraps
+both in Electron (main process spawns the runtime child; renderer = the built cockpit). No
+architectural rewrite — additive only.
 
 **Tech stack:** Node ESM, React/Vite, Electron + electron-builder (new), Docker jail, `claude` CLI.
 
