@@ -500,6 +500,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
   const statePath = resolveStatePath(env);
   return {
+    // Relative asset paths in the production build so the packaged Electron app
+    // (loaded via file://) resolves /assets/* against index.html, not the FS root.
+    // Dev keeps "/" for the vite server + proxy.
+    base: mode === "production" ? "./" : "/",
     plugins: [
       react(),
       serveAgentState(statePath),
