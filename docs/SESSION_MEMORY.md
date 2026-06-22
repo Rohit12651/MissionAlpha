@@ -7058,3 +7058,76 @@ PROVEN docker invocation: `docker run --rm --network none --cap-drop ALL --secur
 **Tests: agent-runtime 287 pass (was 259→267 after F1/F2→287 after F4.1), electron 8 pass, tsc 0, build 0.** 19 F4/F4.1 commits on feat/multimodal-input, NOT pushed. `release/` gitignored.
 
 **ALL 3 FEATURES DONE: F1 (scale ceiling) + F2 (CEO web research) + F4 (desktop app, incl F4.1).** Each Exit Gate green w/ live proof. Awaiting push/PR decision.
+
+---
+
+## ⟢ Session close — 2026-06-22T04:19:12Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+?? Untitled.png
+?? docs/mockups/
+?? docs/superpowers/plans/2026-06-21-F5-configurable-repo.md
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T04:18:42Z spawn-tools-go-mqopgzzp HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T04:18:42Z spawn-tools-sync-mqopgzzs HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T04:18:42Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T04:18:42Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T04:18:42Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-22T04:37:21Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+?? Untitled.png
+?? docs/mockups/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T04:19:57Z spawn-tools-go-mqopilrl HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T04:19:57Z spawn-tools-sync-mqopilro HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T04:19:57Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T04:19:57Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T04:19:57Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ F5 shipped — configurable target repo DONE (2026-06-21 caveman session)
+
+**F5 — RUNTIME_REPO_ROOT (Exit Gate ✅, live-proven against WaahyuPython):**
+- Leverage = 2 module consts in `guards.mjs` (everything inherits via existing imports — no threading; architect blueprint).
+- `guards.mjs`: `REPO_ROOT = process.env.RUNTIME_REPO_ROOT ? resolve(env) : resolve(__dir,"..")` + fail-closed validation GATED on env being set (existsSync+isDirectory throw at module load) → env-unset byte-identical, 287 tests untouched. `SEED_DIRS = RUNTIME_SEED_DIRS csv` else `["src","public"]`. APPLY_DENY/PUBLIC_DENY/CONFIG_GUARD are root-relative matchers → recompute vs new root, no change.
+- `worktree.mjs`: added `isGitRepo(dir)` probe (hardened git argv); `create()` untouched.
+- `server.mjs`: (a) boot assertion all tmp roots (SANDBOX/TOKEN/WORKTREE/EXEC_WT + ENGINE_STORE/THREADS when env-set) OUTSIDE REPO_ROOT, fail-closed, sep-correct (no /repo vs /repo-evil collision); (b) non-git engine fallback — `targetIsGit=isGitRepo(REPO_ROOT)`, engineBroker workdirFor → sandboxDir, `engineDispatch` async w/ `ctx.workdir ?? seedSandbox(agentId)` (SAME apply broker, only workdir source differs); (c) heartbeat/sync `existsSync` guard (foreign repo has no scripts/); (d) zero-SEED_DIRS boot warning.
+- `test/repo-root.test.mjs` (5 tests): cache-busted dynamic import (env read at module load — R1); temp-root read/apply, ../escape blocked, .env blocked, invalid→throw, SEED_DIRS csv override, isGitRepo.
+
+**Live proof:** RUNTIME_REPO_ROOT=…/WaahyuPython → boots, root honored, SEED_DIRS warning (no src/public); RUNTIME_SEED_DIRS=apps,services → warning clears (seeds WaahyuPython apps/); bad path → fail-closed throw, refuses boot; unset → MissionAlpha default. security-reviewer 6/6 PASS, no CRITICAL/HIGH (1 LOW engine-store/threads-dir assertion — applied). Manual /chat+/run+/apply already copy-sandbox → non-git read/apply worked already; only engine needed the fallback.
+
+**Tests: agent-runtime 292 pass (287→292, +5 repo-root), tsc 0.** 6 F5 commits on feat/multimodal-input, NOT pushed.
+
+**Plan doc updated:** F3 (dropped headless e2e) REMOVED from 2026-06-21-polish-and-desktop.md (section + all cross-refs scrubbed). Plan = F1, F2, F4, F5.
+
+**ALL 4 PLAN FEATURES DONE: F1 (scale ceiling) + F2 (CEO web research) + F4 (desktop app incl F4.1 state feeds) + F5 (configurable repo).** Every Exit Gate green w/ live proof. Awaiting push/PR decision.
