@@ -199,6 +199,11 @@ function hostOk(req) {
 const MAX_INFLIGHT = computeMaxInflight({ env: process.env, cpuCount: cpus().length });
 let inflight = 0;
 
+// Live cockpit signals — last-turn time per agent + who's currently streaming.
+const agentActivity = new Map(); // agentId → ISO ts of last turn
+const inflightAgents = new Set(); // agentIds with an in-flight turn
+const markActivity = (id) => { if (id) agentActivity.set(id, new Date().toISOString()); };
+
 // Per-agent conversation history. In-memory Map, backed by disk (ADR-023 §3B) so
 // history survives a runtime restart. Each thread → agent-runtime/threads/<id>.json
 // (gitignored). Loaded on startup, persisted after every completed turn.
@@ -829,11 +834,12 @@ function handleChatMultipart(req, res, agentId) {
     if (t.error) { cleanup(); return jsonErr(400, { error: t.error, valid: t.valid }); }
     if (inflight >= MAX_INFLIGHT) { cleanup(); return jsonErr(429, { error: "busy — too many in-flight requests" }); }
     inflight++;
+    inflightAgents.add(agentId);
     // Release the slot AND delete the upload dir when the turn's response closes — the
     // CLI has already read the files by then (read happens during the turn, before
     // stream.done() → res.end() → close), so this is the success-path cleanup that
     // prevents UPLOADS_ROOT from accumulating between restarts (code-review HIGH).
-    res.on("close", () => { inflight = Math.max(0, inflight - 1); cleanup(); });
+    res.on("close", () => { inflight = Math.max(0, inflight - 1); inflightAgents.delete(agentId); markActivity(agentId); cleanup(); });
     const note = tooManyFiles ? `\n(note: only the first ${MAX_FILES} files were kept)` : "";
 
     // ADR-049 §2 — XLSX→CSV conversion inside an async IIFE so we can await xlsxToCsv
@@ -970,6 +976,19 @@ async function engineDispatch(ctx) {
       : { error: e.message });
 }
 
+// Wrap engineDispatch so inflightAgents tracks the engine path (ctx.agentId is in scope).
+// The inflight counter itself is managed by tryAcquireSlot/releaseSlot (scheduler); we
+// mirror the same discipline — add on entry, delete+markActivity on settle.
+async function engineDispatchTracked(ctx) {
+  inflightAgents.add(ctx.agentId);
+  try {
+    return await engineDispatch(ctx);
+  } finally {
+    inflightAgents.delete(ctx.agentId);
+    markActivity(ctx.agentId);
+  }
+}
+
 const engine = createEngine({
   queue: engineQueue,
   policy: enginePolicy,
@@ -978,7 +997,7 @@ const engine = createEngine({
   worktreeMgr: targetIsGit ? engineWorktrees : null,
   scheduler: engineScheduler,
   broker: engineBroker,
-  dispatchFn: engineDispatch,
+  dispatchFn: engineDispatchTracked,
   reportBackFn: reportBack,
   escalateFn: (agentId, kind, attempts, reason) => {
     const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
@@ -1183,8 +1202,11 @@ const server = createServer(async (req, res) => {
         return;
       }
       inflight++;
+      inflightAgents.add(agentId);
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
+        inflightAgents.delete(agentId);
+        markActivity(agentId);
       });
       void handleChat(agentId, message, res, t.tier, t.modelId);
     });
@@ -1253,6 +1275,7 @@ const server = createServer(async (req, res) => {
       if (granted) {
         if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
         inflight++;
+        inflightAgents.add(agentId);
         const callId = newCallId();
         try {
           const r = await toolBroker.execTool(agentId, command, { network: wantNet && c.network, callId, timeoutMs: 180000 });
@@ -1261,6 +1284,8 @@ const server = createServer(async (req, res) => {
           return ok2(res, { error: String(e?.message || e) }, 500);
         } finally {
           inflight = Math.max(0, inflight - 1); // never leak a slot, even on throw (QA HIGH)
+          inflightAgents.delete(agentId);
+          markActivity(agentId);
         }
       }
       // SENSITIVE + not session-granted → pending approval
@@ -1292,6 +1317,7 @@ const server = createServer(async (req, res) => {
       if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
       factory.audit("exec.approved", { agentId: pend.agentId, callId, scope, klass: pend.klass }); // audit who/what authorized
       inflight++;
+      inflightAgents.add(pend.agentId);
       try {
         const r = await toolBroker.execTool(pend.agentId, pend.command, { network: pend.network, callId, timeoutMs: 180000 });
         return ok2(res, { ran: true, scope, klass: pend.klass, exitCode: r.exitCode, timedOut: r.timedOut, killed: r.killed, stdout: scrub(r.stdout || ""), stderr: scrub(r.stderr || "") });
@@ -1299,6 +1325,8 @@ const server = createServer(async (req, res) => {
         return ok2(res, { error: String(e?.message || e) }, 500);
       } finally {
         inflight = Math.max(0, inflight - 1); // never leak a slot (QA HIGH)
+        inflightAgents.delete(pend.agentId);
+        markActivity(pend.agentId);
       }
     });
     return;
@@ -1428,8 +1456,11 @@ const server = createServer(async (req, res) => {
         `sandbox root (or any other dir) are dropped and will NOT reach the live repo. ` +
         `Then summarize what you changed (caveman). The operator will review the diff before it reaches the live repo.`;
       inflight++;
+      inflightAgents.add(mr[1]);
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
+        inflightAgents.delete(mr[1]);
+        markActivity(mr[1]);
       });
       void handleChat(mr[1], prompt, res, t.tier, t.modelId);
     });
