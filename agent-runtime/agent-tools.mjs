@@ -39,3 +39,20 @@ export function allowedToolsForAgent(agentId) {
   // Run: NOT added — Run is the exec-broker capability, not a claude --allowed-tools entry
   return tools;
 }
+
+// F2 — agents granted LIVE web research (WebSearch/WebFetch) at `claude` spawn.
+// Boss/CEO thread ONLY — no other agentId gets web egress. Case-sensitive match.
+export const WEB_RESEARCH_AGENTS = new Set(["boss", "ceo"]);
+
+/**
+ * --allowed-tools args granting live web research, for the boss/CEO thread only.
+ * Returns a FRESH array each call ([] for every non-web agent) so callers can't
+ * mutate shared state. Appended UNCONDITIONALLY in cliReply (after the TOOLS-mode
+ * branch) so the default TOOLS="none" branch cannot strip it.
+ * @param {string} agentId
+ * @returns {string[]}
+ */
+export function webToolArgs(agentId) {
+  if (!WEB_RESEARCH_AGENTS.has(agentId)) return [];
+  return ["--allowed-tools", "WebSearch", "--allowed-tools", "WebFetch"];
+}
