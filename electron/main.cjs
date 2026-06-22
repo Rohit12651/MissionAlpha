@@ -135,6 +135,11 @@ async function boot() {
       RUNTIME_PORT: String(RUNTIME_PORT),
       RUNTIME_TOKEN_DIR,
       RUNTIME_BACKEND: process.env.RUNTIME_BACKEND || "cli",
+      // F4.1 — state file for the cockpit feeds.
+      // Tier-1 (dev-machine): operator sets WAAHYU_STATE_PATH (points at real swarm output)
+      // or drops a state.json in <userData>/agent-status.
+      // Absent → runtime returns 503 → cockpit shows "connecting to swarm…" gracefully (correct, no crash).
+      WAAHYU_STATE_PATH: process.env.WAAHYU_STATE_PATH || join(app.getPath("userData"), "agent-status", "state.json"),
     },
   });
 
