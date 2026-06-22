@@ -1,6 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { Settings as SettingsIcon, Command, ScrollText, Wrench, History, Users, LayoutDashboard, MessageSquare, PanelRightOpen } from "lucide-react";
+import { Users, LayoutDashboard, MessageSquare, PanelRightOpen } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import type { Counts } from "./data/types";
 import type { Msg } from "./components/workspace/ChatPane";
@@ -10,15 +9,17 @@ import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDraw
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ViewToggle, type BoardView } from "./components/ViewToggle";
 import { PulseGlobe } from "./components/PulseGlobe";
-import { ThemeToggle } from "./components/ThemeToggle";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
+import { TitleBar } from "./components/shell/TitleBar";
+import { StatusStrip } from "./components/shell/StatusStrip";
+import { PreflightGate } from "./components/PreflightGate";
 import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
-import { runtimeUrl } from "./lib/runtimeBase";
+import { runtimeUrl, type PreflightResult } from "./lib/runtimeBase";
 import { tok } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
@@ -37,42 +38,6 @@ function migrateOffLegacyShell() {
   } catch { /* ignore */ }
 }
 
-const COUNT_PILLS: ReadonlyArray<{ key: keyof Counts; label: string; tone: string }> = [
-  { key: "active", label: "active", tone: "done-green" },
-  { key: "blocked", label: "blocked", tone: "blocked-amber" },
-  { key: "stale", label: "stale", tone: "stale-red" },
-  { key: "offline", label: "offline", tone: "muted" },
-];
-
-function CountPills({ counts }: { counts: Counts }) {
-  return (
-    <span className="hidden items-center gap-1.5 sm:flex" role="status" aria-live="polite"
-      aria-label={`${counts.active} active, ${counts.blocked} blocked, ${counts.stale} stale, ${counts.offline} offline of ${counts.total} agents`}>
-      {COUNT_PILLS.map((p) => {
-        const c = tok(p.tone);
-        return (
-          <span key={p.key} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] tabular-nums"
-            style={{ color: c, backgroundColor: `color-mix(in oklch, ${c} 12%, transparent)`, border: `1px solid color-mix(in oklch, ${c} 26%, transparent)` }}>
-            <motion.span key={counts[p.key]} initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="font-semibold">{counts[p.key]}</motion.span>
-            <span className="opacity-80">{p.label}</span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-function NavButton({ label, onClick, icon: Icon, active }: { label: string; onClick: () => void; icon: typeof ScrollText; active?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} title={label}
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2"
-      style={{ color: active ? tok("text") : tok("muted"), backgroundColor: active ? tok("panel-2") : "transparent" }}>
-      <Icon size={16} aria-hidden />
-      <span className="hidden md:inline">{label}</span>
-    </button>
-  );
-}
-
 function LoadingShell() {
   return (
     <div className="flex flex-1 items-center justify-center" role="status" aria-live="polite">
@@ -88,6 +53,14 @@ type MobilePane = "agents" | "board" | "chat";
 
 export default function App() {
   const { state, error, sendCommand, getAudit, getCommandStatus, listSessions } = useAgentState();
+
+  // Host-dependency preflight pushed from the electron bridge (claude/docker/auth).
+  // Undefined in dev/vite (bridge absent) → gate + status strip degrade gracefully.
+  // Optional-chained so it NEVER crashes when window.missionAlpha is missing.
+  const [preflight, setPreflight] = useState<PreflightResult | undefined>(undefined);
+  useEffect(() => {
+    window.missionAlpha?.onPreflight?.((result) => setPreflight(result));
+  }, []);
 
   // Boss command thread (the ONE chat).
   const [bossMsgs, setBossMsgs] = useState<Msg[]>([]);
@@ -235,26 +208,19 @@ export default function App() {
         </div>
       )}
 
-      {/* top bar */}
-      <header className="relative z-10 flex items-center gap-3 border-b border-border px-4 py-2.5">
-        <span className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: tok(needYou ? "blocked-amber" : "done-green"), boxShadow: `0 0 8px 1px ${tok(needYou ? "blocked-amber" : "done-green")}` }} aria-hidden />
-          <span className="text-sm font-semibold tracking-tight">MissionAlpha</span>
-        </span>
-        {counts && <span className="hidden text-[12px] text-muted lg:inline">{reassurance}</span>}
-        {counts && <span className="ml-1"><CountPills counts={counts} /></span>}
+      {/* frameless title bar — drags the window + houses the topbar content */}
+      <TitleBar
+        counts={counts}
+        reassurance={reassurance}
+        needYou={needYou}
+        activeUtil={utilOpen ? utilTab : null}
+        onOpenUtil={openUtil}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
 
-        <div className="ml-auto flex items-center gap-1">
-          <NavButton label="Audit" icon={ScrollText} onClick={() => openUtil("audit")} active={utilOpen && utilTab === "audit"} />
-          <NavButton label="Tools" icon={Wrench} onClick={() => openUtil("tools")} active={utilOpen && utilTab === "tools"} />
-          <NavButton label="Replay" icon={History} onClick={() => openUtil("replay")} active={utilOpen && utilTab === "replay"} />
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <button type="button" onClick={() => setPaletteOpen(true)} aria-label="Command palette (⌘K)" title="Command palette (⌘K)" className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2" style={{ color: tok("muted") }}><Command size={18} aria-hidden /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings" className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2" style={{ color: tok("muted") }}><SettingsIcon size={18} aria-hidden /></button>
-          <ThemeToggle />
-        </div>
-      </header>
-
+      {/* preflight gate — blocking setup screen / docker banner / cockpit */}
+      <PreflightGate preflight={preflight}>
       {/* mobile pane toggle */}
       <div className="relative z-10 flex gap-1 border-b border-border px-3 py-1.5 lg:hidden" role="tablist" aria-label="Pane">
         {([["agents", "Agents", Users], ["board", "Board", LayoutDashboard], ["chat", "Chat", MessageSquare]] as const).map(([id, label, Icon]) => (
@@ -339,6 +305,10 @@ export default function App() {
           </div>
         )}
       </div>
+      </PreflightGate>
+
+      {/* bottom status strip — runtime up? · Docker? · quota */}
+      <StatusStrip preflight={preflight} />
 
       {/* overlays */}
       {state && (

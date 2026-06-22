@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP meta — defense in depth alongside the main.cjs onHeadersReceived CSP.
+      font-src 'self' data: matches the locally bundled Lato woff2 (no remote
+      font fetch). connect-src allows the loopback runtime (127.0.0.1:3005).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self' http://127.0.0.1:3005; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+    />
+    <!-- Preload Lato 400 (body weight) so first paint isn't a FOUT swap. -->
+    <link
+      rel="preload"
+      href="/src/fonts/lato-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
     <title>MissionAlpha — Agent Command Tower</title>
   </head>
   <body>

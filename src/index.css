@@ -3,6 +3,28 @@
 @tailwind utilities;
 
 /*
+  Lato — bundled LOCALLY (woff2, Latin subset) so the packaged desktop app
+  renders identically offline. F4 hard constraint: cockpit type = Lato (the
+  mockup used the system stack). 400 + 700 only — that's all the cockpit uses.
+  Files live in ./fonts/; index.html <link rel="preload"> warms 400 for FCP.
+  No network font fetch → no CSP deviation needed (main.cjs font-src 'self').
+*/
+@font-face {
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/lato-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Lato";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/lato-700.woff2") format("woff2");
+}
+
+/*
   OKLCH design tokens. Dark is the default (Tesla cinematic), light is the
   Apple-premium counterpart. Theme flips via [data-theme] on <html>; every
   view reads these vars only — no inline hex anywhere downstream.
@@ -23,6 +45,16 @@
   /* Agent Factory identity — hue 300 (violet), distinct from cyan/gold/amber so
      it never collides with a status color. ~7.6:1 on panel, ~8.4:1 on bg. */
   --c-factory-violet: oklch(0.78 0.13 300);
+
+  /* F4 type token — Lato everywhere (bundled woff2 above), graceful system
+     fallback while the font swaps in / on any platform without it. */
+  --font-sans: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  /* Frameless shell metrics. Title bar height + mac traffic-light inset so the
+     drag region clears the OS window controls (titleBarStyle:"hiddenInset"). */
+  --titlebar-h: 38px;
+  --statusbar-h: 28px;
+  --traffic-light-inset: 76px;
 }
 
 [data-theme="light"] {
@@ -103,8 +135,7 @@ body {
   color: var(--c-text);
   /* Smooth 300ms crossfade when the theme flips (data-theme on <html>). */
   transition: background-color 0.3s ease, color 0.3s ease;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* Subtle layered radial wash for cinematic depth. */
@@ -153,4 +184,34 @@ body {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+}
+
+/*
+  Frameless-window drag regions (F4). The Electron window is `frame:false`,
+  `titleBarStyle:"hiddenInset"`, so the renderer must declare which surfaces
+  drag the window. `.app-drag` = grab-to-move; `.app-no-drag` = interactive
+  (buttons, inputs) must opt back out or they become unclickable. These are
+  inert in the browser/dev (no window chrome) — harmless no-ops.
+*/
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/*
+  Shared chip styling for the bottom status strip — mirrors the mockup `.chip`
+  (pill, 1px border, token color). Color is set inline per-status via the
+  green/amber/red tokens so the same element reads in both themes.
+*/
+.ma-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  font-size: 11px;
+  line-height: 1.4;
 }
