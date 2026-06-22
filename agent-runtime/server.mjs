@@ -98,6 +98,7 @@ import { resolveAgents } from "./router.mjs"; // Phase 4 (#7) dynamic team routi
 import { buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE } from "./system-prompt.mjs";
 // F4.1 — cockpit data feeds (no token required; loopback-gated by hostOk above).
 import { stateHandler, commandHandler, auditHandler, commandStatusHandler, sessionsHandler } from "./cockpit-feeds.mjs";
+import { buildLiveState } from "./live-state.mjs";
 // ADR-049 multimodal chat attachments — file intake for /chat (images/pdf/csv/txt).
 import Busboy from "busboy";
 import { createWriteStream } from "node:fs";
@@ -113,6 +114,14 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 // F4.1 — state file for the cockpit feeds (operator sets WAAHYU_STATE_PATH or drops a
 // state.json in <userData>/agent-status; absent → 503 → cockpit shows "connecting…" gracefully).
 const COCKPIT_STATE_PATH = process.env.WAAHYU_STATE_PATH || join(__dir, "..", "agent-status", "state.json");
+// Reads id/role/tier from the existing state file once per request; cheap, file is small.
+function rosterFromFile() {
+  try {
+    const raw = readFileSync(COCKPIT_STATE_PATH, "utf8");
+    const j = JSON.parse(raw);
+    return (j.agents || []).map((a) => ({ id: a.id, role: a.role, tier: a.tier }));
+  } catch { return []; }
+}
 // Pre-build the 5 handlers once at module scope (pure factories, statePath is closed over).
 const _stateH = stateHandler(COCKPIT_STATE_PATH);
 const _commandH = commandHandler(COCKPIT_STATE_PATH);
@@ -1025,7 +1034,23 @@ const server = createServer(async (req, res) => {
   // ── F4.1 COCKPIT FEEDS — no token required (matches dev vite posture) ────────
   // Loopback-gated by the hostOk check above. No shell exec. READ-only except
   // /api/command which validates + atomic-writes under dirname(statePath)/commands.
-  if (url.pathname === "/api/state.json")       return _stateH(req, res);
+  if (url.pathname === "/api/state.json") {
+    const roster = rosterFromFile().concat(
+      (factory.listAgents() || [])
+        .filter((m) => m && m.id)
+        .map((m) => ({ id: m.id, role: m.role || m.id, tier: m.tier || "support", factory: true }))
+    );
+    // de-dup by id (file roster wins)
+    const seen = new Set(); const merged = [];
+    for (const r of roster) { if (!seen.has(r.id)) { seen.add(r.id); merged.push(r); } }
+    if (!merged.length) return _stateH(req, res); // no roster → fall back to static file
+    const engineTasks = engineQueue.all().map((t) => ({ agentId: t.agentId, status: t.status, task: t.task || t.goalId || "", updatedAt: t.updatedAt || t.createdAt, blockedBy: t.heldReason && /blocked by (\S+)/i.test(t.heldReason) ? RegExp.$1 : null }));
+    const state = buildLiveState({ roster: merged, engineTasks, activity: Object.fromEntries(agentActivity), inflightAgents, nowMs: Date.now() });
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+    res.end(JSON.stringify(state));
+    return;
+  }
   if (url.pathname === "/api/command")          return _commandH(req, res);
   if (url.pathname === "/api/audit")            return _auditH(req, res);
   if (url.pathname === "/api/commands/status")  return _commandStatusH(req, res);
