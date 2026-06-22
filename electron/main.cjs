@@ -3,7 +3,7 @@
 // ESM modules (runtime-supervisor.js, preflight.js) are imported via dynamic await import().
 "use strict";
 
-const { app, BrowserWindow, ipcMain, session } = require("electron");
+const { app, BrowserWindow, ipcMain, session, screen } = require("electron");
 const { join } = require("node:path");
 const { readFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
@@ -155,11 +155,17 @@ async function boot() {
   }
 
   // ---------------------------------------------------------------------------
-  // Create the browser window
+  // Create the browser window — clamp to the display work area so the right chat
+  // panel can never open off-screen on smaller / scaled-Retina logical resolutions
+  // (a fixed 1320 wide window overflows a <1320-logical-px display). Center it.
   // ---------------------------------------------------------------------------
+  const { width: waW, height: waH } = screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: 1320,
-    height: 860,
+    width: Math.min(1320, waW - 40),
+    height: Math.min(900, waH - 40),
+    minWidth: 900,
+    minHeight: 600,
+    center: true,
     frame: false,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#0b0d12",
