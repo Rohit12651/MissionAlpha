@@ -221,40 +221,15 @@ root; non-git target degrades to copy-sandbox; tests green; security review clea
 
 ---
 
-## Dropped: F3 — Full-loop headless end-to-end test  (DECISION 2026-06-21)
-
-A headless test driving CEO→approve→architect→lead→agents→QA→review unattended was scoped,
-then **dropped**. Rationale (decision record, not a TODO):
-
-1. **Can't run in CI** — needs the real `claude` subscription + Docker + minutes + real tokens;
-   CI has none. So it would be a *manual-only* test → its main value (automated regression) is gone.
-2. **Flaky / low-signal** — real `claude` output is non-deterministic; asserts can only be loose
-   ("≥1 agent wrote a file"), catching little while breaking often = maintenance tax.
-3. **Expensive per run** — burns subscription + minutes each time → won't be run often → rots.
-4. **Already covered where it counts** — 259 unit tests on the deterministic logic (guards, router,
-   gap-detector, exec gate) + both ends proven live (Phase 0 smoke + Phase 3 demo). The untested
-   "middle" is mostly **prose orchestration** (agents following `.md` rules) — hard to assert
-   meaningfully and the least likely thing a unit test wouldn't already catch.
-
-**Substitute (lightweight, 0 maintenance):** after any change to the orchestration layer
-(CEO/architect/lead/dispatch `.md` or the dispatch wiring), run the **bill-splitter goal through
-the UI once** and watch it (≈2 min) — the Phase-0 smoke, done by hand. ~90% of the value, no flaky
-CI, no token burn.
-
-**Revisit F3 only if:** the project gains multiple contributors, OR the dispatch layer starts
-getting heavily refactored (then an automated net earns its keep).
-
----
-
 ## SEQUENCE
 ```
 F1 (cap) → F2 (CEO web) → F5 (configurable repo) → F4 (desktop)
 ```
 F1/F2 quick wins; F5 the big unlock (use it on any project); F4 the visible one (desktop wraps
-the lot). F5 before F4 so the desktop app ships with target-repo support. (F3 dropped — see above.)
+the lot). F5 before F4 so the desktop app ships with target-repo support.
 
 ## Self-review (post-validation)
-- Scope: **4 features (F1, F2, F5, F4)**. F3 dropped with a recorded rationale + a manual-smoke substitute.
+- Scope: **4 features (F1, F2, F5, F4)**.
 - F5 (configurable target repo) anchored to the real hardcoded `REPO_ROOT` (`guards.mjs:14`) + the
   derived sites (seed `:437`, worktree `:334`, apply-containment `:50-53`); SEED_DIRS generalization
   + git-fallback + token-invariant called out as sub-plan constraints.
