@@ -161,6 +161,11 @@ try {
   outside(TOKEN_DIR, "RUNTIME_TOKEN_DIR");
   outside(process.env.RUNTIME_WORKTREE_ROOT || join(tmpdir(), "missionalpha-worktrees"), "RUNTIME_WORKTREE_ROOT");
   if (process.env.RUNTIME_EXEC_WT_ROOT) outside(process.env.RUNTIME_EXEC_WT_ROOT, "RUNTIME_EXEC_WT_ROOT");
+  // Only assert these when the operator OVERRODE them — their defaults live under
+  // agent-runtime/ (inside the default root) and hold queue/thread state, not the
+  // token; a custom path nested in a configured REPO_ROOT would be agent-readable.
+  if (process.env.RUNTIME_ENGINE_STORE) outside(process.env.RUNTIME_ENGINE_STORE, "RUNTIME_ENGINE_STORE");
+  if (process.env.RUNTIME_THREADS_DIR) outside(process.env.RUNTIME_THREADS_DIR, "RUNTIME_THREADS_DIR");
 }
 // Constant-time token compare.
 function tokenOk(req) {
