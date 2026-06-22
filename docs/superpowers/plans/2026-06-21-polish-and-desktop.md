@@ -1,4 +1,4 @@
-# MissionAlpha — Polish + Desktop Plan (3 features)
+# MissionAlpha — Polish + Desktop Plan (4 features)
 
 > **STATUS: FEATURE SPEC + SEQUENCING — NOT directly line-executable.** Each feature (F1–F4)
 > is a scoped spec whose FIRST task is to produce its own executable sub-plan (real
@@ -44,6 +44,7 @@ specialists on top:
 | **F1** scale ceiling | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `performance-engineer` (concurrency design), `node-specialist` (impl), `security-reviewer` (fork-bomb/quota) | tune `MAX_INFLIGHT` default + dynamic backoff without breaking the safety throttle |
 | **F2** CEO web | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `claude-code-guide` (confirm `claude -p` WebSearch/WebFetch flags), `node-specialist` (impl), `security-reviewer` (egress) | grant web tools to boss/CEO only, outside the TOOLS=none gate |
 | **F4** desktop | `sp-writing-plans` → `impeccable` (+ `frontend-design`) for the Docker-Desktop/Lato shell → `sp-test-driven-development` (supervisor units) → `webapp-testing` (visual verify) → `sp-verification-before-completion` | `electron-pro` (main/preload/supervisor/packaging), `security-reviewer` (Electron hardening: contextIsolation/CSP/token bridge) | wrap cockpit+runtime in Electron; preflight + packaged token/base wiring |
+| **F5** configurable target repo | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `architect` (root/scope generalization design), `node-specialist` (impl), `security-reviewer` (containment + apply-boundary for an arbitrary root) | let the swarm operate on ANY repo, not just MissionAlpha itself |
 
 Rule: **never free-code a phase** — fire `sp-writing-plans` first to expand it into RED/GREEN
 steps, then the agents above. Commit per GREEN; security-sensitive paths gate on `security-reviewer`.
@@ -170,6 +171,47 @@ degrades gracefully; Electron security review clean; scope documented as dev-mac
 
 ---
 
+## F5 — Configurable target repo (operate on ANY project)  (~½–1 day)
+
+**Goal:** Today the runtime is hardcoded to its OWN repo — `guards.mjs:14`
+`REPO_ROOT = resolve(__dir, "..")` (NOT env-overridable). Read cwd, sandbox seed
+(`server.mjs:437`), git worktree (`server.mjs:334`, `worktree.mjs`), apply-containment
+(`guards.mjs:50-53`), and `/exec /work` ALL derive from it → the swarm can only read/edit
+MissionAlpha. F5 makes the root **configurable** so you can point it at e.g.
+`/Users/.../WaahyuPython` and have the swarm read + build *that* repo.
+
+**⚠️ Constraints / design points (the sub-plan MUST resolve these):**
+- **`SEED_DIRS` is MissionAlpha-specific** (`["src","public"]`). For an arbitrary repo, the
+  seedable/appliable scope differs. Decide a generic default (e.g. git-tracked files, or an
+  `RUNTIME_SEED_DIRS` allowlist) while KEEPING `APPLY_DENY` (.env/.git/secrets) + `CONFIG_GUARD`
+  + the `PUBLIC_DENY` guard intact relative to the NEW root.
+- **Worktree isolation needs git.** `createWorktreeMgr` assumes a git repo. If the target isn't
+  a git repo → fall back to the copy-sandbox (already the manual path) gracefully.
+- **Token-dir-outside-repo invariant** (`server.mjs:127` — read-mode cwd = root, so the token
+  file must NOT be under the root). Confirm `TOKEN_DIR` (tmpdir) stays outside ANY chosen root.
+- **Containment still holds:** `../` escape blocked relative to the new root; host fs still hidden
+  in the Docker jail. Switching the root must not widen beyond the chosen folder.
+
+**Assigned skills/agents:** `sp-writing-plans` (sub-plan) → `architect` (design root +
+scope generalization) → `sp-test-driven-development` → `security-reviewer` (boundary change:
+arbitrary root = bigger blast radius; verify containment + APPLY_DENY + token invariant for any
+root) → `sp-verification-before-completion`.
+
+**Sub-plan must cover (files: `guards.mjs` REPO_ROOT + SEED_DIRS, `server.mjs` seed/broker/worktree wiring, `worktree.mjs` git-check, new `test/repo-root.test.mjs`):**
+- `guards.mjs`: `REPO_ROOT = process.env.RUNTIME_REPO_ROOT ? resolve(env) : resolve(__dir, "..")`
+  (default unchanged = MissionAlpha). Validate the env path exists + is a dir; fail closed if not.
+- Generalize `SEED_DIRS` → `RUNTIME_SEED_DIRS` (csv) default; keep APPLY_DENY/CONFIG_GUARD/PUBLIC_DENY.
+- `worktree.mjs`: detect non-git target → fall back to copy-sandbox, no crash.
+- Tests: a temp repo as `RUNTIME_REPO_ROOT` → read/list/apply land in THAT repo; `../` escape still
+  blocked; token dir stays outside; non-git target falls back.
+- `security-reviewer` on the boundary change. Verify suite green. Commit.
+
+**Exit Gate:** set `RUNTIME_REPO_ROOT=/some/other/repo` → swarm reads + applies inside THAT repo;
+default (unset) still = MissionAlpha; containment + APPLY_DENY + token invariant hold for the new
+root; non-git target degrades to copy-sandbox; tests green; security review clean.
+
+---
+
 ## Dropped: F3 — Full-loop headless end-to-end test  (DECISION 2026-06-21)
 
 A headless test driving CEO→approve→architect→lead→agents→QA→review unattended was scoped,
@@ -197,12 +239,16 @@ getting heavily refactored (then an automated net earns its keep).
 
 ## SEQUENCE
 ```
-F1 (cap) → F2 (CEO web) → F4 (desktop)
+F1 (cap) → F2 (CEO web) → F5 (configurable repo) → F4 (desktop)
 ```
-F1/F2 quick wins; F4 the visible one. (F3 dropped — see above.)
+F1/F2 quick wins; F5 the big unlock (use it on any project); F4 the visible one (desktop wraps
+the lot). F5 before F4 so the desktop app ships with target-repo support. (F3 dropped — see above.)
 
 ## Self-review (post-validation)
-- Scope: **3 features (F1, F2, F4)**. F3 dropped with a recorded rationale + a manual-smoke substitute.
+- Scope: **4 features (F1, F2, F5, F4)**. F3 dropped with a recorded rationale + a manual-smoke substitute.
+- F5 (configurable target repo) anchored to the real hardcoded `REPO_ROOT` (`guards.mjs:14`) + the
+  derived sites (seed `:437`, worktree `:334`, apply-containment `:50-53`); SEED_DIRS generalization
+  + git-fallback + token-invariant called out as sub-plan constraints.
 - Header honest: SPEC + per-feature sub-plans (each Fx task-0 = write its executable sub-plan). Not falsely claiming line-executable.
 - Code anchors verified + corrected (index.css, MAX_INFLIGHT:166 already-env, /runtime/factory/resolve, boss-mock).
 - Design gaps promoted to explicit tasks: F4 host preflight + dev-only scope + renderer URL; F2 cli-backend + tool-gate placement.

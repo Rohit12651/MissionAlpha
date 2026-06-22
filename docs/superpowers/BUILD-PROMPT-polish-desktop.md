@@ -12,7 +12,7 @@ You are building 3 features for MissionAlpha (agent-swarm orchestrator). Work in
 READ FIRST (the spec — do not skip):
 docs/superpowers/plans/2026-06-21-polish-and-desktop.md
 
-Build F1 → F2 → F4 from that plan, STRICTLY ONE AT A TIME, in that order. A feature is done
+Build F1 → F2 → F5 → F4 from that plan, STRICTLY ONE AT A TIME, in that order. A feature is done
 only when its Exit Gate passes; do NOT start the next until the current gate is green.
 
 MANDATORY skills/agents (CLAUDE.md) — see the "Skill + Agent map" table in the plan. For EVERY
@@ -25,6 +25,7 @@ phase, in this order:
   4. The per-phase specialist agents from the map:
        F1: performance-engineer + node-specialist + security-reviewer
        F2: claude-code-guide + node-specialist + security-reviewer
+       F5: architect + node-specialist + security-reviewer
        F4: electron-pro + impeccable (+ frontend-design) + webapp-testing + security-reviewer
   5. sp-verification-before-completion — before claiming the feature done.
 NEVER free-code a phase. Fire sp-writing-plans first, then the agents. Delegate heavy edits to
@@ -43,6 +44,10 @@ HARD CONSTRAINTS (verified — breaking these = wrong):
   renderer via contextBridge. Both are required for the F4 Exit Gate.
 - F4 host deps: the app still needs `claude` on PATH + Docker daemon + auth — add a preflight
   screen, scope = dev-machine Tier-1, degrade gracefully when Docker is down.
+- F5: REPO_ROOT is hardcoded (guards.mjs:14, NOT env). Make it RUNTIME_REPO_ROOT (default =
+  MissionAlpha). Generalize SEED_DIRS (keep APPLY_DENY/CONFIG_GUARD/PUBLIC_DENY for the new root);
+  worktree falls back to copy-sandbox for a non-git target; keep TOKEN_DIR outside any root +
+  `../` containment. Build F5 BEFORE F4 so the desktop ships with target-repo support.
 
 PROCESS:
 - Security-sensitive paths (F1 fork-bomb, F2 egress, F4 Electron hardening) MUST pass a
