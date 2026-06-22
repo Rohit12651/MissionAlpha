@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { AgentState, FeedEvent } from "../../data/types";
-import { tok } from "../../lib/agentMeta";
 
 /*
   SwarmHero (publicity) — a live force-directed knowledge graph of the swarm.
@@ -58,20 +57,21 @@ export function SwarmHero({
     const ctx = cv.getContext("2d");
     if (!ctx) return;
 
-    const cs = getComputedStyle(document.documentElement);
-    const rv = (n: string) => cs.getPropertyValue(`--c-${n}`).trim() || "#888";
+    // Fixed dark publicity palette (NO pink) — the hero is always dark so the
+    // bloom reads regardless of the app theme. Bright hues glow on near-black.
+    const BG = "#0a0b14";
     const KCOL: Record<Kind, string> = {
-      ceo: rv("ceo-gold"),
-      principal: rv("factory-violet"),
-      senior: rv("accent-cyan"),
-      support: rv("muted"),
-      file: rv("accent-cyan"),
-      doc: rv("factory-violet"),
-      cfg: rv("ceo-gold"),
-      ref: rv("muted"),
+      ceo: "#f5b234",        // gold hub
+      principal: "#8b6cf6",  // violet
+      senior: "#22d3ee",     // cyan
+      support: "#8a8f9c",    // muted
+      file: "#22d3ee",
+      doc: "#8b6cf6",
+      cfg: "#f5b234",
+      ref: "#7f8696",
     };
-    const linkCol = rv("factory-violet");
-    const labelCol = rv("muted");
+    const linkCol = "#8b6cf6";
+    const labelCol = "rgba(210,214,228,0.82)";
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -181,7 +181,7 @@ export function SwarmHero({
 
       // paint
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = rv("bg") || "#0a0b14";
+      ctx.fillStyle = BG;
       ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = "lighter";
       ctx.lineWidth = 0.7;
@@ -221,25 +221,25 @@ export function SwarmHero({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden" style={{ backgroundColor: tok("bg") }} role="dialog" aria-label="MissionAlpha agent swarm" aria-modal="true">
+    <div className="fixed inset-0 z-50 overflow-hidden" style={{ backgroundColor: "#0a0b14" }} role="dialog" aria-label="MissionAlpha agent swarm" aria-modal="true">
       <canvas ref={cvRef} className="absolute inset-0 h-full w-full" />
       <div className="pointer-events-none absolute left-8 top-7">
-        <div className="text-2xl font-semibold tracking-tight" style={{ color: tok("text"), fontFamily: '"Lato", system-ui, sans-serif' }}>MissionAlpha</div>
-        <div className="mt-1 text-xs" style={{ color: tok("muted") }}>agent swarm command tower · {agents.length} agents · live graph</div>
+        <div className="text-2xl font-semibold tracking-tight" style={{ color: "#f3f5f8", fontFamily: '"Lato", system-ui, sans-serif' }}>MissionAlpha</div>
+        <div className="mt-1 text-xs" style={{ color: "#8a8f9c" }}>agent swarm command tower · {agents.length} agents · live graph</div>
       </div>
       <div className="pointer-events-none absolute bottom-6 left-8 flex flex-wrap gap-4 text-[11px]">
-        <span style={{ color: tok("ceo-gold") }}>● CEO</span>
-        <span style={{ color: tok("factory-violet") }}>● principal / docs</span>
-        <span style={{ color: tok("accent-cyan") }}>● senior / files</span>
-        <span style={{ color: tok("muted") }}>● support</span>
+        <span style={{ color: "#f5b234" }}>● CEO</span>
+        <span style={{ color: "#8b6cf6" }}>● principal / docs</span>
+        <span style={{ color: "#22d3ee" }}>● senior / files</span>
+        <span style={{ color: "#8a8f9c" }}>● support</span>
       </div>
       <button
         type="button"
         onClick={onClose}
         aria-label="Close swarm view"
         title="Close (Esc)"
-        className="absolute right-6 top-6 rounded-md p-2 outline-none transition-colors hover:bg-panel-2 focus-visible:ring-2"
-        style={{ color: tok("muted") }}
+        className="absolute right-6 top-6 rounded-md p-2 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2"
+        style={{ color: "#8a8f9c" }}
       >
         <X size={20} aria-hidden />
       </button>
