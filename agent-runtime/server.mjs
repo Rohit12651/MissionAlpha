@@ -580,7 +580,7 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // (claude CLI uses subscription auth via ~/.claude, not env keys).
   const childEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (/(_KEY|_SECRET|_TOKEN|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
+    if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
     childEnv[k] = v;
   }
   const child = spawn(CLAUDE_BIN, args, {
@@ -876,7 +876,7 @@ function engineDispatch(ctx) {
     args.push("--add-dir", ctx.workdir, "--permission-mode", "acceptEdits");
     const childEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
-      if (/(_KEY|_SECRET|_TOKEN|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
+      if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
       childEnv[k] = v;
     }
     let child;
