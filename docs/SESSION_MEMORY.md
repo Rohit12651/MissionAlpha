@@ -6924,3 +6924,137 @@ PROVEN docker invocation: `docker run --rm --network none --cap-drop ALL --secur
 **Suite: 259 → 267 pass (0 fail), tsc --noEmit exit 0.** Branch feat/multimodal-input, NOT pushed.
 
 **F4 — desktop app: STARTED.** Blocked on design source-of-truth (Untitled.png light "Mission Control HQ" cockpit vs docs/mockups/missionalpha-cockpit.html dark MissionAlpha twin — conflict; awaiting boss confirm). Mockup-independent Electron/wiring tasks (main/preload/supervisor/preflight/packaging/token-bridge/runtime-base switch) can proceed regardless.
+
+---
+
+## ⟢ Session close — 2026-06-22T02:56:00Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+?? Untitled.png
+?? docs/mockups/
+?? docs/superpowers/plans/2026-06-21-F4-desktop-electron.md
+?? electron/main.cjs
+?? electron/preload.cjs
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T02:34:31Z spawn-tools-go-mqolr07c HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T02:34:31Z spawn-tools-sync-mqolr07g HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T02:34:31Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T02:34:31Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T02:34:31Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-22T03:13:30Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+?? Untitled.png
+?? docs/mockups/
+?? release/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T03:01:32Z spawn-tools-go-mqompr89 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z spawn-tools-sync-mqompr8c HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-22T03:14:00Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+?? Untitled.png
+?? docs/mockups/
+?? release/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T03:01:32Z spawn-tools-go-mqompr89 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z spawn-tools-sync-mqompr8c HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ Session close — 2026-06-22T03:14:37Z
+- Reason: other
+- Repo: /Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha
+
+### Changed files (git status)
+```
+ M docs/SESSION_MEMORY.md
+?? Untitled.png
+?? docs/mockups/
+?? release/
+```
+
+### Swarm activity tail
+  SYNC (last 5):
+    2026-06-18T05:31:40Z FROM=senior-cicd-engineer TO=senior-web-1 TOPIC=endpoint-live REF=/api/audit BODY="GET /api/audit live. AuditEntry[] tail-200."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=review-req REF=/api/command/bulk BODY="Bulk loops /api/command. Review surface?"
+    2026-06-18T05:31:40Z FROM=senior-security-engineer TO=senior-web-2 TOPIC=review-pass REF=/api/command/bulk BODY="Cap array <=64. Audit each. OK."
+    2026-06-18T05:31:40Z FROM=senior-web-2 TO=senior-security-engineer TOPIC=blocked REF=/api/command/bulk BODY="Blocked. Need bulk-surface sign-off. ETA?"
+    2026-06-18T05:31:40Z FROM=ceo TO=java17-engineer TOPIC=assign REF=java17-engineer BODY="run: Java 17+ Specialist. report back."
+  HEARTBEAT (last 5):
+    2026-06-22T03:01:32Z spawn-tools-go-mqompr89 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z spawn-tools-sync-mqompr8c HEARTBEAT IDLE spawned by BOSS: Sync Test next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-go-1 HEARTBEAT IDLE spawned by BOSS: Go Implementer next=await dispatch
+    2026-06-22T03:01:32Z sf-content-1 HEARTBEAT IDLE spawned by BOSS: Social Writer next=await dispatch
+    2026-06-22T03:01:32Z sf-dev-angular-1 HEARTBEAT IDLE spawned by BOSS: Angular Implementer next=await dispatch
+
+---
+
+## ⟢ F4 + F4.1 shipped — desktop app DONE (2026-06-21 caveman session)
+
+**F4 — MissionAlpha Electron desktop app (Exit Gate ✅, verified in packaged .app):**
+- Design source = `docs/mockups/missionalpha-cockpit.html` (= the CURRENT cockpit, NOT a Docker-Desktop reskin). Visual delta = Lato + frameless title bar + bottom status strip.
+- `electron/`: `runtime-supervisor.js` (spawn→/runtime/health→restart→SIGTERM, DI-tested 4), `preflight.js` (claude/docker/auth; docker non-blocking; DI-tested 4), `main.cjs` (frameless, contextIsolation+sandbox, nodeIntegration off, CSP, nav-deny, token contextBridge, login-shell PATH resolve), `preload.cjs` (exposes only isPackaged/runtimeBase/getRuntimeToken/onPreflight). `.cjs` because root is type:module.
+- cockpit: `src/lib/runtimeBase.ts` (runtimeUrl base switch + token source switch dev vite / packaged bridge), Lato (local woff2) + TitleBar + StatusStrip + PreflightGate, a11y WCAG 2.2.
+- `electron-builder.yml` → dmg 135MB; extraResources ships agent-runtime + node_modules + .claude/agents.
+
+**5 packaged breaks (plan flagged 2, reality had 5) — all fixed:**
+1. runtime base URL (planned). 2. token bridge / 401 (planned). 3. PATH — Finder-launch minimal PATH hid claude/node → execFileSync(`$SHELL -lc`) login PATH + fallback dirs. 4. file:// render — absolute /assets → blank → vite `base:'./'` in production. 5. swarm-state data plane (F4.1).
+
+**F4.1 — packaged swarm-state feeds:** 5 cockpit feeds (`/api/state.json`,`/api/command`,`/api/audit`,`/api/commands/status`,`/api/sessions`) were vite-DEV-only → packaged cockpit stuck "connecting to swarm…". Extracted `agent-runtime/cockpit-feeds.mjs` (20 tests, verbatim handlers), mounted on runtime (loopback-gated, no token, after hostOk), DRY'd vite onto it, client routes via runtimeUrl, Electron passes WAAHYU_STATE_PATH (default `<userData>/agent-status/state.json`). security-reviewer: sanitized audit `issuedBy` (tab/newline injection), dropped 503 path-disclosure.
+
+**Packaged proof (live):** double-click .app → cockpit renders 17 agents + board (IDLE 5 / IN PROGRESS 8 / BLOCKED) + Chat; status strip `runtime up · docker ready · quota`; typed in UI → live CEO reply (cli/subscription), quota 3→4/200. Token-gated /runtime/quota 401→200 via bridge. Runtime auto-spawned from inside the .app (PATH fix).
+
+**Tests: agent-runtime 287 pass (was 259→267 after F1/F2→287 after F4.1), electron 8 pass, tsc 0, build 0.** 19 F4/F4.1 commits on feat/multimodal-input, NOT pushed. `release/` gitignored.
+
+**ALL 3 FEATURES DONE: F1 (scale ceiling) + F2 (CEO web research) + F4 (desktop app, incl F4.1).** Each Exit Gate green w/ live proof. Awaiting push/PR decision.
