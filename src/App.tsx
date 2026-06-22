@@ -16,6 +16,7 @@ import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
 import { TitleBar } from "./components/shell/TitleBar";
 import { StatusStrip } from "./components/shell/StatusStrip";
 import { PreflightGate } from "./components/PreflightGate";
+import { SwarmHero } from "./components/hero/SwarmHero";
 import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
@@ -111,6 +112,7 @@ export default function App() {
   // Overlays.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [heroOpen, setHeroOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasOnboarded());
   const [utilOpen, setUtilOpen] = useState(false);
   const [utilTab, setUtilTab] = useState<UtilityTab>("audit");
@@ -217,6 +219,7 @@ export default function App() {
         onOpenUtil={openUtil}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHero={() => setHeroOpen(true)}
       />
 
       {/* preflight gate — blocking setup screen / docker banner / cockpit */}
@@ -323,6 +326,7 @@ export default function App() {
           feedForReplay={state.feed}
         />
       )}
+      {state && <SwarmHero open={heroOpen} agents={state.agents} onClose={() => setHeroOpen(false)} />}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />

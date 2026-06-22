@@ -5,6 +5,7 @@ import {
   ScrollText,
   Wrench,
   History,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import type { Counts } from "../../data/types";
@@ -129,6 +130,7 @@ export interface TitleBarProps {
   onOpenUtil: (tab: "audit" | "tools" | "replay") => void;
   onOpenPalette: () => void;
   onOpenSettings: () => void;
+  onOpenHero: () => void;
 }
 
 export function TitleBar({
@@ -139,6 +141,7 @@ export function TitleBar({
   onOpenUtil,
   onOpenPalette,
   onOpenSettings,
+  onOpenHero,
 }: TitleBarProps) {
   const statusTone = needYou ? "blocked-amber" : "done-green";
   return (
@@ -170,6 +173,7 @@ export function TitleBar({
       )}
 
       <div className="app-no-drag ml-auto flex items-center gap-1">
+        <NavButton label="Swarm" icon={Sparkles} onClick={onOpenHero} />
         <NavButton
           label="Audit"
           icon={ScrollText}
