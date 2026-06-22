@@ -52,7 +52,10 @@ export function buildLiveState({ roster = [], engineTasks = [], activity = {}, i
     .sort((a, b) => (String(a.updatedAt) < String(b.updatedAt) ? 1 : -1))
     .slice(0, 40)
     .map((t) => ({ ts: t.updatedAt || nowIso, from: t.agentId, to: "boss", topic: String(t.status || "status"), ref: String(t.task).slice(0, 60), body: String(t.task).slice(0, 200) }));
-  const heartbeats = Object.entries(activity).map(([agent, ts]) => ({ ts, agent, state: "beat" }));
+  const rosterIds = new Set(roster.map((r) => r.id));
+  const heartbeats = Object.entries(activity)
+    .filter(([agent]) => rosterIds.has(agent)) // roster members only (data minimization)
+    .map(([agent, ts]) => ({ ts, agent, state: "beat" }));
   return {
     generatedAt: nowIso,
     scheduler: { running: true, cadenceSec: 5, lastTick: nowIso, activeCount: counts.active, staleCount: counts.stale },
