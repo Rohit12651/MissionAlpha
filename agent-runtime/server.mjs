@@ -61,7 +61,7 @@ import { dirname, join, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { cp, readdir, readFile, writeFile, mkdir, stat, lstat, realpath } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, cpus } from "node:os";
 // Agent Factory — registry, agent-creator, credential broker, posting (own module).
 import * as factory from "./factory.mjs";
 // F2b apply-broker guards — moved VERBATIM to guards.mjs so the engine (ADR-024)
@@ -89,6 +89,7 @@ import { createSandbox } from "./sandbox.mjs";
 import { createToolBroker, classify } from "./tool-broker.mjs";
 // ADR-050 G5 — derive --allowed-tools from factory agent's spec at spawn frame.
 import { allowedToolsForAgent } from "./agent-tools.mjs";
+import { computeMaxInflight } from "./concurrency.mjs";
 // ADR-050 A1+A2 — capability index + gap detector for /runtime/factory/detect-gaps (B3).
 import { capabilityIndex } from "./capabilities.mjs";
 import { detectGaps } from "./gap-detector.mjs";
@@ -163,7 +164,9 @@ function hostOk(req) {
 
 // Concurrency cap on spawned `claude` children — bounds cost/quota abuse + local
 // fork-bomb (sr-security #6). Excess /chat requests get 429.
-const MAX_INFLIGHT = Number(process.env.RUNTIME_MAX_INFLIGHT || 4);
+// CPU-derived default; RUNTIME_MAX_INFLIGHT still overrides (F1). All inflight gate
+// sites below read this single const — only its value source changed.
+const MAX_INFLIGHT = computeMaxInflight({ env: process.env, cpuCount: cpus().length });
 let inflight = 0;
 
 // Per-agent conversation history. In-memory Map, backed by disk (ADR-023 §3B) so
