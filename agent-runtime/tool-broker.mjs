@@ -77,16 +77,34 @@ export function createToolBroker(opts = {}) {
   const worktreeFor = opts.worktreeFor;  // (agentId) → host worktree dir (bind-mounted /work)
   const audit = opts.audit || (() => {}); // (event, data) — secrets never passed in
   const now = opts.now || (() => Date.now());
+  // G1/G2/G3: isFactoryAgent predicate — defaults to false (all built-ins pass through unchanged).
+  // Injected from factory.mjs registry membership so the broker stays decoupled from imports.
+  const isFactory = opts.isFactoryAgent || (() => false);
+
+  // G3: derive the trust tier for a given agentId.
+  function tierFor(agentId) {
+    return isFactory(agentId) ? "factory" : "builtin";
+  }
+
+  // G2: network is allowed for an agent only when it is NOT a factory-tier agent.
+  // Built-in agents keep current behavior (network honored when requested + needed).
+  function networkAllowed(agentId) {
+    return !isFactory(agentId);
+  }
 
   // Decide what happens to a proposed command for an agent (policy lives at the route
   // layer for approval memory; this returns the classification + whether it can auto-run).
+  // G1: factory agents are NEVER auto-run, even for `safe` commands.
   function decide(agentId, command) {
     const c = classify(command);
-    return { ...c, autoRun: c.klass === "safe" };
+    const factory = isFactory(agentId);
+    return { ...c, autoRun: !factory && c.klass === "safe" };
   }
 
   // Execute an APPROVED (or auto-safe) command in the sandbox over the agent's worktree.
   // FORBIDDEN is refused here too (never trust the caller). Audited.
+  // G2: network is default-deny for factory tier.
+  // G3: tier is stamped in the exec.run audit line.
   async function execTool(agentId, command, o = {}) {
     const c = classify(command);
     if (c.klass === "forbidden") {
@@ -95,8 +113,10 @@ export function createToolBroker(opts = {}) {
     }
     const dir = worktreeFor(agentId);
     if (!dir) return { refused: true, reason: "no worktree for agent" };
-    const network = !!o.network && c.network; // network only if requested AND the command needs it
-    audit("exec.run", { agentId, klass: c.klass, network, callId: o.callId, cmd: command.slice(0, 200) });
+    // G2: factory tier is network-denied regardless of o.network
+    const network = networkAllowed(agentId) && !!o.network && c.network;
+    const tier = tierFor(agentId); // G3
+    audit("exec.run", { agentId, tier, klass: c.klass, network, callId: o.callId, cmd: command.slice(0, 200) });
     const res = await sandbox.runInSandbox(dir, command, {
       network, callId: o.callId, timeoutMs: o.timeoutMs || 120000, signal: o.signal, onData: o.onData,
     });

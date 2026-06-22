@@ -87,6 +87,14 @@ import { createSecretScrubber, once } from "./secret-scrub.mjs";
 // ADR-037/038 full tool loop — real OS sandbox + mediated command broker.
 import { createSandbox } from "./sandbox.mjs";
 import { createToolBroker, classify } from "./tool-broker.mjs";
+// ADR-050 G5 — derive --allowed-tools from factory agent's spec at spawn frame.
+import { allowedToolsForAgent } from "./agent-tools.mjs";
+// ADR-050 A1+A2 — capability index + gap detector for /runtime/factory/detect-gaps (B3).
+import { capabilityIndex } from "./capabilities.mjs";
+import { detectGaps } from "./gap-detector.mjs";
+import { resolveAgents } from "./router.mjs"; // Phase 4 (#7) dynamic team routing
+// ADR-050 B1 — system-prompt builder (extracted to avoid server startup in unit tests).
+import { buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE } from "./system-prompt.mjs";
 // ADR-049 multimodal chat attachments — file intake for /chat (images/pdf/csv/txt).
 import Busboy from "busboy";
 import { createWriteStream } from "node:fs";
@@ -270,67 +278,9 @@ function deleteThread(id) {
   try { rmSync(threadFile(id), { force: true }); return true; } catch { return false; }
 }
 
-const CAVEMAN_SYSTEM = (agentId) =>
-  `You are the "${agentId}" agent in the MissionAlpha swarm (a multi-agent dev org building the Waahyu platform). ` +
-  `MANDATE: reply in /caveman FULL style — drop articles/filler/pleasantries/hedging, fragments OK, ` +
-  `keep technical terms + file paths + API names exact. Be terse and useful. ` +
-  `You are CHAT-ONLY right now: you have NO filesystem, command, or tool access — never claim you ran code or edited files. ` +
-  `If asked to do real work, say what you WOULD do, caveman-style.`;
-
-// BOSS console — Rohit (BOSS) sits ABOVE the CEO. This is the CEO answering its boss.
-// CEO speaks PERSUASIVE PROSE to BOSS (not caveman — caveman is for the bus), blends
-// Bezos/Musk/Solomon/Fink, is strategic, and is the supreme agent over the 16-agent swarm.
-const CEO_BOSS_SYSTEM =
-  `You are the CEO of the MissionAlpha / Waahyu multi-agent swarm — supreme over architect, ` +
-  `principals, seniors, QA, reviewer (16 agents). You report ONLY to BOSS (Rohit), the ultimate ` +
-  `authority above you. The person chatting with you now IS the BOSS. ` +
-  `Persona blend: Jeff Bezos (customer-obsession, long-term, Day 1, regret-minimization), ` +
-  `Elon Musk (first-principles, "best part is no part", speed), David Solomon (capital + ` +
-  `risk-adjusted return, Type-1 vs Type-2 decisions), Larry Fink (long-duration stewardship). ` +
-  `Stack reality: 13 FastAPI Python microservices (MongoDB/Motor/Redis), 4 React+Vite web apps, ` +
-  `4 Expo RN mobile apps, GCP Cloud Run, Stripe+Twilio. ` +
-  `Style to BOSS: clear, persuasive, decisive PROSE (NOT caveman — caveman is only for the agent ` +
-  `bus). Think first-principles. When proposing action, give options + a recommendation + the ` +
-  `tradeoff, and ask for GO/NO-GO. You can RECOMMEND dispatching work to specific agents ` +
-  `(architect, senior-web-1, etc.) but you never claim to have executed anything — BOSS confirms ` +
-  `dispatches. Be the strategic brain the BOSS talks to.\n\n` +
-  `DISPATCH PROTOCOL: when you want to command agents, END your reply with a fenced block:\n` +
-  "```dispatch\n" +
-  `task <agent-id> <short caveman instruction>\n` +
-  `task <agent-id> <short caveman instruction>\n` +
-  "```\n" +
-  `Valid verbs: task (assign work), ack (quiet a stalled agent), respawn (revive offline agent). ` +
-  `Valid agent-ids: ceo, architect, principal-ux-design, principal-db-engineer, ` +
-  `senior-security-engineer, senior-cicd-engineer, senior-lead-dev, senior-web-1, senior-web-2, ` +
-  `principal-rn-mobile-1, principal-rn-mobile-2, senior-backend-1, senior-backend-2, senior-qa, ` +
-  `senior-code-reviewer, memory-updater. Only include the block when BOSS actually wants action ` +
-  `taken — it becomes confirm-buttons the BOSS clicks. NEVER fabricate that it already ran.`;
-
-const TOOL_NOTE = {
-  none: "",
-  read:
-    "\n\nTOOLS: you have READ-ONLY repo access (Read, Glob, Grep) rooted at the MissionAlpha repo. " +
-    "Use them to inspect real files before answering. You CANNOT write, edit, or run commands — " +
-    "if asked to change something, read + propose the exact change, don't claim you made it.",
-  write:
-    "\n\nTOOLS: you can Read/Glob/Grep AND Write/Edit files — but ONLY inside your sandbox working " +
-    "directory (a scratch copy, never the live repo). No Bash/exec. Make changes in the sandbox and report what you did.",
-};
-const systemFor = (id) => {
-  if (id === "boss") return CEO_BOSS_SYSTEM + (TOOL_NOTE[TOOLS] || "");
-  // Factory-created agent → use its BOSS-authored persona (+ caveman bus mandate).
-  const persona = factory.createdPersona(id);
-  if (persona) {
-    return (
-      persona +
-      `\n\nYou are the "${id}" agent in the MissionAlpha swarm. Bus comms in /caveman full. ` +
-      `You can DRAFT/propose posts but you NEVER post to a real account yourself — the BOSS confirms every external post. ` +
-      `Never claim you posted, ran code, or accessed credentials.` +
-      (TOOL_NOTE[TOOLS] || "")
-    );
-  }
-  return CAVEMAN_SYSTEM(id) + (TOOL_NOTE[TOOLS] || "");
-};
+// systemFor — thin wrapper over buildSystemFor that captures the module-level TOOLS mode.
+// buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE are all imported from system-prompt.mjs.
+const systemFor = (id) => buildSystemFor(id, TOOLS);
 
 // Lazy SDK load (only if key present + installed).
 let Anthropic = null;
@@ -381,7 +331,7 @@ const mcpRegistry = createMcpRegistry({
 const execWorktrees = createWorktreeMgr({ repoRoot: REPO_ROOT, worktreeRoot: process.env.RUNTIME_EXEC_WT_ROOT });
 const sandbox = createSandbox();
 const execWorktreeFor = (agentId) => { try { return execWorktrees.create(agentId).path; } catch { return null; } };
-const toolBroker = createToolBroker({ sandbox, worktreeFor: execWorktreeFor, audit: factory.audit });
+const toolBroker = createToolBroker({ sandbox, worktreeFor: execWorktreeFor, audit: factory.audit, isFactoryAgent: factory.isFactoryAgent });
 const pendingExec = new Map();        // callId → {agentId, command, network, klass, createdAt}
 const sessionGrants = new Map();       // agentId → Set(normalized command) approved for the session
 const normCmd = (c) => String(c).trim().replace(/\s+/g, " ");
@@ -543,8 +493,24 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // request field. Distinct argv token, no shell → cannot flag-inject.
   if (modelId) args.push("--model", modelId);
   // F2 tool scoping. Bash NEVER allowed yet. Unlisted tools are auto-denied in -p.
+  // G5 (ADR-050): if this is a factory-minted agent, derive --allowed-tools from the
+  // agent's validated spec (Read always; Write+Edit if write-class skill; Bash never).
+  // Built-in agents keep the existing global TOOLS mode unchanged.
   let cwd = REPO_ROOT;
-  if (TOOLS === "read") {
+  let needStrictMcp = false; // G5: factory agents load NO global MCP — flag, push once below
+  const factoryTools = allowedToolsForAgent(agentId); // G5: null for built-ins
+  if (factoryTools !== null) {
+    // Factory agent — spec-derived tools, cwd = sandbox (Write-class) or repo (Read-only).
+    for (const t of factoryTools) args.push("--allowed-tools", t);
+    if (factoryTools.includes("Write")) {
+      cwd = sandboxDir(agentId); // isolated sandbox for write-capable factory agents
+      args.push("--add-dir", cwd, "--permission-mode", "acceptEdits");
+    }
+    // Factory agents get --strict-mcp-config (load NO global MCP). DEFERRED to after the
+    // MCP block + deduped (the MCP block also pushes it when an operator granted a
+    // connector) so a granted factory agent never gets a malformed double flag.
+    needStrictMcp = true;
+  } else if (TOOLS === "read") {
     for (const t of READ_TOOLS) args.push("--allowed-tools", t);
     cwd = REPO_ROOT; // read the live repo (no mutation possible — read tools only)
   } else if (TOOLS === "write") {
@@ -555,7 +521,7 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
     // the live repo is reached solely via the operator-gated /apply broker.
     args.push("--permission-mode", "acceptEdits");
   }
-  // TOOLS === "none" → no --allowed-tools → chat-only (all tools auto-denied).
+  // TOOLS === "none" (and no factory override) → no --allowed-tools → chat-only.
 
   // ── ADR-049 attachments — grant Read SCOPED TO THE UPLOAD DIR ONLY. In chat-only
   // ("none") mode the agent otherwise has no Read tool, so attachments would be
@@ -597,6 +563,9 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   } catch {
     /* MCP is optional — never block a turn on connector composition */
   }
+  // G5 — single --strict-mcp-config for a factory agent: push the bare flag only if the
+  // MCP block above didn't already add one (granted connector). Never a double flag.
+  if (needStrictMcp && !args.includes("--strict-mcp-config")) args.push("--strict-mcp-config");
 
   // Minimal child env — strip secret-shaped vars so a tool/log can't leak them
   // (claude CLI uses subscription auth via ~/.claude, not env keys).
@@ -887,7 +856,14 @@ function engineDispatch(ctx) {
   const runOnce = () => new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "stream-json", "--include-partial-messages", "--verbose", "--no-session-persistence"];
     if (modelId) args.push("--model", modelId);
-    for (const t of WRITE_TOOLS) args.push("--allowed-tools", t);
+    // G5 (ADR-050): factory agents get spec-derived tools; built-ins keep WRITE_TOOLS.
+    const factoryToolsEng = allowedToolsForAgent(ctx.agentId);
+    if (factoryToolsEng !== null) {
+      for (const t of factoryToolsEng) args.push("--allowed-tools", t);
+      args.push("--strict-mcp-config");
+    } else {
+      for (const t of WRITE_TOOLS) args.push("--allowed-tools", t);
+    }
     args.push("--add-dir", ctx.workdir, "--permission-mode", "acceptEdits");
     const childEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
@@ -1063,6 +1039,48 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // B3 (ADR-050): POST /runtime/factory/detect-gaps {manifest} — advisory read-only gap check.
+  // Auth: same token+origin+host gate as engine routes (host already enforced globally).
+  // NEVER calls createAgent. Returns {gaps, covered} from detectGaps(manifest, capabilityIndex()).
+  if (req.method === "POST" && url.pathname === "/runtime/factory/detect-gaps") {
+    if (!originOk(req) || !tokenOk(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
+      return;
+    }
+    let b = "";
+    req.on("data", (c) => { b += c; if (b.length > 32_000) req.destroy(); });
+    req.on("end", () => {
+      let manifest = {};
+      try { manifest = JSON.parse(b || "{}"); } catch { /* use empty */ }
+      // Read-only: never mutates registry. capabilityIndex() is a pure static snapshot.
+      const result = detectGaps(manifest, capabilityIndex());
+      return ok2(res, result);
+    });
+    return;
+  }
+
+  // Phase 4 (#7 / ADR-050): POST /runtime/factory/resolve {needs} — map a stack to its
+  // owner agent (built-in OR minted; minted specialist wins the tie-break). Advisory
+  // read-only — NEVER mutates the registry. Same auth as detect-gaps.
+  if (req.method === "POST" && url.pathname === "/runtime/factory/resolve") {
+    if (!originOk(req) || !tokenOk(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
+      return;
+    }
+    let b = "";
+    req.on("data", (c) => { b += c; if (b.length > 32_000) req.destroy(); });
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(b || "{}"); } catch { /* use empty */ }
+      const needs = body.needs || body || {};
+      // listAgents() = minted registry (read-only). Built-ins come from capabilityIndex.
+      return ok2(res, resolveAgents(needs, factory.listAgents()));
+    });
+    return;
+  }
+
   // POST /runtime/:agentId/chat  body {message}
   const m = url.pathname.match(/^\/runtime\/([a-z0-9_-]{1,64})\/chat$/i);
   if (req.method === "POST" && m) {
@@ -1147,12 +1165,32 @@ const server = createServer(async (req, res) => {
       let command = "", wantNet = false;
       try { const j = JSON.parse(body || "{}"); command = String(j.command || "").slice(0, 4000); wantNet = !!j.network; } catch { /* */ }
       if (!command.trim()) return ok2(res, { error: "command required" }, 400);
+
+      // B2 (ADR-050): exec-capability gate — only builtins OR factory agents that hold a
+      // dev:true skill may reach the sandbox. A minted content-only agent cannot exec.
+      // Built-ins are NOT in the factory registry (isFactoryAgent returns false) → always pass.
+      // Factory agents: check their spec for at least one dev:true skill.
+      const isFactory = factory.isFactoryAgent(agentId);
+      if (isFactory) {
+        const agSpec = factory.specForAgent(agentId);
+        const hasDevSkill = Array.isArray(agSpec?.skills) &&
+          agSpec.skills.some((sid) => factory.SKILL_CATALOG.find((c) => c.id === sid)?.dev);
+        if (!hasDevSkill) {
+          factory.audit("exec.capability-denied", { agentId, reason: "no dev skill" });
+          return ok2(res, { error: "exec not permitted for this agent" }, 403);
+        }
+      }
+      // Non-factory (builtin) agents pass through unconditionally.
+
       const c = classify(command);
       if (c.klass === "forbidden") {
         factory.audit("exec.forbidden", { agentId, reason: c.reason });
         return ok2(res, { refused: true, klass: "forbidden", reason: c.reason });
       }
-      const granted = c.klass === "safe" || (sessionGrants.get(agentId)?.has(normCmd(command)));
+      // G1 (ADR-050): factory (AI-authored) agents NEVER auto-run — even a `safe` command
+      // requires operator approval. Built-ins keep auto-run for `safe`. Session grants only
+      // exist for built-ins (factory grants are denied at approve time below).
+      const granted = (!isFactory && c.klass === "safe") || (sessionGrants.get(agentId)?.has(normCmd(command)));
       if (granted) {
         if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
         inflight++;
@@ -1186,7 +1224,9 @@ const server = createServer(async (req, res) => {
       try { scope = JSON.parse(body || "{}").scope || "once"; } catch { /* */ }
       pendingExec.delete(callId);
       if (scope === "deny") { factory.audit("exec.denied", { agentId: pend.agentId, callId }); return ok2(res, { denied: true }); }
-      if (scope === "session") {
+      // G1 (ADR-050): factory agents get `once` ONLY — never a persistent session grant,
+      // so every exec re-prompts the operator. Session scope is silently downgraded to once.
+      if (scope === "session" && !factory.isFactoryAgent(pend.agentId)) {
         if (!sessionGrants.has(pend.agentId)) sessionGrants.set(pend.agentId, new Set());
         sessionGrants.get(pend.agentId).add(normCmd(pend.command));
       }
@@ -1541,6 +1581,10 @@ const server = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not found" }));
 });
 
+// SECURITY INVARIANT (ADR-050 G1/G2/G5): loadRegistry() is SYNCHRONOUS (readFileSync)
+// and MUST run before server.listen() below — the factory trust-tier guards fail OPEN
+// for an unknown id (treated as built-in), so the registry must be fully hydrated
+// before any request is accepted. Do not make this async or move it after listen().
 factory.loadRegistry(); // hydrate created-agent personas before serving
 loadThreads(); // hydrate persisted conversation threads (ADR-023 §3B)
 try { const n = sweepStaleUploads(); if (n) console.log(`agent-runtime: swept ${n} stale upload dir(s)`); } catch { /* best-effort */ } // ADR-049

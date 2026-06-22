@@ -5,6 +5,60 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classify, createToolBroker } from "../tool-broker.mjs";
 
+// ── G1: factory agents forced to approval for ALL exec (no auto-run safe) ────
+test("G1: decide — factory agent never autoRuns even for safe commands", () => {
+  const broker = createToolBroker({
+    sandbox: {},
+    worktreeFor: () => "/tmp",
+    isFactoryAgent: () => true,
+  });
+  const d = broker.decide("some-minted-id", "ls");
+  assert.equal(d.klass, "safe", "ls is classified safe");
+  assert.equal(d.autoRun, false, "factory agent must NOT auto-run even safe commands");
+});
+
+test("G1: decide — built-in agent still auto-runs safe commands", () => {
+  const broker = createToolBroker({
+    sandbox: {},
+    worktreeFor: () => "/tmp",
+    isFactoryAgent: () => false,
+  });
+  assert.equal(broker.decide("ceo", "ls").autoRun, true, "built-in safe → autoRun true");
+});
+
+// ── G2: per-agent network default-deny for factory tier ──────────────────────
+test("G2: execTool — factory agent does NOT get network even when o.network=true", async () => {
+  const calls = [];
+  const broker = createToolBroker({
+    sandbox: { runInSandbox: async (_dir, _cmd, o) => { calls.push(o.network); return { exitCode: 0, stdout: "", stderr: "" }; } },
+    worktreeFor: () => "/tmp/wt",
+    isFactoryAgent: (id) => id === "factory-agent-1",
+  });
+  // factory agent with network:true — should be denied network
+  await broker.execTool("factory-agent-1", "npm install", { network: true, callId: "g2-1" });
+  assert.equal(calls[0], false, "factory agent: network must be false despite o.network=true");
+  // built-in agent with network:true — still gets network
+  await broker.execTool("builtin-agent", "npm install", { network: true, callId: "g2-2" });
+  assert.equal(calls[1], true, "built-in agent: network should pass through");
+});
+
+// ── G3: explicit tier stamped in exec.run audit ───────────────────────────────
+test("G3: execTool — factory id stamps tier:factory in audit; built-in stamps tier:builtin", async () => {
+  const auditLines = [];
+  const broker = createToolBroker({
+    sandbox: { runInSandbox: async () => ({ exitCode: 0, stdout: "", stderr: "" }) },
+    worktreeFor: () => "/tmp/wt",
+    isFactoryAgent: (id) => id === "minted-dev-agent",
+    audit: (event, data) => auditLines.push({ event, data }),
+  });
+  await broker.execTool("minted-dev-agent", "ls", { callId: "g3-f" });
+  await broker.execTool("builtin-ceo", "ls", { callId: "g3-b" });
+  const factoryRun = auditLines.find((a) => a.event === "exec.run" && a.data.callId === "g3-f");
+  const builtinRun = auditLines.find((a) => a.event === "exec.run" && a.data.callId === "g3-b");
+  assert.equal(factoryRun?.data?.tier, "factory", "factory agent run must have tier:factory");
+  assert.equal(builtinRun?.data?.tier, "builtin", "built-in agent run must have tier:builtin");
+});
+
 const k = (c) => classify(c).klass;
 
 test("SAFE: provably read-only single commands auto-run", () => {
