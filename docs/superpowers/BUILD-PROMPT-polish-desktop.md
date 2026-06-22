@@ -26,7 +26,12 @@ phase, in this order:
        F1: performance-engineer + node-specialist + security-reviewer
        F2: claude-code-guide + node-specialist + security-reviewer
        F5: architect + node-specialist + security-reviewer
-       F4: electron-pro + impeccable (+ frontend-design) + webapp-testing + security-reviewer
+       F4 (UI/UX-heavy): design OWNED by principal-ux-design; skills hallmark (study real
+           Docker Desktop) + impeccable (craft/critique/polish/typeset Lato/colorize) +
+           frontend-design + emil-design-eng (motion) + kw-design-design-system +
+           kw-design-accessibility-review; agents principal-ux-design + ui-designer +
+           a11y-architect + ui-ux-tester + electron-pro (main/preload/supervisor/packaging) +
+           webapp-testing (visual verify) + security-reviewer (Electron hardening)
   5. sp-verification-before-completion — before claiming the feature done.
 NEVER free-code a phase. Fire sp-writing-plans first, then the agents. Delegate heavy edits to
 subagents to keep the main context lean.

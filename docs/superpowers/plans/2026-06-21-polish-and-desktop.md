@@ -43,7 +43,7 @@ specialists on top:
 |---|---|---|---|
 | **F1** scale ceiling | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `performance-engineer` (concurrency design), `node-specialist` (impl), `security-reviewer` (fork-bomb/quota) | tune `MAX_INFLIGHT` default + dynamic backoff without breaking the safety throttle |
 | **F2** CEO web | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `claude-code-guide` (confirm `claude -p` WebSearch/WebFetch flags), `node-specialist` (impl), `security-reviewer` (egress) | grant web tools to boss/CEO only, outside the TOOLS=none gate |
-| **F4** desktop | `sp-writing-plans` → `impeccable` (+ `frontend-design`) for the Docker-Desktop/Lato shell → `sp-test-driven-development` (supervisor units) → `webapp-testing` (visual verify) → `sp-verification-before-completion` | `electron-pro` (main/preload/supervisor/packaging), `security-reviewer` (Electron hardening: contextIsolation/CSP/token bridge) | wrap cockpit+runtime in Electron; preflight + packaged token/base wiring |
+| **F4** desktop | `sp-writing-plans` → **design chain:** `hallmark study <Docker-Desktop ref>` (extract its design DNA) → `impeccable` (`craft` → `critique` → `polish` → `typeset` Lato → `colorize` Docker blue) → `frontend-design` → `emil-design-eng` (title-bar/status-strip motion + interactions) → `kw-design-design-system` + `kw-design-accessibility-review` → `sp-test-driven-development` (supervisor units) → `webapp-testing` (visual verify) → `sp-verification-before-completion` | **`principal-ux-design`** (MissionAlpha's OWN design authority — OWNS the Docker-Desktop shell, Lato tokens in `src/index.css`, the rail/title-bar/status-strip system; every other frontend agent consumes its contract), `ui-designer` (visual + component library), `a11y-architect` (WCAG 2.2 for the desktop shell), `electron-pro` (main/preload/supervisor/packaging), `ui-ux-tester` (interaction QA), `security-reviewer` (Electron hardening: contextIsolation/CSP/token bridge) | wrap cockpit+runtime in Electron with a real Docker-Desktop-grade UI/UX, not a default shell |
 | **F5** configurable target repo | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `architect` (root/scope generalization design), `node-specialist` (impl), `security-reviewer` (containment + apply-boundary for an arbitrary root) | let the swarm operate on ANY repo, not just MissionAlpha itself |
 
 Rule: **never free-code a phase** — fire `sp-writing-plans` first to expand it into RED/GREEN
@@ -131,7 +131,7 @@ reads the runtime token FILE (`RUNTIME_TOKEN_DIR/.runtime-token`) and exposes it
 via `contextBridge` (preload); the client's token-fetch switches from `/api/runtime-token` (dev)
 to the bridge (packaged). Ties into F4.2 (supervisor knows the token dir) + `preload.js`.
 
-### Design direction — "Docker Desktop" (skills: `impeccable` + `frontend-design`)
+### Design direction — "Docker Desktop" (OWNER: `principal-ux-design`; skills: `hallmark study` the real Docker Desktop → `impeccable craft/polish` → `emil-design-eng` motion → `a11y-architect` WCAG)
 - **Font:** `Lato` (Google Fonts; bundle locally for offline), weights 400/700. Set
   `--font-sans: "Lato", system-ui, sans-serif` in **`src/index.css`** (the real tokens/font file —
   NOT `src/styles/tokens.css`). Add the Lato `@font-face`/preload in `index.html`.
@@ -141,7 +141,10 @@ to the bridge (packaged). Ties into F4.2 (supervisor knows the token dir) + `pre
 - **Palette:** Docker light — white/`#f8fafc` surfaces, `#1d63ed` (Docker blue) primary, slate
   text, flat 0.5px borders, minimal shadow. Keep a dark variant.
 
-**Assigned skills/agents:** `sp-writing-plans`, `electron-pro` (main process, supervisor, packaging), `impeccable`/`frontend-design` (Docker look + Lato), `sp-test-driven-development` (supervisor units), `security-reviewer` (Electron hardening).
+**Assigned skills/agents:** `sp-writing-plans` (sub-plan) →
+**UI/UX skills:** `hallmark` (`study` the Docker-Desktop reference → extract design DNA; anti-AI-slop structural fidelity) · `impeccable` (`craft`/`critique`/`polish`/`typeset` Lato/`colorize` Docker-blue) · `frontend-design` · `emil-design-eng` (title-bar + status-strip motion/interactions) · `kw-design-design-system` · `kw-design-accessibility-review` ·
+**UI/UX agents:** `principal-ux-design` (MissionAlpha's OWN design-system/a11y/motion authority — OWNS the shell + Lato tokens in `src/index.css`; all other frontend work consumes its contract) · `ui-designer` (visual + component library) · `a11y-architect` (WCAG 2.2) · `ui-ux-tester` (interaction QA) ·
+**Build/verify:** `electron-pro` (main/preload/supervisor/packaging) · `sp-test-driven-development` (supervisor units) · `webapp-testing` (visual verify) · `security-reviewer` (Electron hardening) · `sp-verification-before-completion`.
 
 **Sub-plan files (to CREATE unless noted):** `electron/main.js`, `electron/preload.js`,
 `electron/runtime-supervisor.js`, `electron/preflight.js`, `electron-builder.yml`; MODIFY
@@ -158,7 +161,13 @@ to the bridge (packaged). Ties into F4.2 (supervisor knows the token dir) + `pre
   packaged); (b) token bridge — preload exposes the `.runtime-token` (read by main from
   `RUNTIME_TOKEN_DIR`) via `contextBridge`; client token-fetch switches off `/api/runtime-token`
   in packaged mode. WITHOUT (b) the built app 401s on every call.
-- Lato + Docker shell (`src/index.css` + components) — visual-verify.
+- **UI/UX design pass (OWNED by `principal-ux-design`):** (1) `hallmark study` a real Docker
+  Desktop screenshot/URL → extract its design DNA (rail, title bar, status strip, palette, density);
+  (2) `impeccable craft` the shell + `typeset` Lato (in `src/index.css`) + `colorize` Docker-blue
+  `#1d63ed`; (3) `emil-design-eng` for title-bar/status-strip motion + interaction states;
+  (4) `kw-design-design-system` to lock tokens/components, `a11y-architect` + `kw-design-accessibility-review`
+  for WCAG 2.2 (focus, contrast, keyboard); (5) `impeccable critique`/`polish` pass; (6) `ui-ux-tester`
+  + `webapp-testing` to verify interactions + the look in the running app. Keep a dark variant.
 - `electron-builder.yml`: app id `com.missionalpha.app`, mac `dmg` + win `nsis`, icon,
   `extraResources` shipping the runtime + `.claude/agents`.
 - `security-reviewer`: contextIsolation on, no remote module, CSP, renderer can't hijack the child.
