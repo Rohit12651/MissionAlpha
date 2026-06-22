@@ -31,6 +31,48 @@ const exec = (cmd) =>
   promisify(cpExec)(cmd).then(() => ({ code: 0 }));
 
 // ---------------------------------------------------------------------------
+// PATH resolution (packaged-launch fix). A Finder-launched .app inherits only a
+// minimal PATH (/usr/bin:/bin), NOT the user's login PATH — so `claude`
+// (~/.local/bin), `node`, and `docker` (e.g. /opt/homebrew/bin) are invisible,
+// breaking preflight AND the runtime's child spawns. Resolve the real login PATH
+// once via the user's shell and merge it into process.env.PATH so preflight and
+// every spawned child (which inherit {...process.env}) can find the binaries.
+function resolveLoginPath() {
+  const fallback = [
+    join(process.env.HOME || "", ".local/bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+  ];
+  let resolved = "";
+  try {
+    const shell = process.env.SHELL || "/bin/zsh";
+    // execFileSync (no shell string) → the shell binary is the file, args are an
+    // array, so nothing is interpolated into a command line (no injection surface).
+    // -lc: LOGIN (non-interactive) shell — sources ~/.zprofile/.zlogin without the
+    // interactive-stdin hang. stdin:'ignore' guards any shell that still blocks.
+    // The fallback dirs below (incl. ~/.local/bin, /opt/homebrew/bin) cover PATH
+    // entries that live only in ~/.zshrc, so claude is found even if -lc misses it.
+    resolved = require("node:child_process")
+      .execFileSync(shell, ["-lc", 'printf %s "$PATH"'], { timeout: 4000, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    /* shell probe failed — fall back to the common dirs below */
+  }
+  const merged = [
+    ...resolved.split(":").filter(Boolean),
+    ...fallback,
+    ...(process.env.PATH || "").split(":").filter(Boolean),
+  ];
+  process.env.PATH = [...new Set(merged)].join(":"); // de-duped, login first
+}
+resolveLoginPath();
+
+// ---------------------------------------------------------------------------
 // Module-level state
 // ---------------------------------------------------------------------------
 let supervisor = null;
