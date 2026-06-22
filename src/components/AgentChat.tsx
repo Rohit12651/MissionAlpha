@@ -3,25 +3,13 @@ import { useReducedMotion } from "framer-motion";
 import { Send, Loader2, Bot, User, Sparkles, AlertTriangle, FileEdit, Check } from "lucide-react";
 import { tok } from "../lib/agentMeta";
 import { PermissionGate } from "./PermissionGate";
+import { runtimeToken, runtimeUrl } from "../lib/runtimeBase";
 
 interface ProposedChange {
   path: string;
   status: "new" | "modified";
   before: string | null;
   after: string;
-}
-
-// Fetch the runtime auth token once (same-origin via vite) and cache it. Sent as
-// x-runtime-token on /changes + /apply so only this dashboard can call them.
-let tokenPromise: Promise<string> | null = null;
-function runtimeToken(): Promise<string> {
-  if (!tokenPromise) {
-    tokenPromise = fetch("/api/runtime-token", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { token: "" }))
-      .then((j) => (j as { token?: string }).token ?? "")
-      .catch(() => "");
-  }
-  return tokenPromise;
 }
 
 // Track B / F1 — streaming chat with an agent's Claude brain. Talks to the SEPARATE
@@ -50,7 +38,7 @@ export function AgentChat({ agentId }: { agentId: string }) {
   const fetchChanges = useCallback(async () => {
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(agentId)}/changes`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(agentId)}/changes`), {
         cache: "no-store",
         headers: { "x-runtime-token": token },
       });
@@ -66,7 +54,7 @@ export function AgentChat({ agentId }: { agentId: string }) {
     setGateOpen(false);
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(agentId)}/apply`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(agentId)}/apply`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-runtime-token": token },
         body: JSON.stringify({ paths: changes.map((c) => c.path) }),
@@ -106,7 +94,7 @@ export function AgentChat({ agentId }: { agentId: string }) {
     setStreaming(true);
 
     try {
-      const res = await fetch(`/runtime/${encodeURIComponent(agentId)}/chat`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(agentId)}/chat`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),

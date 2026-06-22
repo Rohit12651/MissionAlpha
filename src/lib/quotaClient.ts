@@ -2,6 +2,7 @@
 // runtime token). The quota guard is a self-throttle + 429 backoff around every
 // `claude` spawn; this surfaces its window count so the UI can show a brake chip.
 import { runtimeToken } from "./runtimeToken";
+import { runtimeUrl } from "./runtimeBase";
 
 export interface QuotaStatus {
   count: number; // total calls across the swarm in the window (account-wide pressure)
@@ -13,7 +14,7 @@ export interface QuotaStatus {
 export async function getQuota(): Promise<QuotaStatus | null> {
   try {
     const token = await runtimeToken();
-    const r = await fetch("/runtime/quota", {
+    const r = await fetch(runtimeUrl("/runtime/quota"), {
       headers: { "x-runtime-token": token },
       cache: "no-store",
     });

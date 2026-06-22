@@ -18,6 +18,7 @@ import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
 import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
+import { runtimeUrl } from "./lib/runtimeBase";
 import { tok } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
@@ -97,7 +98,7 @@ export default function App() {
     (async () => {
       try {
         const token = await runtimeToken();
-        const res = await fetch(`/runtime/${BOSS_ID}/thread`, { cache: "no-store", headers: { "x-runtime-token": token } });
+        const res = await fetch(runtimeUrl(`/runtime/${BOSS_ID}/thread`), { cache: "no-store", headers: { "x-runtime-token": token } });
         const msgs = res.ok ? (((await res.json()) as { messages?: Msg[] }).messages ?? []) : [];
         if (!cancelled) setBossMsgs(msgs);
       } catch { /* empty */ }

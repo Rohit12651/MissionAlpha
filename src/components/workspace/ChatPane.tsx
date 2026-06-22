@@ -10,6 +10,7 @@ import { loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
 import { loadAgentModel } from "../../lib/agentModel";
 import { filterSkills, KIND_LABEL, type MissionSkill } from "../../lib/missionSkills";
 import { runtimeToken } from "../../lib/runtimeToken";
+import { runtimeUrl } from "../../lib/runtimeBase";
 import type { CommandRequest, CommandResult, CommandType } from "../../data/types";
 
 export interface Msg {
@@ -249,7 +250,7 @@ export function ChatPane({
   const fetchChanges = useCallback(async () => {
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(threadId)}/changes`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/changes`), {
         cache: "no-store",
         headers: { "x-runtime-token": token },
       });
@@ -265,7 +266,7 @@ export function ChatPane({
     setGateApply(false);
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(threadId)}/apply`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/apply`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-runtime-token": token },
         body: JSON.stringify({ paths: changes.map((c) => c.path) }),
@@ -292,7 +293,7 @@ export function ChatPane({
     setStreaming(true);
     try {
       // multipart when files are attached (ADR-049); plain JSON otherwise (back-compat).
-      const url = `/runtime/${encodeURIComponent(threadId)}/chat`;
+      const url = runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/chat`);
       const res = files.length
         ? await fetch(url, {
             method: "POST",
@@ -382,7 +383,7 @@ export function ChatPane({
     const taskDirs = dirs.filter((d) => d.type === "task");
     void Promise.all(
       taskDirs.map((d) =>
-        fetch(`/runtime/${encodeURIComponent(d.target)}/run`, {
+        fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
           body: JSON.stringify({ task: d.body || "see CEO directive", model: loadAgentModel(d.target) }),
