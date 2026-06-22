@@ -141,8 +141,31 @@ export function SwarmHero({
       }
     }
 
+    // ── motion-graphics layers ───────────────────────────────────────────
+    // nebula depth field (parallax), data packets flowing along edges, CEO
+    // command-waves, and pointer parallax — layered + randomized so it never
+    // reads as a looping GIF.
+    type Part = { x: number; y: number; r: number; vx: number; vy: number; a: number; depth: number };
+    const parts: Part[] = Array.from({ length: 70 }, () => ({
+      x: rnd() * W, y: rnd() * H, r: 0.5 + rnd() * 1.8,
+      vx: (rnd() - 0.5) * 0.18, vy: (rnd() - 0.5) * 0.18,
+      a: 0.05 + rnd() * 0.18, depth: 0.2 + rnd() * 0.8,
+    }));
+    type Pkt = { a: typeof nodes[number]; b: typeof nodes[number]; p: number; sp: number; col: string };
+    const packets: Pkt[] = [];
+    const waves: { r0: number }[] = [];
+    const spawnPacket = (ia: number, ib: number) => {
+      if (ia < 0 || ib < 0 || ia === ib) return;
+      packets.push({ a: nodes[ia], b: nodes[ib], p: 0, sp: 0.01 + rnd() * 0.022, col: rnd() < 0.5 ? nodes[ia].col : nodes[ib].col });
+    };
+    // pointer parallax (spring-eased toward target — decorative, per design-eng)
+    let mx = W / 2, my = H / 2, ox = 0, oy = 0;
+    const onMove = (e: PointerEvent) => { mx = e.clientX; my = e.clientY; };
+    window.addEventListener("pointermove", onMove);
+
     let raf = 0;
     let t = 0;
+    let lastPk = 0, lastWave = 0, lastBurst = 0;
     const tick = () => {
       t += 0.016;
       // forces
@@ -179,29 +202,99 @@ export function SwarmHero({
         if (a.y > H - 30) { a.y = H - 30; a.vy = -Math.abs(a.vy); }
       }
 
-      // paint
+      // pointer parallax — ease current offset toward target (spring-like)
+      const tox = (mx - W / 2) * 0.035, toy = (my - H / 2) * 0.035;
+      ox += (tox - ox) * 0.05; oy += (toy - oy) * 0.05;
+
+      // ── paint ──
+      // motion trails: paint a translucent bg each frame instead of clearing,
+      // so nodes/packets leave a fading wake.
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = BG;
+      ctx.fillStyle = "rgba(10,11,20,0.24)";
       ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      ctx.translate(ox, oy);
       ctx.globalCompositeOperation = "lighter";
-      ctx.lineWidth = 0.7;
-      for (const [ia, ib] of edges) {
-        const a = nodes[ia], b = nodes[ib];
-        ctx.globalAlpha = 0.18;
+
+      // nebula depth field (deeper particles parallax more)
+      for (const q of parts) {
+        q.x += q.vx; q.y += q.vy;
+        if (q.x < 0) q.x += W; if (q.x > W) q.x -= W;
+        if (q.y < 0) q.y += H; if (q.y > H) q.y -= H;
+        ctx.globalAlpha = q.a;
+        ctx.fillStyle = "#5aa9c9";
+        ctx.beginPath();
+        ctx.arc(q.x + ox * q.depth, q.y + oy * q.depth, q.r, 0, 6.2832);
+        ctx.fill();
+      }
+
+      // edges — energy pulses along each link
+      ctx.lineWidth = 0.8;
+      for (let k = 0; k < edges.length; k++) {
+        const a = nodes[edges[k][0]], b = nodes[edges[k][1]];
+        ctx.globalAlpha = 0.10 + 0.10 * (0.5 + 0.5 * Math.sin(t * 1.6 + k));
         ctx.strokeStyle = linkCol;
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       }
       ctx.globalAlpha = 1;
+
+      // CEO command-waves — expanding gold rings every ~3.2s
+      if (ceoIdx >= 0 && t - lastWave > 3.2) { lastWave = t; waves.push({ r0: t }); }
+      for (let i = waves.length - 1; i >= 0; i--) {
+        const rr = (t - waves[i].r0) * 130;
+        const al = 0.5 * (1 - rr / 520);
+        if (al <= 0) { waves.splice(i, 1); continue; }
+        ctx.globalAlpha = al;
+        ctx.strokeStyle = KCOL.ceo;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(nodes[ceoIdx].x, nodes[ceoIdx].y, rr, 0, 6.2832); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // packets — continuous flow + periodic dispatch bursts from a random agent
+      if (edges.length && t - lastPk > 0.16) {
+        lastPk = t;
+        const e = edges[(rnd() * edges.length) | 0];
+        spawnPacket(e[0], e[1]);
+      }
+      if (t - lastBurst > 2.4 && edges.length) {
+        lastBurst = t;
+        const src = (rnd() * nodes.length) | 0;
+        let fired = 0;
+        for (const [ia, ib] of edges) {
+          if (fired >= 4) break;
+          if (ia === src) { spawnPacket(ia, ib); fired++; }
+          else if (ib === src) { spawnPacket(ib, ia); fired++; }
+        }
+      }
+      for (let i = packets.length - 1; i >= 0; i--) {
+        const pk = packets[i];
+        pk.p += pk.sp;
+        if (pk.p >= 1) { packets.splice(i, 1); continue; }
+        const x = pk.a.x + (pk.b.x - pk.a.x) * pk.p;
+        const y = pk.a.y + (pk.b.y - pk.a.y) * pk.p;
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = pk.col;
+        ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 6.2832); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // nodes + bloom
       for (const a of nodes) {
-        const pulse = a.kind === "ceo" ? 1 + 0.1 * Math.sin(t * 2) : 1;
-        ctx.shadowBlur = a.r * 1.8;
+        const pulse = a.kind === "ceo" ? 1 + 0.12 * Math.sin(t * 2) : 1 + 0.05 * Math.sin(t * 1.4 + a.x);
+        ctx.shadowBlur = a.r * 2;
         ctx.shadowColor = a.col;
         ctx.fillStyle = a.col;
         ctx.beginPath(); ctx.arc(a.x, a.y, a.r * pulse, 0, 6.2832); ctx.fill();
         ctx.shadowBlur = 0;
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fillStyle = "rgba(255,255,255,0.82)";
         ctx.beginPath(); ctx.arc(a.x - a.r * 0.3, a.y - a.r * 0.3, a.r * 0.22, 0, 6.2832); ctx.fill();
       }
+
+      // labels
       ctx.globalCompositeOperation = "source-over";
       ctx.shadowBlur = 0;
       ctx.fillStyle = labelCol;
@@ -209,13 +302,15 @@ export function SwarmHero({
       ctx.textAlign = "left";
       for (const a of nodes) ctx.fillText(a.id, a.x + a.r + 4, a.y + 3);
 
+      ctx.restore();
       if (!reduce) raf = requestAnimationFrame(tick);
     };
 
-    if (reduce) { for (let i = 0; i < 140; i++) tick(); }
+    ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H); // solid first frame (trails build after)
+    if (reduce) { for (let i = 0; i < 160; i++) tick(); }
     else tick();
 
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener("pointermove", onMove); };
   }, [open, agents, feed]);
 
   if (!open) return null;
