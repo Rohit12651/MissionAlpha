@@ -1,0 +1,5449 @@
+{
+  "generatedAt": "2026-06-18T05:31:41Z",
+  "scheduler": {
+    "running": true,
+    "cadenceSec": 50,
+    "lastTick": "2026-06-17T04:10:02Z",
+    "activeCount": 16,
+    "staleCount": 0
+  },
+  "counts": {
+    "total": 17,
+    "active": 17,
+    "inProgress": 8,
+    "blocked": 1,
+    "stale": 0,
+    "offline": 0
+  },
+  "agents": [
+    {
+      "id": "ceo",
+      "role": "Chief Executive",
+      "tier": "supreme",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "strategy",
+      "task": "ratify Cycle 1 scope",
+      "file": "docs/ceo/cycle1-control-plane-scope.md",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:29:46Z",
+          "from": "architect",
+          "to": "ceo",
+          "topic": "seam-locked",
+          "ref": "ADR-014",
+          "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+        },
+        {
+          "ts": "2026-06-18T05:29:47Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "memory-updater",
+          "to": "ceo",
+          "topic": "persisted",
+          "ref": "cycle1",
+          "body": "Cycle 1 decisions persisted. Dep map updated."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "architect",
+          "to": "ceo",
+          "topic": "seam-locked",
+          "ref": "ADR-014",
+          "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "memory-updater",
+          "to": "ceo",
+          "topic": "persisted",
+          "ref": "cycle1",
+          "body": "Cycle 1 decisions persisted. Dep map updated."
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "architect",
+          "to": "ceo",
+          "topic": "seam-locked",
+          "ref": "ADR-014",
+          "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "memory-updater",
+          "to": "ceo",
+          "topic": "persisted",
+          "ref": "cycle1",
+          "body": "Cycle 1 decisions persisted. Dep map updated."
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "architect",
+          "to": "ceo",
+          "topic": "seam-locked",
+          "ref": "ADR-014",
+          "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "java17-engineer",
+          "to": "ceo",
+          "topic": "status",
+          "ref": "java17-engineer",
+          "body": "alive. repo-read. await dispatch."
+        }
+      ],
+      "next": "watch drift",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.439051+00:00"
+    },
+    {
+      "id": "architect",
+      "role": "System Architect",
+      "tier": "principal",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "design-arch",
+      "task": "ADR-014 endpoints",
+      "file": "docs/adr/ADR-014.md",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:29:39Z",
+          "from": "principal-db-engineer",
+          "to": "architect",
+          "topic": "no-delta",
+          "ref": "schema",
+          "body": "No schema delta. Audit reads existing log. Web-only confirm."
+        },
+        {
+          "ts": "2026-06-18T05:29:46Z",
+          "from": "memory-updater",
+          "to": "architect",
+          "topic": "dep-map",
+          "ref": "ARCHITECTURE_MEMORY",
+          "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+        },
+        {
+          "ts": "2026-06-18T05:29:46Z",
+          "from": "ceo",
+          "to": "architect",
+          "topic": "strategy-approved",
+          "ref": "cycle1",
+          "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "senior-security-engineer",
+          "to": "architect",
+          "topic": "threat-note",
+          "ref": "/api/command/bulk",
+          "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "principal-db-engineer",
+          "to": "architect",
+          "topic": "no-delta",
+          "ref": "schema",
+          "body": "No schema delta. Audit reads existing log. Web-only confirm."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "memory-updater",
+          "to": "architect",
+          "topic": "dep-map",
+          "ref": "ARCHITECTURE_MEMORY",
+          "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "ceo",
+          "to": "architect",
+          "topic": "strategy-approved",
+          "ref": "cycle1",
+          "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "senior-security-engineer",
+          "to": "architect",
+          "topic": "threat-note",
+          "ref": "/api/command/bulk",
+          "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "principal-db-engineer",
+          "to": "architect",
+          "topic": "no-delta",
+          "ref": "schema",
+          "body": "No schema delta. Audit reads existing log. Web-only confirm."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "memory-updater",
+          "to": "architect",
+          "topic": "dep-map",
+          "ref": "ARCHITECTURE_MEMORY",
+          "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "ceo",
+          "to": "architect",
+          "topic": "strategy-approved",
+          "ref": "cycle1",
+          "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "senior-security-engineer",
+          "to": "architect",
+          "topic": "threat-note",
+          "ref": "/api/command/bulk",
+          "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "principal-db-engineer",
+          "to": "architect",
+          "topic": "no-delta",
+          "ref": "schema",
+          "body": "No schema delta. Audit reads existing log. Web-only confirm."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "memory-updater",
+          "to": "architect",
+          "topic": "dep-map",
+          "ref": "ARCHITECTURE_MEMORY",
+          "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "ceo",
+          "to": "architect",
+          "topic": "strategy-approved",
+          "ref": "cycle1",
+          "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+        }
+      ],
+      "next": "def BulkResult + seam",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.441033+00:00"
+    },
+    {
+      "id": "principal-ux-design",
+      "role": "Principal UX",
+      "tier": "principal",
+      "state": "AWAITING_REVIEW",
+      "column": "review",
+      "pipelineStage": "design-arch",
+      "task": "audit-panel + gate tokens",
+      "file": "src/theme/tokens.css",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T04:51:13Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T04:51:43Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T04:52:20Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T04:52:58Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:25:23Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:26:01Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:26:40Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:27:15Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:27:53Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:28:24Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:29:02Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:29:39Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "senior-web-1",
+          "to": "principal-ux-design",
+          "topic": "token-req",
+          "ref": "tokens.css",
+          "body": "Need OKLCH tokens for status chips. green/amber/red?"
+        }
+      ],
+      "next": "gate motion spec",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.442194+00:00"
+    },
+    {
+      "id": "principal-db-engineer",
+      "role": "Principal DB",
+      "tier": "principal",
+      "state": "DONE_CYCLE",
+      "column": "idle",
+      "pipelineStage": "design-arch",
+      "task": "no schema delta. web-only",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.443725+00:00",
+          "from": "operator",
+          "to": "principal-db-engineer",
+          "topic": "respawn",
+          "ref": "cmd_1781474908030_fe49c17b",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 138s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 192s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 242s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:22Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "principal-db-engineer",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "stand by",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.443359+00:00"
+    },
+    {
+      "id": "senior-security-engineer",
+      "role": "Security Lead",
+      "tier": "senior",
+      "state": "IDLE",
+      "column": "idle",
+      "pipelineStage": "design-arch",
+      "task": "review /api/command/bulk",
+      "file": "vite.config.ts",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "review-req",
+          "ref": "/api/command/bulk",
+          "body": "Bulk loops /api/command. Review surface?"
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:10Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "review-req",
+          "ref": "/api/command/bulk",
+          "body": "Bulk loops /api/command. Review surface?"
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "review-req",
+          "ref": "/api/command/bulk",
+          "body": "Bulk loops /api/command. Review surface?"
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-web-2",
+          "to": "senior-security-engineer",
+          "topic": "blocked",
+          "ref": "/api/command/bulk",
+          "body": "Blocked. Need bulk-surface sign-off. ETA?"
+        }
+      ],
+      "next": "cap array <=64",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.445340+00:00"
+    },
+    {
+      "id": "senior-cicd-engineer",
+      "role": "CI/CD Platform",
+      "tier": "senior",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "deploy",
+      "task": "impl GET /api/audit",
+      "file": "vite.config.ts",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T04:51:05Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T04:51:43Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T04:52:20Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T04:52:50Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:25:23Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:26:01Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:26:33Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:27:15Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:27:46Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:28:24Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:29:02Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:29:32Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "architect",
+          "to": "senior-cicd-engineer",
+          "topic": "endpoint-spec",
+          "ref": "/api/commands/status",
+          "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+        }
+      ],
+      "next": "wire flag",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.444300+00:00"
+    },
+    {
+      "id": "senior-lead-dev",
+      "role": "Lead Developer",
+      "tier": "senior",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "build",
+      "task": "split Cycle 1 tasks",
+      "file": "agent-status/BROADCAST.md",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:28:54Z",
+          "from": "senior-code-reviewer",
+          "to": "senior-lead-dev",
+          "topic": "merge-ok",
+          "ref": "cycle1",
+          "body": "Merge OK. No sev>=Medium."
+        },
+        {
+          "ts": "2026-06-18T05:29:02Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-lead-dev",
+          "topic": "flag-live",
+          "ref": "VITE_CONTROL_PLANE",
+          "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+        },
+        {
+          "ts": "2026-06-18T05:29:17Z",
+          "from": "architect",
+          "to": "senior-lead-dev",
+          "topic": "adr-ready",
+          "ref": "ADR-014",
+          "body": "3 endpoints def: audit, status, bulk. Split now."
+        },
+        {
+          "ts": "2026-06-18T05:29:31Z",
+          "from": "senior-code-reviewer",
+          "to": "senior-lead-dev",
+          "topic": "merge-ok",
+          "ref": "cycle1",
+          "body": "Merge OK. No sev>=Medium."
+        },
+        {
+          "ts": "2026-06-18T05:29:32Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-lead-dev",
+          "topic": "flag-live",
+          "ref": "VITE_CONTROL_PLANE",
+          "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+        },
+        {
+          "ts": "2026-06-18T05:29:54Z",
+          "from": "architect",
+          "to": "senior-lead-dev",
+          "topic": "adr-ready",
+          "ref": "ADR-014",
+          "body": "3 endpoints def: audit, status, bulk. Split now."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "senior-code-reviewer",
+          "to": "senior-lead-dev",
+          "topic": "merge-ok",
+          "ref": "cycle1",
+          "body": "Merge OK. No sev>=Medium."
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-lead-dev",
+          "topic": "flag-live",
+          "ref": "VITE_CONTROL_PLANE",
+          "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "architect",
+          "to": "senior-lead-dev",
+          "topic": "adr-ready",
+          "ref": "ADR-014",
+          "body": "3 endpoints def: audit, status, bulk. Split now."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "senior-code-reviewer",
+          "to": "senior-lead-dev",
+          "topic": "merge-ok",
+          "ref": "cycle1",
+          "body": "Merge OK. No sev>=Medium."
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-lead-dev",
+          "topic": "flag-live",
+          "ref": "VITE_CONTROL_PLANE",
+          "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "architect",
+          "to": "senior-lead-dev",
+          "topic": "adr-ready",
+          "ref": "ADR-014",
+          "body": "3 endpoints def: audit, status, bulk. Split now."
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "senior-code-reviewer",
+          "to": "senior-lead-dev",
+          "topic": "merge-ok",
+          "ref": "cycle1",
+          "body": "Merge OK. No sev>=Medium."
+        },
+        {
+          "ts": "2026-06-18T05:31:18Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-lead-dev",
+          "topic": "flag-live",
+          "ref": "VITE_CONTROL_PLANE",
+          "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "architect",
+          "to": "senior-lead-dev",
+          "topic": "adr-ready",
+          "ref": "ADR-014",
+          "body": "3 endpoints def: audit, status, bulk. Split now."
+        }
+      ],
+      "next": "assign web-1/web-2",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.447861+00:00"
+    },
+    {
+      "id": "senior-web-1",
+      "role": "Web Dev (cust+admin)",
+      "tier": "senior",
+      "state": "AWAITING_REVIEW",
+      "column": "review",
+      "pipelineStage": "build",
+      "task": "build AuditPanel + chips",
+      "file": "src/components/AuditPanel.tsx",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:29:02Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-1",
+          "topic": "tokens-out",
+          "ref": "tokens.css",
+          "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+        },
+        {
+          "ts": "2026-06-18T05:29:17Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-1",
+          "topic": "assign",
+          "ref": "AuditPanel",
+          "body": "Own AuditPanel + status chips."
+        },
+        {
+          "ts": "2026-06-18T05:29:24Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-web-1",
+          "topic": "endpoint-live",
+          "ref": "/api/audit",
+          "body": "GET /api/audit live. AuditEntry[] tail-200."
+        },
+        {
+          "ts": "2026-06-18T05:29:39Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-1",
+          "topic": "tokens-out",
+          "ref": "tokens.css",
+          "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+        },
+        {
+          "ts": "2026-06-18T05:29:54Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-1",
+          "topic": "assign",
+          "ref": "AuditPanel",
+          "body": "Own AuditPanel + status chips."
+        },
+        {
+          "ts": "2026-06-18T05:29:54Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-web-1",
+          "topic": "endpoint-live",
+          "ref": "/api/audit",
+          "body": "GET /api/audit live. AuditEntry[] tail-200."
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-1",
+          "topic": "tokens-out",
+          "ref": "tokens.css",
+          "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-1",
+          "topic": "assign",
+          "ref": "AuditPanel",
+          "body": "Own AuditPanel + status chips."
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-web-1",
+          "topic": "endpoint-live",
+          "ref": "/api/audit",
+          "body": "GET /api/audit live. AuditEntry[] tail-200."
+        },
+        {
+          "ts": "2026-06-18T05:30:48Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-1",
+          "topic": "tokens-out",
+          "ref": "tokens.css",
+          "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-1",
+          "topic": "assign",
+          "ref": "AuditPanel",
+          "body": "Own AuditPanel + status chips."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-web-1",
+          "topic": "endpoint-live",
+          "ref": "/api/audit",
+          "body": "GET /api/audit live. AuditEntry[] tail-200."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-1",
+          "topic": "tokens-out",
+          "ref": "tokens.css",
+          "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-1",
+          "topic": "assign",
+          "ref": "AuditPanel",
+          "body": "Own AuditPanel + status chips."
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-cicd-engineer",
+          "to": "senior-web-1",
+          "topic": "endpoint-live",
+          "ref": "/api/audit",
+          "body": "GET /api/audit live. AuditEntry[] tail-200."
+        }
+      ],
+      "next": "wire getCommandStatus",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.448661+00:00"
+    },
+    {
+      "id": "senior-web-2",
+      "role": "Web Dev (vend+drv)",
+      "tier": "senior",
+      "state": "BLOCKED",
+      "column": "blocked",
+      "pipelineStage": "build",
+      "task": "build BulkBar + gate",
+      "file": "src/components/BulkActionBar.tsx",
+      "blockedBy": "senior-security-engineer",
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:29:39Z",
+          "from": "senior-qa",
+          "to": "senior-web-2",
+          "topic": "a11y-fail",
+          "ref": "PermissionGate",
+          "body": "axe flags gate. No focus-trap on modal. Fix."
+        },
+        {
+          "ts": "2026-06-18T05:29:54Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-2",
+          "topic": "assign",
+          "ref": "BulkBar",
+          "body": "Own BulkBar + gate. F3 hard-gate F6."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "senior-security-engineer",
+          "to": "senior-web-2",
+          "topic": "review-pass",
+          "ref": "/api/command/bulk",
+          "body": "Cap array <=64. Audit each. OK."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-2",
+          "topic": "motion-spec",
+          "ref": "PermissionGate",
+          "body": "Gate enter: ease-out 180ms, scale .95."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "senior-qa",
+          "to": "senior-web-2",
+          "topic": "a11y-fail",
+          "ref": "PermissionGate",
+          "body": "axe flags gate. No focus-trap on modal. Fix."
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-2",
+          "topic": "assign",
+          "ref": "BulkBar",
+          "body": "Own BulkBar + gate. F3 hard-gate F6."
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "senior-security-engineer",
+          "to": "senior-web-2",
+          "topic": "review-pass",
+          "ref": "/api/command/bulk",
+          "body": "Cap array <=64. Audit each. OK."
+        },
+        {
+          "ts": "2026-06-18T05:30:32Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-2",
+          "topic": "motion-spec",
+          "ref": "PermissionGate",
+          "body": "Gate enter: ease-out 180ms, scale .95."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "senior-qa",
+          "to": "senior-web-2",
+          "topic": "a11y-fail",
+          "ref": "PermissionGate",
+          "body": "axe flags gate. No focus-trap on modal. Fix."
+        },
+        {
+          "ts": "2026-06-18T05:31:03Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-2",
+          "topic": "assign",
+          "ref": "BulkBar",
+          "body": "Own BulkBar + gate. F3 hard-gate F6."
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "senior-security-engineer",
+          "to": "senior-web-2",
+          "topic": "review-pass",
+          "ref": "/api/command/bulk",
+          "body": "Cap array <=64. Audit each. OK."
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "principal-ux-design",
+          "to": "senior-web-2",
+          "topic": "motion-spec",
+          "ref": "PermissionGate",
+          "body": "Gate enter: ease-out 180ms, scale .95."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "senior-qa",
+          "to": "senior-web-2",
+          "topic": "a11y-fail",
+          "ref": "PermissionGate",
+          "body": "axe flags gate. No focus-trap on modal. Fix."
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-lead-dev",
+          "to": "senior-web-2",
+          "topic": "assign",
+          "ref": "BulkBar",
+          "body": "Own BulkBar + gate. F3 hard-gate F6."
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "senior-security-engineer",
+          "to": "senior-web-2",
+          "topic": "review-pass",
+          "ref": "/api/command/bulk",
+          "body": "Cap array <=64. Audit each. OK."
+        }
+      ],
+      "next": "wait sec review",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.446310+00:00"
+    },
+    {
+      "id": "principal-rn-mobile-1",
+      "role": "Mobile (cust+admin)",
+      "tier": "principal",
+      "state": "IDLE",
+      "column": "idle",
+      "pipelineStage": "build",
+      "task": "no mobile this cycle",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.447337+00:00",
+          "from": "operator",
+          "to": "principal-rn-mobile-1",
+          "topic": "respawn",
+          "ref": "cmd_1781474908040_68b1350f",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 137s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 191s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 241s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:23Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "stand by",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.447059+00:00"
+    },
+    {
+      "id": "principal-rn-mobile-2",
+      "role": "Mobile (vend+drv)",
+      "tier": "principal",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "build",
+      "task": "no mobile this cycle",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.449916+00:00",
+          "from": "operator",
+          "to": "principal-rn-mobile-2",
+          "topic": "respawn",
+          "ref": "cmd_1781474908041_855cd1bd",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 137s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 191s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 241s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:23Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "principal-rn-mobile-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "stand by",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.449629+00:00"
+    },
+    {
+      "id": "senior-backend-1",
+      "role": "Backend (commerce)",
+      "tier": "senior",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "build",
+      "task": "no backend this cycle",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.450665+00:00",
+          "from": "operator",
+          "to": "senior-backend-1",
+          "topic": "respawn",
+          "ref": "cmd_1781474908042_3bf7d36b",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 137s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 191s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 241s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:23Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "senior-backend-1",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "stand by",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.450382+00:00"
+    },
+    {
+      "id": "senior-backend-2",
+      "role": "Backend (platform)",
+      "tier": "senior",
+      "state": "AWAITING_REVIEW",
+      "column": "review",
+      "pipelineStage": "build",
+      "task": "no backend this cycle",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.454024+00:00",
+          "from": "operator",
+          "to": "senior-backend-2",
+          "topic": "respawn",
+          "ref": "cmd_1781474908048_2c1db7ea",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 137s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 191s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 241s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:23Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "senior-backend-2",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "stand by",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.453594+00:00"
+    },
+    {
+      "id": "senior-qa",
+      "role": "QA / SDET",
+      "tier": "senior",
+      "state": "DONE_CYCLE",
+      "column": "idle",
+      "pipelineStage": "qa",
+      "task": "E2E bulk + gate test",
+      "file": "tests/control-plane.spec.ts",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:27:31Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:27:46Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:28:01Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:28:16Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:28:39Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:28:54Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:29:17Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:29:24Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:29:46Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "senior-web-1",
+          "to": "senior-qa",
+          "topic": "ready-for-test",
+          "ref": "AuditPanel",
+          "body": "AuditPanel + chips done. Verify."
+        },
+        {
+          "ts": "2026-06-18T05:31:33Z",
+          "from": "senior-lead-dev",
+          "to": "senior-qa",
+          "topic": "test-ask",
+          "ref": "control-plane",
+          "body": "Cover bulk respawn + gate deny path. Want axe green."
+        }
+      ],
+      "next": "a11y axe pass",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.454540+00:00"
+    },
+    {
+      "id": "senior-code-reviewer",
+      "role": "Code Reviewer",
+      "tier": "senior",
+      "state": "IDLE",
+      "column": "idle",
+      "pipelineStage": "review",
+      "task": "wait TESTS_GREEN",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:27:23Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:27:46Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:28:01Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:28:16Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:28:31Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:28:54Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:29:09Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:29:31Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:29:46Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:30:01Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:30:17Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "senior-qa",
+          "to": "senior-code-reviewer",
+          "topic": "tests-green",
+          "ref": "control-plane",
+          "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "senior-web-1",
+          "to": "senior-code-reviewer",
+          "topic": "pr-up",
+          "ref": "AuditPanel",
+          "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+        }
+      ],
+      "next": "merge gate",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.452513+00:00"
+    },
+    {
+      "id": "memory-updater",
+      "role": "Memory Custodian",
+      "tier": "support",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "memory",
+      "task": "persist Cycle 1 decisions",
+      "file": "memory/ARCHITECTURE_MEMORY.md",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": false,
+      "inbox": [
+        {
+          "ts": "2026-06-14T22:08:44.451694+00:00",
+          "from": "operator",
+          "to": "memory-updater",
+          "topic": "respawn",
+          "ref": "cmd_1781474908048_0a724726",
+          "body": "Respawned by operator \u2014 resume work."
+        },
+        {
+          "ts": "2026-06-14T22:11:19Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 155s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:12:06Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 202s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:12:56Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 252s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T22:17:51Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 124s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:18:45Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 179s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T22:19:41Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 235s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T22:20:31Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 285s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-14T23:58:07Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 137s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-14T23:59:00Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-2: hb stale 191s. Respond now."
+        },
+        {
+          "ts": "2026-06-14T23:59:51Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 241s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-15T07:40:01Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 563s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T01:09:38Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 244s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        },
+        {
+          "ts": "2026-06-16T10:50:23Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-page",
+          "ref": "BROADCAST.md",
+          "body": "page-1: hb stale 134s >= 120s. Heartbeat now."
+        },
+        {
+          "ts": "2026-06-17T01:56:52Z",
+          "from": "scheduler",
+          "to": "memory-updater",
+          "topic": "stall-respawn",
+          "ref": "BROADCAST.md",
+          "body": "page-3: hb stale 1014s >= 240s. Declared OFFLINE. Re-spawn required (lead via mcp__ruvnet-claude-flow__*)."
+        }
+      ],
+      "next": "update dep map",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": true,
+      "respawnRequestedAt": "2026-06-14T22:08:44.451138+00:00"
+    },
+    {
+      "id": "java17-engineer",
+      "role": "Senior Java 17+ Engineer",
+      "tier": "support",
+      "state": "IN_PROGRESS",
+      "column": "in_progress",
+      "pipelineStage": "build",
+      "task": "repo-read",
+      "file": "-",
+      "blockedBy": null,
+      "heartbeatAt": "2026-06-18T05:31:40Z",
+      "ageSec": 0,
+      "ttlSec": 60,
+      "stale": false,
+      "dead": false,
+      "factory": true,
+      "inbox": [
+        {
+          "ts": "2026-06-18T05:28:08Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:28:24Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:28:39Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:28:54Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:29:09Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:29:24Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:29:39Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:29:54Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:30:09Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:30:24Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:30:39Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:30:55Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:31:11Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:31:25Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        },
+        {
+          "ts": "2026-06-18T05:31:40Z",
+          "from": "ceo",
+          "to": "java17-engineer",
+          "topic": "assign",
+          "ref": "java17-engineer",
+          "body": "run: Java 17+ Specialist. report back."
+        }
+      ],
+      "next": "await dispatch",
+      "eta": null,
+      "acknowledged": false,
+      "acknowledgedAt": null,
+      "respawnRequested": false,
+      "respawnRequestedAt": null
+    }
+  ],
+  "feed": [
+    {
+      "ts": "2026-06-18T05:29:32Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "senior-web-1",
+      "to": "principal-ux-design",
+      "topic": "token-req",
+      "ref": "tokens.css",
+      "body": "Need OKLCH tokens for status chips. green/amber/red?"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-1",
+      "topic": "tokens-out",
+      "ref": "tokens.css",
+      "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "senior-security-engineer",
+      "to": "architect",
+      "topic": "threat-note",
+      "ref": "/api/command/bulk",
+      "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "principal-db-engineer",
+      "to": "architect",
+      "topic": "no-delta",
+      "ref": "schema",
+      "body": "No schema delta. Audit reads existing log. Web-only confirm."
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "senior-qa",
+      "to": "senior-web-2",
+      "topic": "a11y-fail",
+      "ref": "PermissionGate",
+      "body": "axe flags gate. No focus-trap on modal. Fix."
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "senior-web-1",
+      "to": "senior-code-reviewer",
+      "topic": "pr-up",
+      "ref": "AuditPanel",
+      "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "architect",
+      "to": "ceo",
+      "topic": "seam-locked",
+      "ref": "ADR-014",
+      "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "memory-updater",
+      "to": "architect",
+      "topic": "dep-map",
+      "ref": "ARCHITECTURE_MEMORY",
+      "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "senior-lead-dev",
+      "to": "senior-qa",
+      "topic": "test-ask",
+      "ref": "control-plane",
+      "body": "Cover bulk respawn + gate deny path. Want axe green."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "ceo",
+      "to": "architect",
+      "topic": "strategy-approved",
+      "ref": "cycle1",
+      "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:29:47Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "architect",
+      "to": "senior-lead-dev",
+      "topic": "adr-ready",
+      "ref": "ADR-014",
+      "body": "3 endpoints def: audit, status, bulk. Split now."
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-1",
+      "topic": "assign",
+      "ref": "AuditPanel",
+      "body": "Own AuditPanel + status chips."
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-2",
+      "topic": "assign",
+      "ref": "BulkBar",
+      "body": "Own BulkBar + gate. F3 hard-gate F6."
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-web-1",
+      "topic": "endpoint-live",
+      "ref": "/api/audit",
+      "body": "GET /api/audit live. AuditEntry[] tail-200."
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "review-req",
+      "ref": "/api/command/bulk",
+      "body": "Bulk loops /api/command. Review surface?"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "senior-security-engineer",
+      "to": "senior-web-2",
+      "topic": "review-pass",
+      "ref": "/api/command/bulk",
+      "body": "Cap array <=64. Audit each. OK."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-2",
+      "topic": "motion-spec",
+      "ref": "PermissionGate",
+      "body": "Gate enter: ease-out 180ms, scale .95."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "senior-web-1",
+      "to": "senior-qa",
+      "topic": "ready-for-test",
+      "ref": "AuditPanel",
+      "body": "AuditPanel + chips done. Verify."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "senior-qa",
+      "to": "senior-code-reviewer",
+      "topic": "tests-green",
+      "ref": "control-plane",
+      "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "senior-code-reviewer",
+      "to": "senior-lead-dev",
+      "topic": "merge-ok",
+      "ref": "cycle1",
+      "body": "Merge OK. No sev>=Medium."
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "memory-updater",
+      "to": "ceo",
+      "topic": "persisted",
+      "ref": "cycle1",
+      "body": "Cycle 1 decisions persisted. Dep map updated."
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "architect",
+      "to": "senior-cicd-engineer",
+      "topic": "endpoint-spec",
+      "ref": "/api/commands/status",
+      "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-lead-dev",
+      "topic": "flag-live",
+      "ref": "VITE_CONTROL_PLANE",
+      "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "senior-web-1",
+      "to": "principal-ux-design",
+      "topic": "token-req",
+      "ref": "tokens.css",
+      "body": "Need OKLCH tokens for status chips. green/amber/red?"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-1",
+      "topic": "tokens-out",
+      "ref": "tokens.css",
+      "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "senior-security-engineer",
+      "to": "architect",
+      "topic": "threat-note",
+      "ref": "/api/command/bulk",
+      "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "principal-db-engineer",
+      "to": "architect",
+      "topic": "no-delta",
+      "ref": "schema",
+      "body": "No schema delta. Audit reads existing log. Web-only confirm."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "senior-qa",
+      "to": "senior-web-2",
+      "topic": "a11y-fail",
+      "ref": "PermissionGate",
+      "body": "axe flags gate. No focus-trap on modal. Fix."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "senior-web-1",
+      "to": "senior-code-reviewer",
+      "topic": "pr-up",
+      "ref": "AuditPanel",
+      "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "architect",
+      "to": "ceo",
+      "topic": "seam-locked",
+      "ref": "ADR-014",
+      "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:17Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "memory-updater",
+      "to": "architect",
+      "topic": "dep-map",
+      "ref": "ARCHITECTURE_MEMORY",
+      "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "senior-lead-dev",
+      "to": "senior-qa",
+      "topic": "test-ask",
+      "ref": "control-plane",
+      "body": "Cover bulk respawn + gate deny path. Want axe green."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "ceo",
+      "to": "architect",
+      "topic": "strategy-approved",
+      "ref": "cycle1",
+      "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "architect",
+      "to": "senior-lead-dev",
+      "topic": "adr-ready",
+      "ref": "ADR-014",
+      "body": "3 endpoints def: audit, status, bulk. Split now."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-1",
+      "topic": "assign",
+      "ref": "AuditPanel",
+      "body": "Own AuditPanel + status chips."
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-2",
+      "topic": "assign",
+      "ref": "BulkBar",
+      "body": "Own BulkBar + gate. F3 hard-gate F6."
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-web-1",
+      "topic": "endpoint-live",
+      "ref": "/api/audit",
+      "body": "GET /api/audit live. AuditEntry[] tail-200."
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "review-req",
+      "ref": "/api/command/bulk",
+      "body": "Bulk loops /api/command. Review surface?"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "senior-security-engineer",
+      "to": "senior-web-2",
+      "topic": "review-pass",
+      "ref": "/api/command/bulk",
+      "body": "Cap array <=64. Audit each. OK."
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-2",
+      "topic": "motion-spec",
+      "ref": "PermissionGate",
+      "body": "Gate enter: ease-out 180ms, scale .95."
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "senior-web-1",
+      "to": "senior-qa",
+      "topic": "ready-for-test",
+      "ref": "AuditPanel",
+      "body": "AuditPanel + chips done. Verify."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "senior-qa",
+      "to": "senior-code-reviewer",
+      "topic": "tests-green",
+      "ref": "control-plane",
+      "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "senior-code-reviewer",
+      "to": "senior-lead-dev",
+      "topic": "merge-ok",
+      "ref": "cycle1",
+      "body": "Merge OK. No sev>=Medium."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "memory-updater",
+      "to": "ceo",
+      "topic": "persisted",
+      "ref": "cycle1",
+      "body": "Cycle 1 decisions persisted. Dep map updated."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "architect",
+      "to": "senior-cicd-engineer",
+      "topic": "endpoint-spec",
+      "ref": "/api/commands/status",
+      "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-lead-dev",
+      "topic": "flag-live",
+      "ref": "VITE_CONTROL_PLANE",
+      "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "senior-web-1",
+      "to": "principal-ux-design",
+      "topic": "token-req",
+      "ref": "tokens.css",
+      "body": "Need OKLCH tokens for status chips. green/amber/red?"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-1",
+      "topic": "tokens-out",
+      "ref": "tokens.css",
+      "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "senior-security-engineer",
+      "to": "architect",
+      "topic": "threat-note",
+      "ref": "/api/command/bulk",
+      "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "principal-db-engineer",
+      "to": "architect",
+      "topic": "no-delta",
+      "ref": "schema",
+      "body": "No schema delta. Audit reads existing log. Web-only confirm."
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "senior-qa",
+      "to": "senior-web-2",
+      "topic": "a11y-fail",
+      "ref": "PermissionGate",
+      "body": "axe flags gate. No focus-trap on modal. Fix."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "senior-web-1",
+      "to": "senior-code-reviewer",
+      "topic": "pr-up",
+      "ref": "AuditPanel",
+      "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "architect",
+      "to": "ceo",
+      "topic": "seam-locked",
+      "ref": "ADR-014",
+      "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "memory-updater",
+      "to": "architect",
+      "topic": "dep-map",
+      "ref": "ARCHITECTURE_MEMORY",
+      "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "senior-lead-dev",
+      "to": "senior-qa",
+      "topic": "test-ask",
+      "ref": "control-plane",
+      "body": "Cover bulk respawn + gate deny path. Want axe green."
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "ceo",
+      "to": "architect",
+      "topic": "strategy-approved",
+      "ref": "cycle1",
+      "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "architect",
+      "to": "senior-lead-dev",
+      "topic": "adr-ready",
+      "ref": "ADR-014",
+      "body": "3 endpoints def: audit, status, bulk. Split now."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-1",
+      "topic": "assign",
+      "ref": "AuditPanel",
+      "body": "Own AuditPanel + status chips."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-2",
+      "topic": "assign",
+      "ref": "BulkBar",
+      "body": "Own BulkBar + gate. F3 hard-gate F6."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-web-1",
+      "topic": "endpoint-live",
+      "ref": "/api/audit",
+      "body": "GET /api/audit live. AuditEntry[] tail-200."
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "review-req",
+      "ref": "/api/command/bulk",
+      "body": "Bulk loops /api/command. Review surface?"
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "senior-security-engineer",
+      "to": "senior-web-2",
+      "topic": "review-pass",
+      "ref": "/api/command/bulk",
+      "body": "Cap array <=64. Audit each. OK."
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-2",
+      "topic": "motion-spec",
+      "ref": "PermissionGate",
+      "body": "Gate enter: ease-out 180ms, scale .95."
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "senior-web-1",
+      "to": "senior-qa",
+      "topic": "ready-for-test",
+      "ref": "AuditPanel",
+      "body": "AuditPanel + chips done. Verify."
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "senior-qa",
+      "to": "senior-code-reviewer",
+      "topic": "tests-green",
+      "ref": "control-plane",
+      "body": "TESTS_GREEN. Bulk + gate + a11y pass."
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:11Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "senior-code-reviewer",
+      "to": "senior-lead-dev",
+      "topic": "merge-ok",
+      "ref": "cycle1",
+      "body": "Merge OK. No sev>=Medium."
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "memory-updater",
+      "to": "ceo",
+      "topic": "persisted",
+      "ref": "cycle1",
+      "body": "Cycle 1 decisions persisted. Dep map updated."
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "architect",
+      "to": "senior-cicd-engineer",
+      "topic": "endpoint-spec",
+      "ref": "/api/commands/status",
+      "body": "GET /api/commands/status returns CommandStatusSnapshot. Wire flag."
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-lead-dev",
+      "topic": "flag-live",
+      "ref": "VITE_CONTROL_PLANE",
+      "body": "VITE_CONTROL_PLANE flag on. 3 endpoints reachable."
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "senior-web-1",
+      "to": "principal-ux-design",
+      "topic": "token-req",
+      "ref": "tokens.css",
+      "body": "Need OKLCH tokens for status chips. green/amber/red?"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "principal-ux-design",
+      "to": "senior-web-1",
+      "topic": "tokens-out",
+      "ref": "tokens.css",
+      "body": "OKLCH chip tokens shipped. Use --chip-ok/-warn/-err."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "senior-security-engineer",
+      "to": "architect",
+      "topic": "threat-note",
+      "ref": "/api/command/bulk",
+      "body": "POST /api/command/bulk: cap 64, audit each, no LLM path. OK."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "principal-db-engineer",
+      "to": "architect",
+      "topic": "no-delta",
+      "ref": "schema",
+      "body": "No schema delta. Audit reads existing log. Web-only confirm."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "senior-qa",
+      "to": "senior-web-2",
+      "topic": "a11y-fail",
+      "ref": "PermissionGate",
+      "body": "axe flags gate. No focus-trap on modal. Fix."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "senior-web-1",
+      "to": "senior-code-reviewer",
+      "topic": "pr-up",
+      "ref": "AuditPanel",
+      "body": "PR up. AuditEntry[] render + tail-200 virtualized."
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "architect",
+      "to": "ceo",
+      "topic": "seam-locked",
+      "ref": "ADR-014",
+      "body": "BulkResult seam locked. No couple to LLM driver. On-arch."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "memory-updater",
+      "to": "architect",
+      "topic": "dep-map",
+      "ref": "ARCHITECTURE_MEMORY",
+      "body": "Dep map: control-plane edges added. 3 endpoints node-d."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "senior-lead-dev",
+      "to": "senior-qa",
+      "topic": "test-ask",
+      "ref": "control-plane",
+      "body": "Cover bulk respawn + gate deny path. Want axe green."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "ceo",
+      "to": "architect",
+      "topic": "strategy-approved",
+      "ref": "cycle1",
+      "body": "Cycle 1 GO. On-architecture only. No LLM couple."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "architect",
+      "to": "senior-lead-dev",
+      "topic": "adr-ready",
+      "ref": "ADR-014",
+      "body": "3 endpoints def: audit, status, bulk. Split now."
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "from": "java17-engineer",
+      "to": "ceo",
+      "topic": "status",
+      "ref": "java17-engineer",
+      "body": "alive. repo-read. await dispatch."
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-1",
+      "topic": "assign",
+      "ref": "AuditPanel",
+      "body": "Own AuditPanel + status chips."
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-lead-dev",
+      "to": "senior-web-2",
+      "topic": "assign",
+      "ref": "BulkBar",
+      "body": "Own BulkBar + gate. F3 hard-gate F6."
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-cicd-engineer",
+      "to": "senior-web-1",
+      "topic": "endpoint-live",
+      "ref": "/api/audit",
+      "body": "GET /api/audit live. AuditEntry[] tail-200."
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "review-req",
+      "ref": "/api/command/bulk",
+      "body": "Bulk loops /api/command. Review surface?"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-security-engineer",
+      "to": "senior-web-2",
+      "topic": "review-pass",
+      "ref": "/api/command/bulk",
+      "body": "Cap array <=64. Audit each. OK."
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "senior-web-2",
+      "to": "senior-security-engineer",
+      "topic": "blocked",
+      "ref": "/api/command/bulk",
+      "body": "Blocked. Need bulk-surface sign-off. ETA?"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "from": "ceo",
+      "to": "java17-engineer",
+      "topic": "assign",
+      "ref": "java17-engineer",
+      "body": "run: Java 17+ Specialist. report back."
+    }
+  ],
+  "heartbeats": [
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "senior-backend-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "senior-backend-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "memory-updater",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:46Z",
+      "agent": "java17-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "ceo",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "architect",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-security-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-cicd-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-lead-dev",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-backend-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "senior-code-reviewer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "memory-updater",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:28:54Z",
+      "agent": "java17-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "ceo",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "principal-db-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-security-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-qa",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:01Z",
+      "agent": "senior-code-reviewer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:02Z",
+      "agent": "memory-updater",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:02Z",
+      "agent": "java17-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "principal-ux-design",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "principal-db-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-security-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-web-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-backend-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-qa",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "senior-code-reviewer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:09Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "architect",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "principal-ux-design",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "principal-db-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-lead-dev",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-web-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-backend-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-backend-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-qa",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:16Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:17Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:17Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "ceo",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "architect",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "principal-ux-design",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-cicd-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-lead-dev",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-web-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-backend-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-backend-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "memory-updater",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:24Z",
+      "agent": "java17-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "ceo",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "architect",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-security-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-cicd-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-lead-dev",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-backend-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "senior-code-reviewer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "memory-updater",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:31Z",
+      "agent": "java17-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "ceo",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "principal-db-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-security-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-qa",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "senior-code-reviewer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "memory-updater",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:39Z",
+      "agent": "java17-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "principal-ux-design",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "principal-db-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-security-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-web-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-backend-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-qa",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "senior-code-reviewer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:46Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "architect",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "principal-ux-design",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "principal-db-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-lead-dev",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-web-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-backend-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-backend-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-qa",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:29:54Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "ceo",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "architect",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "principal-ux-design",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-cicd-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-lead-dev",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-web-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-backend-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-backend-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "memory-updater",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:01Z",
+      "agent": "java17-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "ceo",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "architect",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-security-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-cicd-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-lead-dev",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-backend-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "senior-code-reviewer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "memory-updater",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:09Z",
+      "agent": "java17-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "ceo",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "principal-db-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-security-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-qa",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "senior-code-reviewer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "memory-updater",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:16Z",
+      "agent": "java17-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "principal-ux-design",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "principal-db-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-security-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-web-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-backend-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-qa",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "senior-code-reviewer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:24Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:31Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:31Z",
+      "agent": "architect",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "principal-ux-design",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "principal-db-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-lead-dev",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-web-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-backend-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-backend-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-qa",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:32Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "ceo",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "architect",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "principal-ux-design",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-cicd-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-lead-dev",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-web-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-backend-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-backend-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "memory-updater",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:39Z",
+      "agent": "java17-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "ceo",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "architect",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "senior-security-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "senior-cicd-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "senior-lead-dev",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:47Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "senior-backend-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "senior-code-reviewer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "memory-updater",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:48Z",
+      "agent": "java17-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "ceo",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "principal-db-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-security-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-qa",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "senior-code-reviewer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "memory-updater",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:30:55Z",
+      "agent": "java17-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:02Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "principal-ux-design",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "principal-db-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-security-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-web-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-backend-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-qa",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "senior-code-reviewer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:03Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "architect",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "principal-ux-design",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "principal-db-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-lead-dev",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-web-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-backend-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-backend-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-qa",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:10Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "ceo",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "architect",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "principal-ux-design",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-security-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-cicd-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-lead-dev",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-web-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-backend-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-backend-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "senior-code-reviewer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "memory-updater",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:18Z",
+      "agent": "java17-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "ceo",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "architect",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "principal-db-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-security-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-cicd-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-lead-dev",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-backend-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-qa",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "senior-code-reviewer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "memory-updater",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:25Z",
+      "agent": "java17-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "ceo",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "principal-ux-design",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "principal-db-engineer",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "senior-security-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:32Z",
+      "agent": "senior-web-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "senior-backend-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "senior-qa",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "senior-code-reviewer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "memory-updater",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:33Z",
+      "agent": "java17-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "ceo",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "architect",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "principal-ux-design",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "principal-db-engineer",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-security-engineer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-cicd-engineer",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-lead-dev",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-web-1",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-web-2",
+      "state": "BLOCKED"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "principal-rn-mobile-1",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "principal-rn-mobile-2",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-backend-1",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-backend-2",
+      "state": "AWAITING_REVIEW"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-qa",
+      "state": "DONE_CYCLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "senior-code-reviewer",
+      "state": "IDLE"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "memory-updater",
+      "state": "IN_PROGRESS"
+    },
+    {
+      "ts": "2026-06-18T05:31:40Z",
+      "agent": "java17-engineer",
+      "state": "IN_PROGRESS"
+    }
+  ]
+}
