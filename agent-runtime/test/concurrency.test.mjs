@@ -8,16 +8,19 @@ test("env override wins, unclamped", () => {
   assert.equal(computeMaxInflight({ env: { RUNTIME_MAX_INFLIGHT: "1" }, cpuCount: 64 }), 1);
 });
 
-test("cpu-derived = clamp(cpuCount-1, 2, 12) when no env", () => {
+test("cpu-derived = clamp(cpuCount-1, 2, 6) when no env", () => {
+  // Ceiling is RAM/subscription-governed (each slot = a heavy `claude` child),
+  // NOT CPU-governed — perf-engineer review capped it at 6, env raises it.
   assert.equal(computeMaxInflight({ env: {}, cpuCount: 1 }), 2);  // floor
   assert.equal(computeMaxInflight({ env: {}, cpuCount: 2 }), 2);  // floor
-  assert.equal(computeMaxInflight({ env: {}, cpuCount: 8 }), 7);  // mid
-  assert.equal(computeMaxInflight({ env: {}, cpuCount: 14 }), 12); // ceil
+  assert.equal(computeMaxInflight({ env: {}, cpuCount: 5 }), 4);  // mid
+  assert.equal(computeMaxInflight({ env: {}, cpuCount: 8 }), 6);  // ceil
+  assert.equal(computeMaxInflight({ env: {}, cpuCount: 14 }), 6); // ceil
 });
 
 test("garbage env ignored → falls through to cpu-derived", () => {
   for (const bad of ["", "abc", "0", "-5", "  ", "3.5x"]) {
-    assert.equal(computeMaxInflight({ env: { RUNTIME_MAX_INFLIGHT: bad }, cpuCount: 8 }), 7);
+    assert.equal(computeMaxInflight({ env: { RUNTIME_MAX_INFLIGHT: bad }, cpuCount: 8 }), 6);
   }
 });
 
