@@ -326,7 +326,7 @@ export default function App() {
           feedForReplay={state.feed}
         />
       )}
-      {state && <SwarmHero open={heroOpen} agents={state.agents} onClose={() => setHeroOpen(false)} />}
+      {state && <SwarmHero open={heroOpen} agents={state.agents} feed={state.feed} onClose={() => setHeroOpen(false)} />}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />

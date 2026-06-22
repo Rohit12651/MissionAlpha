@@ -1,34 +1,45 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import type { AgentState } from "../../data/types";
+import type { AgentState, FeedEvent } from "../../data/types";
 import { tok } from "../../lib/agentMeta";
 
 /*
-  SwarmHero (publicity) — A1 "drift + mesh": every agent is a node that roams the
-  canvas, bounces off the edges, and draws a fading link to nearby agents; the CEO
-  (tier "supreme") pulses gold and drifts toward center. Self-contained + reusable:
-  pass any agent list (live state OR the saved docs/demo snapshot) and mount it
-  anywhere — a future landing page, or the in-app full-screen overlay used here.
+  SwarmHero (publicity) — a live force-directed knowledge graph of the swarm.
+  Agent nodes (sized by tier, CEO is the gold hub) + artifact nodes derived from
+  each agent's task/file and the comms feed (refs). Edges = agent→CEO, agent→its
+  artifact, feed from→to comms, and blockedBy. Nodes repel, links pull, gravity is
+  weak so the graph SPREADS across the whole screen and gently roams (never a
+  static loop). Bloom via shadowBlur. Palette: violet / cyan / gold / muted — no pink.
 
-  Canvas needs concrete colors, but the design tokens are CSS vars (tok() → var(--c-…)),
-  so we resolve them once via getComputedStyle and use globalAlpha for translucency.
-  Honors prefers-reduced-motion (renders one static frame, no rAF loop).
+  Self-contained + reusable: pass any agents+feed (live state OR the saved
+  docs/demo snapshot) and mount anywhere. Canvas needs concrete colors but tokens
+  are CSS vars (tok()→var(--c-…)), so they're resolved via getComputedStyle.
+  Honors prefers-reduced-motion (settles to a static frame, no rAF loop).
 */
 
-const TIER_TOK: Record<AgentState["tier"], string> = {
-  supreme: "ceo-gold",
-  principal: "factory-violet",
-  senior: "accent-cyan",
-  support: "muted",
-};
+const MAX_ARTIFACTS = 30;
+
+type Kind = "ceo" | "principal" | "senior" | "support" | "file" | "doc" | "cfg" | "ref";
+
+function tierKind(t: AgentState["tier"]): Kind {
+  return t === "supreme" ? "ceo" : t === "principal" ? "principal" : t === "senior" ? "senior" : "support";
+}
+function artifactKind(label: string): Kind {
+  if (/\.(tsx?|jsx?|mjs|cjs|json|css|html|ya?ml|md|sh)$|\//.test(label)) return "file";
+  if (/adr|prompt|stage|plan|spec|memo|design|review|audit/i.test(label)) return "doc";
+  if (/cache|config|auth|token|model|key|env|registry/i.test(label)) return "cfg";
+  return "ref";
+}
 
 export function SwarmHero({
   open,
   agents,
+  feed = [],
   onClose,
 }: {
   open: boolean;
   agents: AgentState[];
+  feed?: readonly FeedEvent[];
   onClose: () => void;
 }) {
   const cvRef = useRef<HTMLCanvasElement>(null);
@@ -49,8 +60,17 @@ export function SwarmHero({
 
     const cs = getComputedStyle(document.documentElement);
     const rv = (n: string) => cs.getPropertyValue(`--c-${n}`).trim() || "#888";
-    const colorFor = (t: AgentState["tier"]) => rv(TIER_TOK[t] ?? "muted");
-    const lineCol = rv("accent-cyan");
+    const KCOL: Record<Kind, string> = {
+      ceo: rv("ceo-gold"),
+      principal: rv("factory-violet"),
+      senior: rv("accent-cyan"),
+      support: rv("muted"),
+      file: rv("accent-cyan"),
+      doc: rv("factory-violet"),
+      cfg: rv("ceo-gold"),
+      ref: rv("muted"),
+    };
+    const linkCol = rv("factory-violet");
     const labelCol = rv("muted");
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -58,91 +78,145 @@ export function SwarmHero({
     let W = cv.clientWidth || 1;
     let H = cv.clientHeight || 1;
     const size = () => {
-      W = cv.clientWidth || 1;
-      H = cv.clientHeight || 1;
-      cv.width = W * DPR;
-      cv.height = H * DPR;
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      W = cv.clientWidth || 1; H = cv.clientHeight || 1;
+      cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     };
     size();
-    const ro = new ResizeObserver(size);
-    ro.observe(cv);
+    const ro = new ResizeObserver(size); ro.observe(cv);
 
-    // Deterministic seed so the opening layout is stable (no flash of randomness).
     let s = 20260621;
     const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
 
-    const nodes = agents.map((a) => {
-      const ceo = a.tier === "supreme";
-      return {
-        a,
-        x: rnd() * W,
-        y: 70 + rnd() * Math.max(1, H - 120),
-        vx: (rnd() - 0.5) * (ceo ? 0.25 : 0.9),
-        vy: (rnd() - 0.5) * (ceo ? 0.25 : 0.9),
-        r: ceo ? 14 : a.tier === "principal" ? 8 : 6,
-        col: colorFor(a.tier),
-        ph: rnd() * 6.2832,
-      };
-    });
+    type N = { id: string; kind: Kind; r: number; col: string; x: number; y: number; vx: number; vy: number };
+    const nodes: N[] = [];
+    const byKey = new Map<string, number>(); // label → node index
+    const add = (id: string, kind: Kind, r: number): number => {
+      const key = `${kind}:${id}`;
+      if (byKey.has(key)) return byKey.get(key)!;
+      const idx = nodes.length;
+      nodes.push({ id, kind, r, col: KCOL[kind], x: rnd() * W, y: rnd() * H, vx: 0, vy: 0 });
+      byKey.set(key, idx);
+      return idx;
+    };
+
+    const agentIdx = new Map<string, number>();
+    let ceoIdx = -1;
+    for (const a of agents) {
+      const k = tierKind(a.tier);
+      const r = k === "ceo" ? 15 : k === "principal" ? 9 : k === "senior" ? 7 : 6;
+      const i = add(a.id, k, r);
+      agentIdx.set(a.id, i);
+      if (k === "ceo") ceoIdx = i;
+    }
+
+    const edges: [number, number][] = [];
+    const link = (a: number, b: number) => { if (a >= 0 && b >= 0 && a !== b) edges.push([a, b]); };
+
+    // agent → CEO hub; agent → its task/file artifact; blockedBy
+    let artCount = 0;
+    for (const a of agents) {
+      const ai = agentIdx.get(a.id)!;
+      if (ceoIdx >= 0 && ai !== ceoIdx) link(ai, ceoIdx);
+      const arts = [a.task, a.file].filter((x): x is string => !!x && x !== "-");
+      for (const lbl of arts) {
+        if (artCount >= MAX_ARTIFACTS) break;
+        const before = nodes.length;
+        const bi = add(lbl.slice(0, 28), artifactKind(lbl), 5);
+        if (nodes.length > before) artCount++;
+        link(ai, bi);
+      }
+      if (a.blockedBy && agentIdx.has(a.blockedBy)) link(ai, agentIdx.get(a.blockedBy)!);
+    }
+    // feed comms: from → to (agent links) + from → ref (artifact)
+    for (const f of feed.slice(-40)) {
+      const fi = agentIdx.get(f.from);
+      if (fi == null) continue;
+      const ti = agentIdx.get(f.to);
+      if (ti != null) link(fi, ti);
+      if (f.ref && f.ref !== f.from && artCount < MAX_ARTIFACTS && !agentIdx.has(f.ref)) {
+        const before = nodes.length;
+        const ri = add(f.ref.slice(0, 28), artifactKind(f.ref), 5);
+        if (nodes.length > before) artCount++;
+        link(fi, ri);
+      }
+    }
 
     let raf = 0;
     let t = 0;
-    const draw = () => {
+    const tick = () => {
       t += 0.016;
-      ctx.clearRect(0, 0, W, H);
-      const cx = W / 2, cy = H / 2;
-
-      for (const n of nodes) {
-        if (n.a.tier === "supreme") { n.x += (cx - n.x) * 0.004; n.y += (cy - n.y) * 0.004; }
-        n.x += n.vx; n.y += n.vy;
-        if (n.x < 30 || n.x > W - 30) n.vx *= -1;
-        if (n.y < 70 || n.y > H - 50) n.vy *= -1;
-        n.x = Math.max(30, Math.min(W - 30, n.x));
-        n.y = Math.max(70, Math.min(H - 50, n.y));
+      // forces
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        a.vx *= 0.85; a.vy *= 0.85;
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
+          const f = 4200 / d2;
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+        }
+        // very weak pull to center → graph fills the whole screen, doesn't clump
+        a.vx += (W / 2 - a.x) * 0.00035;
+        a.vy += (H / 2 - a.y) * 0.00035;
+        // gentle roam so it never fully stills
+        a.vx += Math.sin(t * 0.6 + i) * 0.025;
+        a.vy += Math.cos(t * 0.5 + i * 1.3) * 0.025;
+      }
+      for (const [ia, ib] of edges) {
+        const a = nodes[ia], b = nodes[ib];
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) + 0.01;
+        const f = (d - 120) * 0.006;
+        a.vx += (dx / d) * f; a.vy += (dy / d) * f; b.vx -= (dx / d) * f; b.vy -= (dy / d) * f;
+      }
+      for (const a of nodes) {
+        a.x += Math.max(-3.5, Math.min(3.5, a.vx));
+        a.y += Math.max(-3.5, Math.min(3.5, a.vy));
+        if (a.x < 24) { a.x = 24; a.vx = Math.abs(a.vx); }
+        if (a.x > W - 24) { a.x = W - 24; a.vx = -Math.abs(a.vx); }
+        if (a.y < 56) { a.y = 56; a.vy = Math.abs(a.vy); }
+        if (a.y > H - 30) { a.y = H - 30; a.vy = -Math.abs(a.vy); }
       }
 
-      // mesh — fade link strength by distance via globalAlpha
-      ctx.strokeStyle = lineCol;
-      ctx.lineWidth = 1;
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i], b = nodes[j];
-          const d = Math.hypot(a.x - b.x, a.y - b.y);
-          if (d < 220) {
-            ctx.globalAlpha = 0.22 * (1 - d / 220);
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
+      // paint
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = rv("bg") || "#0a0b14";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineWidth = 0.7;
+      for (const [ia, ib] of edges) {
+        const a = nodes[ia], b = nodes[ib];
+        ctx.globalAlpha = 0.18;
+        ctx.strokeStyle = linkCol;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       }
       ctx.globalAlpha = 1;
-
-      for (const n of nodes) {
-        const pulse = n.a.tier === "supreme" ? 1 + 0.18 * Math.sin(t * 2 + n.ph) : 1;
-        ctx.globalAlpha = 0.14;
-        ctx.fillStyle = n.col;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r * pulse + 8, 0, 6.2832);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r * pulse, 0, 6.2832);
-        ctx.fill();
-        ctx.fillStyle = labelCol;
-        ctx.font = "11px Lato, system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(n.a.id, n.x, n.y + n.r + 15);
+      for (const a of nodes) {
+        const pulse = a.kind === "ceo" ? 1 + 0.1 * Math.sin(t * 2) : 1;
+        ctx.shadowBlur = a.r * 1.8;
+        ctx.shadowColor = a.col;
+        ctx.fillStyle = a.col;
+        ctx.beginPath(); ctx.arc(a.x, a.y, a.r * pulse, 0, 6.2832); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.beginPath(); ctx.arc(a.x - a.r * 0.3, a.y - a.r * 0.3, a.r * 0.22, 0, 6.2832); ctx.fill();
       }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = labelCol;
+      ctx.font = '10px ui-monospace, Menlo, monospace';
+      ctx.textAlign = "left";
+      for (const a of nodes) ctx.fillText(a.id, a.x + a.r + 4, a.y + 3);
 
-      if (!reduce) raf = requestAnimationFrame(draw);
+      if (!reduce) raf = requestAnimationFrame(tick);
     };
-    draw();
+
+    if (reduce) { for (let i = 0; i < 140; i++) tick(); }
+    else tick();
 
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [open, agents]);
+  }, [open, agents, feed]);
 
   if (!open) return null;
 
@@ -151,12 +225,12 @@ export function SwarmHero({
       <canvas ref={cvRef} className="absolute inset-0 h-full w-full" />
       <div className="pointer-events-none absolute left-8 top-7">
         <div className="text-2xl font-semibold tracking-tight" style={{ color: tok("text"), fontFamily: '"Lato", system-ui, sans-serif' }}>MissionAlpha</div>
-        <div className="mt-1 text-xs" style={{ color: tok("muted") }}>agent swarm command tower · {agents.length} agents online</div>
+        <div className="mt-1 text-xs" style={{ color: tok("muted") }}>agent swarm command tower · {agents.length} agents · live graph</div>
       </div>
       <div className="pointer-events-none absolute bottom-6 left-8 flex flex-wrap gap-4 text-[11px]">
         <span style={{ color: tok("ceo-gold") }}>● CEO</span>
-        <span style={{ color: tok("factory-violet") }}>● principal</span>
-        <span style={{ color: tok("accent-cyan") }}>● senior</span>
+        <span style={{ color: tok("factory-violet") }}>● principal / docs</span>
+        <span style={{ color: tok("accent-cyan") }}>● senior / files</span>
         <span style={{ color: tok("muted") }}>● support</span>
       </div>
       <button
