@@ -17,7 +17,7 @@
 
 ## Findings / rough edges (for follow-up)
 
-1. **Research tools inactive in `tools=none`** — the CEO has no live `WebSearch`/`WebFetch` in the default chat mode, so its "research" is model-knowledge, not live web. The persona advertises MCP/web research it can't use here. *Fix later: grant CEO read+web tools, or document the mode.*
+1. **Research tools inactive in `tools=none` — ✅ FIXED (F2)** — the CEO previously had no live `WebSearch`/`WebFetch` in the default chat mode, so its "research" was model-knowledge, not live web. *Fix:* F2 added a pure `webToolArgs(agentId)` (`agent-tools.mjs`) that grants `WebSearch`/`WebFetch` to the boss/CEO thread ONLY, appended unconditionally in `cliReply` AFTER the `TOOLS`-mode branch (so the default `none` branch can't strip it). Web tools only fire under `RUNTIME_BACKEND=cli` (mock intercepts `boss`). Verified live: a boss turn under `cli` returned current Node.js LTS data citing `https://nodejs.org/en/about/previous-releases`. Scope-leak guard test proves no other agent gets web egress; security-reviewer confirmed no exfil combo (CEO is `tools=none` → no repo read/write, child env secret-stripped, egress scrubbed). See `docs/superpowers/plans/2026-06-21-F2-ceo-web-research.md`.
 
 2. **`/run` requires `RUNTIME_TOOLS=write`** — default is `none`, so the build loop 400s (`runtime not in write mode`) until the operator sets the env. *Expected, but undocumented; note in runbook.*
 
