@@ -42,3 +42,10 @@ test("RUNTIME_SEED_DIRS csv overrides the appliable scope", async () => {
   assert.equal(g.applyAllowed("lib/y.ts"), true);
   assert.equal(g.applyAllowed("src/z.ts"), false); // src no longer seeded
 });
+
+import { isGitRepo } from "../worktree.mjs";
+test("isGitRepo: true for a git repo, false for a plain dir", async () => {
+  const plain = mkdtempSync(join(tmpdir(), "f5-nogit-"));
+  assert.equal(isGitRepo(plain), false);
+  assert.equal(isGitRepo(process.cwd()), true); // agent-runtime is inside a git repo
+});
