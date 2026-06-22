@@ -96,6 +96,8 @@ import { detectGaps } from "./gap-detector.mjs";
 import { resolveAgents } from "./router.mjs"; // Phase 4 (#7) dynamic team routing
 // ADR-050 B1 — system-prompt builder (extracted to avoid server startup in unit tests).
 import { buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE } from "./system-prompt.mjs";
+// F4.1 — cockpit data feeds (no token required; loopback-gated by hostOk above).
+import { stateHandler, commandHandler, auditHandler, commandStatusHandler, sessionsHandler } from "./cockpit-feeds.mjs";
 // ADR-049 multimodal chat attachments — file intake for /chat (images/pdf/csv/txt).
 import Busboy from "busboy";
 import { createWriteStream } from "node:fs";
@@ -108,6 +110,15 @@ import {
 // so a runaway swarm can't lock the BOSS out of his Claude subscription. File-based.
 import { guardedSpawn, logCall as quotaLog, countInWindow as quotaCount, quotaStatus, is429 as isRateLimited, QuotaExceeded, MA_QUOTA_MAX, MA_QUOTA_WINDOW_MS } from "./quota-guard.mjs";
 const __dir = dirname(fileURLToPath(import.meta.url));
+// F4.1 — state file for the cockpit feeds (operator sets WAAHYU_STATE_PATH or drops a
+// state.json in <userData>/agent-status; absent → 503 → cockpit shows "connecting…" gracefully).
+const COCKPIT_STATE_PATH = process.env.WAAHYU_STATE_PATH || join(__dir, "..", "agent-status", "state.json");
+// Pre-build the 5 handlers once at module scope (pure factories, statePath is closed over).
+const _stateH = stateHandler(COCKPIT_STATE_PATH);
+const _commandH = commandHandler(COCKPIT_STATE_PATH);
+const _auditH = auditHandler(COCKPIT_STATE_PATH);
+const _commandStatusH = commandStatusHandler(COCKPIT_STATE_PATH);
+const _sessionsH = sessionsHandler(COCKPIT_STATE_PATH);
 const TOOLS = process.env.RUNTIME_TOOLS || "none";
 // SANDBOX OUTSIDE the repo (sr-security: must not be inside REPO_ROOT). Each agent
 // edits an isolated COPY here; nothing reaches the live repo until the operator
@@ -961,6 +972,15 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify({ error: "forbidden host" }));
     return;
   }
+
+  // ── F4.1 COCKPIT FEEDS — no token required (matches dev vite posture) ────────
+  // Loopback-gated by the hostOk check above. No shell exec. READ-only except
+  // /api/command which validates + atomic-writes under dirname(statePath)/commands.
+  if (url.pathname === "/api/state.json")       return _stateH(req, res);
+  if (url.pathname === "/api/command")          return _commandH(req, res);
+  if (url.pathname === "/api/audit")            return _auditH(req, res);
+  if (url.pathname === "/api/commands/status")  return _commandStatusH(req, res);
+  if (url.pathname.startsWith("/api/sessions")) return _sessionsH(req, res);
 
   // ── S1 ENGINE ROUTES (ADRs 024–029) ───────────────────────────────────────
   // Handled BEFORE the generic /runtime/:agentId/* routes so "engine" is never
