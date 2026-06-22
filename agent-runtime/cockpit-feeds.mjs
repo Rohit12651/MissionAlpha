@@ -149,8 +149,7 @@ export function stateHandler(statePath) {
       res.end(
         JSON.stringify({
           error: "state.json not found",
-          lookedAt: statePath,
-          hint: "set WAAHYU_STATE_PATH in .env, and ensure the swarm scheduler is exporting state.",
+          hint: "set WAAHYU_STATE_PATH and ensure the swarm scheduler is exporting state.",
         }),
       );
     }
@@ -182,7 +181,9 @@ export function commandHandler(statePath) {
 
     const type = reqBody?.type;
     const target = reqBody?.target;
-    const issuedBy = typeof reqBody?.issuedBy === "string" ? reqBody.issuedBy : "operator";
+    // Sanitize tab/newline so a caller can't inject extra TSV columns into AUDIT.log
+    // (security-reviewer MEDIUM — log-integrity), and cap length.
+    const issuedBy = typeof reqBody?.issuedBy === "string" ? reqBody.issuedBy.replace(/[\t\n\r]/g, " ").slice(0, 200) : "operator";
     const reason = typeof reqBody?.reason === "string" ? reqBody.reason.slice(0, 280) : undefined;
     const body = typeof reqBody?.body === "string" ? reqBody.body.slice(0, 2000) : undefined;
 
