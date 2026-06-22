@@ -88,7 +88,7 @@ import { createSecretScrubber, once } from "./secret-scrub.mjs";
 import { createSandbox } from "./sandbox.mjs";
 import { createToolBroker, classify } from "./tool-broker.mjs";
 // ADR-050 G5 — derive --allowed-tools from factory agent's spec at spawn frame.
-import { allowedToolsForAgent } from "./agent-tools.mjs";
+import { allowedToolsForAgent, webToolArgs } from "./agent-tools.mjs";
 import { computeMaxInflight } from "./concurrency.mjs";
 // ADR-050 A1+A2 — capability index + gap detector for /runtime/factory/detect-gaps (B3).
 import { capabilityIndex } from "./capabilities.mjs";
@@ -569,6 +569,12 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // G5 — single --strict-mcp-config for a factory agent: push the bare flag only if the
   // MCP block above didn't already add one (granted connector). Never a double flag.
   if (needStrictMcp && !args.includes("--strict-mcp-config")) args.push("--strict-mcp-config");
+
+  // F2 — boss/CEO live web research. Unconditional append AFTER the TOOLS-mode branch
+  // (and after strict-mcp dedup) so the default "none" branch can't strip it. Built-in
+  // web tools are orthogonal to --strict-mcp-config (which only scopes MCP servers).
+  // Granted to the boss/CEO thread ONLY — webToolArgs() returns [] for every other id.
+  args.push(...webToolArgs(agentId));
 
   // Minimal child env — strip secret-shaped vars so a tool/log can't leak them
   // (claude CLI uses subscription auth via ~/.claude, not env keys).
