@@ -207,10 +207,9 @@ export function SwarmHero({
       ox += (tox - ox) * 0.05; oy += (toy - oy) * 0.05;
 
       // ── paint ──
-      // motion trails: paint a translucent bg each frame instead of clearing,
-      // so nodes/packets leave a fading wake.
+      // Solid clear each frame → crisp nodes + readable labels (no comet-trail blur).
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "rgba(10,11,20,0.24)";
+      ctx.fillStyle = BG;
       ctx.fillRect(0, 0, W, H);
 
       ctx.save();
