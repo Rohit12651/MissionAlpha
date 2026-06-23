@@ -290,10 +290,12 @@ hover tooltip; right: the inline real-time inspect+chat panel (header · RECENT 
 ## Open Questions
 
 - ~~**[design — non-blocking]** Selection ring (P1-1) timing.~~ **RESOLVED — shipped in P0-4.**
-- **[design — non-blocking]** Idle-trickle rate when feed is quiet — how subtle? (`emil-design-eng`
-  to tune; default ~1 packet / 0.6s.)
-- **[a11y — non-blocking]** Is the cockpit roster/board a sufficient keyboard-equivalent path, or
-  does the hero need keyboard node focus in v1? (Default: rely on roster/board; document it.)
+- ~~**[design — non-blocking]** Idle-trickle rate when feed is quiet — how subtle?~~ **RESOLVED
+  2026-06-23 — subtle ambient: trickle only after ~2.5s quiet, ~1 packet / 0.8s, rendered fainter
+  (alpha ×0.55, smaller dot) so it's clearly ambient and never mistaken for real comms.**
+- ~~**[a11y — non-blocking]** keyboard-equivalent path for the hero?~~ **RESOLVED — rely on the
+  cockpit roster/board (keyboard-accessible, same agent info); documented via an in-hero `sr-only`
+  cue. No canvas node keyboard-focus in v1 (deferred to P2 if needed).**
 - ~~**[product — blocking]** v1 (close→cockpit drawer) vs v2 (inline panel).~~ **RESOLVED
   2026-06-22 — boss chose v2: inline real-time inspect+chat panel inside the hero** (reference
   mockup `docs/mockups/swarm-hero-functional-ref.html`). P0-4 updated accordingly.
