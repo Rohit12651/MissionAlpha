@@ -383,6 +383,20 @@ export default function App() {
           renderChat={renderHeroChat}
         />
       )}
+      {/* P2-3: mini live-ops dock on the cockpit home (when the full hero is closed). */}
+      {state && !heroOpen && (
+        <div className="fixed bottom-16 left-4 z-30 hidden h-40 w-60 lg:block">
+          <SwarmHero
+            variant="dock"
+            open
+            agents={state.agents}
+            feed={state.feed}
+            onClose={() => {}}
+            onExpand={() => setHeroOpen(true)}
+            onSelectAgent={(id) => { if (id) { setHeroAgentId(id); setHeroOpen(true); } }}
+          />
+        </div>
+      )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />
