@@ -6,6 +6,7 @@ import {
   Wrench,
   History,
   Sparkles,
+  Library,
   type LucideIcon,
 } from "lucide-react";
 import type { Counts } from "../../data/types";
@@ -131,6 +132,7 @@ export interface TitleBarProps {
   onOpenPalette: () => void;
   onOpenSettings: () => void;
   onOpenHero: () => void;
+  onOpenSkills: () => void;
 }
 
 export function TitleBar({
@@ -142,6 +144,7 @@ export function TitleBar({
   onOpenPalette,
   onOpenSettings,
   onOpenHero,
+  onOpenSkills,
 }: TitleBarProps) {
   const statusTone = needYou ? "blocked-amber" : "done-green";
   return (
@@ -173,6 +176,7 @@ export function TitleBar({
       )}
 
       <div className="app-no-drag ml-auto flex items-center gap-1">
+        <NavButton label="Skills" icon={Library} onClick={onOpenSkills} />
         <NavButton label="Swarm" icon={Sparkles} onClick={onOpenHero} />
         <NavButton
           label="Audit"

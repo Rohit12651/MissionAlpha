@@ -11,6 +11,8 @@ import { ViewToggle, type BoardView } from "./components/ViewToggle";
 import { PulseGlobe } from "./components/PulseGlobe";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
+import { SkillPalette } from "./components/skills/SkillPalette";
+import { MISSION_SKILLS, type MissionSkill } from "./lib/missionSkills";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
 import { TitleBar } from "./components/shell/TitleBar";
@@ -194,6 +196,7 @@ export default function App() {
   const [utilOpen, setUtilOpen] = useState(false);
   const [utilTab, setUtilTab] = useState<UtilityTab>("audit");
   const [prefill, setPrefill] = useState<{ text: string; nonce: number }>({ text: "", nonce: 0 });
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [tierReloadKey, setTierReloadKey] = useState(0);
 
   // Resizable + collapsible chat dock (desktop only; mobile keeps the pane tabs).
@@ -242,9 +245,17 @@ export default function App() {
 
   const openUtil = useCallback((t: UtilityTab) => { setUtilTab(t); setUtilOpen(true); }, []);
 
+  const skillsOpenRef = useRef(skillsOpen);
+  useEffect(() => { skillsOpenRef.current = skillsOpen; }, [skillsOpen]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setPaletteOpen((o) => !o); }
+      // "/" opens the Skills palette — only when not typing into a field.
+      else if (e.key === "/" && !skillsOpenRef.current) {
+        const t = e.target as HTMLElement | null;
+        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+        if (!typing) { e.preventDefault(); setSkillsOpen(true); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -252,6 +263,12 @@ export default function App() {
 
   const dispatchGoal = useCallback((text: string) => {
     setPrefill((p) => ({ text, nonce: p.nonce + 1 }));
+    setMobilePane("chat");
+  }, []);
+
+  // Pick a skill from the palette → drop its prompt into the composer (existing gated prefill flow).
+  const pickSkillIntoComposer = useCallback((s: MissionSkill) => {
+    setPrefill((p) => ({ text: s.prompt, nonce: p.nonce + 1 }));
     setMobilePane("chat");
   }, []);
 
@@ -263,6 +280,7 @@ export default function App() {
       { id: "open-replay", title: "Open Replay", group: "View", keywords: "time scrubber history", run: () => openUtil("replay") },
       { id: "open-settings", title: "Open Settings", group: "Settings", keywords: "theme accent tier policy", run: () => setSettingsOpen(true) },
       { id: "open-tour", title: "Replay onboarding tour", group: "Settings", keywords: "help welcome guide", run: () => setOnboardingOpen(true) },
+      { id: "open-skills", title: "Skills palette", group: "Open", hint: "/", keywords: "skill catalog library prompt", run: () => setSkillsOpen(true) },
     ];
     for (const t of MODEL_TIERS) {
       cmds.push({ id: `model-${t.key}`, title: `Switch model: ${t.label}`, group: "Model", hint: t.hint, keywords: `tier ${t.hint}`,
@@ -297,6 +315,7 @@ export default function App() {
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHero={() => setHeroOpen(true)}
+        onOpenSkills={() => setSkillsOpen(true)}
       />
 
       {/* preflight gate — blocking setup screen / docker banner / cockpit */}
@@ -450,6 +469,7 @@ export default function App() {
         </div>
       )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
+      <SkillPalette open={skillsOpen} onClose={() => setSkillsOpen(false)} skills={MISSION_SKILLS} onPick={pickSkillIntoComposer} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />
     </div>
