@@ -102,6 +102,7 @@ Node appearance encodes live `column` + `stale` from the agent data already supp
   - Given an agent with `stale: true`, Then its node renders dim/desaturated.
   - Given an agent with `column: "idle"` and no heartbeat, Then its node renders faint.
   - Given the fixed dark publicity palette, Then no pink is introduced and the glow is preserved.
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `emil-design-eng` → `impeccable` → `hallmark` → `sp-test-driven-development` → `sp-verification-before-completion`. **Agents:** `principal-ux-design` (visual contract), `react-specialist` (impl), `react-reviewer`, `performance-engineer` (60fps).
 
 **P0-2 — Packets reflect real comms**
 Packets spawn from live `feed` events (`from → to`), replacing random spawning.
@@ -111,6 +112,7 @@ Packets spawn from live `feed` events (`from → to`), replacing random spawning
   - Given a feed event whose `from` or `to` is not a rendered node, Then no packet is spawned (no crash).
   - Given an empty/quiet feed, Then a subtle idle trickle plays (view never dead-still).
   - Given the same feed (no new events), Then no duplicate packets are spawned (last-seen `ts` respected).
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `emil-design-eng` (packet ease) → `impeccable` → `sp-test-driven-development` → `sp-verification-before-completion`. **Agents:** `react-specialist` (impl), `react-reviewer`, `performance-engineer`. (Grouped with P0-1 — same phase.)
 
 **P0-3 — Hover tooltip (parallax-correct hit-test)**
 Hovering a node shows a tooltip with `id · role · tier · status · current task`.
@@ -121,6 +123,7 @@ Hovering a node shows a tooltip with `id · role · tier · status · current ta
   - Given the cursor leaves all nodes, Then the tooltip hides.
   - Given hovering, Then the cursor becomes a pointer (clickability hint).
   - Performance: tooltip React state updates only on hovered-node CHANGE (never per animation frame).
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `emil-design-eng` (tooltip enter/exit) → `impeccable` (`typeset`/`layout`) → `kw-design-accessibility-review` → `sp-test-driven-development` → `sp-verification-before-completion`. **Agents:** `react-specialist` (hit-test), `a11y-architect` (WCAG 2.2), `ui-ux-tester`.
 
 **P0-4 — Click node → INLINE real-time inspect + chat panel (v2, boss-approved)**
 Clicking a node opens an inline right-side panel **inside the hero** (the hero stays open — it
@@ -149,6 +152,7 @@ Panel layout (per the reference mockup):
     to full-screen graph (Esc-again closes the hero).
   - Verified in BOTH dev and the packaged Electron build.
   - Negative: a click on empty canvas closes the panel (or does nothing if already closed).
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `frontend-design` (overlay↔panel) → `emil-design-eng` (panel open/close motion) → `impeccable` (`polish`) → `sp-test-driven-development` → `webapp-testing` (click-through, dev + packaged) → `sp-verification-before-completion`. **Agents:** `react-specialist` (App↔hero wiring), `react-reviewer`, `ui-ux-tester` + `webapp-testing`, **`security-reviewer` (BLOCKING before commit)**.
 
 **P0-5 — Standalone reuse preserved**
 - Acceptance:
