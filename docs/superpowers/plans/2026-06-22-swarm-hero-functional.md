@@ -34,8 +34,8 @@ misleading because nothing in it is interactive.
 1. **Glanceable status** — within 2 seconds of opening, the operator can tell which agents are
    working, blocked, stale, or idle, without reading text. (Measure: status legible from node
    visuals alone in usability check.)
-2. **One-click to act** — clicking any agent node opens that agent's existing inspect + chat in ≤1
-   interaction (no intermediate menu). (Measure: click→drawer success rate = 100% in QA.)
+2. **One-click to act** — clicking any agent node opens that agent's inline inspect + chat panel
+   (hero stays open) in ≤1 interaction. (Measure: click→panel success rate = 100% in QA.)
 3. **Real traffic visible** — packets represent actual agent-to-agent comms (feed events), not
    random motion. (Measure: every spawned packet maps to a real `FeedEvent` from→to.)
 4. **Publicity preserved** — the view stays screen-record-worthy (dark, glow, no pink, crisp). The
@@ -48,8 +48,9 @@ misleading because nothing in it is interactive.
 
 ## Non-Goals
 
-1. **No new chat/inspect UI** — we REUSE the cockpit's existing `AgentDrawer` (inspect + chat +
-   command). Building a second chat surface inside the hero is out of scope (duplication, drift).
+1. **No new CHAT implementation** — the inline panel (P0-4) is allowed (boss-approved v2), but it
+   must **embed the EXISTING `ChatPane`** for chat/send/apply. Writing a second chat engine, message
+   store, or gate is out of scope (duplication, drift). New code = panel chrome + comms list only.
 2. **No drag/edit of the graph** — nodes are not repositionable or editable by the operator; it's a
    read+inspect view, not a graph editor. (Low value, high complexity.)
 3. **No new agent actions from the hero** — no "dispatch", "kill", "approve" buttons on nodes in
@@ -121,15 +122,33 @@ Hovering a node shows a tooltip with `id · role · tier · status · current ta
   - Given hovering, Then the cursor becomes a pointer (clickability hint).
   - Performance: tooltip React state updates only on hovered-node CHANGE (never per animation frame).
 
-**P0-4 — Click node → open agent inspect + chat**
-Clicking a node opens that agent's EXISTING `AgentDrawer` (inspect + chat + command).
-- Acceptance:
-  - Given a node, When clicked, Then the hero closes and the cockpit `AgentDrawer` opens for that
-    exact agent id (inspect + chat usable).
-  - Given the click flow, Then NO new mutation path is created — sending a message / applying
-    changes still routes through the existing `ChatPane` + permission gates.
+**P0-4 — Click node → INLINE real-time inspect + chat panel (v2, boss-approved)**
+Clicking a node opens an inline right-side panel **inside the hero** (the hero stays open — it
+"doubles as a live ops view"), matching the approved reference mockup
+(`docs/mockups/swarm-hero-functional-ref.html`). The panel **embeds the EXISTING chat component
+(`ChatPane`) — no new chat code is written**; it adds only the panel chrome (header + recent-comms
+list) around it.
+
+Panel layout (per the reference mockup):
+- **Header:** avatar initials (e.g. `SW`) + agent id (mono) + `role · tier · <live status>`.
+- **RECENT COMMS:** live list of that agent's feed events (`→ to · topic · "body"` / `← from · …`),
+  newest first, **updated in real time** from the polled `/api/state.json` feed (filtered to this
+  agent's from/to).
+- **Chat composer:** the existing `ChatPane` for that agent (Message …, send), fully gated as today.
+- Right-edge panel ~300px; the graph keeps animating in the remaining space.
+
+- Acceptance (Given/When/Then):
+  - Given a node, When clicked, Then the inline panel opens **for that exact agent id** with the
+    hero still visible behind it; clicking another node swaps the panel to that agent.
+  - Given the panel is open, Then RECENT COMMS reflects that agent's live feed and **updates without
+    reopening** as new events arrive (real-time).
+  - Given the embedded chat, Then it is the SAME `ChatPane` used in the cockpit — NO duplicate chat
+    implementation; sending / applying still routes through the existing permission gates.
+  - Given the panel open, Then the clicked node shows a white selection ring (P1-1 folded into P0).
+  - Given a close affordance (✕ / Esc-once), When used, Then the panel closes and the hero returns
+    to full-screen graph (Esc-again closes the hero).
   - Verified in BOTH dev and the packaged Electron build.
-  - Negative: a click on empty canvas does nothing.
+  - Negative: a click on empty canvas closes the panel (or does nothing if already closed).
 
 **P0-5 — Standalone reuse preserved**
 - Acceptance:
@@ -188,6 +207,31 @@ GREEN. **P0-4 gates on `security-reviewer`** (new user-action entry point).
 
 ---
 
+## Real-Time Behavior (how "live" actually works)
+
+The hero already receives `agents` + `feed` from `App`, which polls the LIVE `/api/state.json`
+(`LocalPollAdapter`, ~2s cadence) — the same source the cockpit board uses. So "real-time" =
+**re-render off the live props each poll**, no new data plane:
+
+- **Node status** — recomputed from `agents[].column`/`stale` every poll → pulse/red-ring/dim flips
+  live as agents start/finish/block.
+- **Packets** — `packetsFromFeed(prevTs, feed)` fires on each NEW `FeedEvent` between polls →
+  packets appear as real comms happen.
+- **Inline panel RECENT COMMS** — derived live from `feed` filtered to the open agent (`from===id ||
+  to===id`), so the list grows in place while the panel stays open (no reopen).
+- **Inline panel status** — the header status string reads the open agent's current `column` from
+  the latest `agents` prop → updates live.
+- **Embedded `ChatPane`** — already streams the agent's turn live (SSE) via the existing path.
+
+Reference mockup (boss-approved layout): `docs/mockups/swarm-hero-functional-ref.html` — left:
+hover tooltip; right: the inline real-time inspect+chat panel (header · RECENT COMMS · composer).
+
+> Constraint: real-time updates must NOT thrash React — derive panel data with `useMemo` keyed on
+> `(openId, feed)`; the canvas keeps its own rAF loop and reads node status from a ref synced on
+> prop change, so the animation never triggers per-frame React renders.
+
+---
+
 ## Verified Code Anchors (2026-06-22)
 
 - `src/components/hero/SwarmHero.tsx` — props `{ open, agents, feed=[], onClose }`; canvas effect
@@ -211,8 +255,9 @@ GREEN. **P0-4 gates on `security-reviewer`** (new user-action entry point).
   to tune; default ~1 packet / 0.6s.)
 - **[a11y — non-blocking]** Is the cockpit roster/board a sufficient keyboard-equivalent path, or
   does the hero need keyboard node focus in v1? (Default: rely on roster/board; document it.)
-- **[product — blocking for P0-4 scope]** Confirm click should CLOSE the hero and open the cockpit
-  drawer (recommended, "v1") vs. an inline in-hero panel ("v2", more work). (Default assumed: v1.)
+- ~~**[product — blocking]** v1 (close→cockpit drawer) vs v2 (inline panel).~~ **RESOLVED
+  2026-06-22 — boss chose v2: inline real-time inspect+chat panel inside the hero** (reference
+  mockup `docs/mockups/swarm-hero-functional-ref.html`). P0-4 updated accordingly.
 
 ---
 
