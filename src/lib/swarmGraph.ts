@@ -192,3 +192,26 @@ export function focusDim(kind: string, focus: ReadonlySet<string>, dimmed = 0.12
   if (focus.size === 0) return 1;
   return focus.has(kind) ? 1 : dimmed;
 }
+
+/**
+ * Normalized comms volume per agent pair, for edge weighting (P2-2). Pure.
+ * Counts feed events per UNORDERED pair (`from|to` sorted), ignoring non-node and self pairs, then
+ * divides by the busiest pair so weights land in (0,1] (busiest = 1). Empty feed → empty map.
+ */
+export function edgeWeights(
+  feed: readonly FeedEvent[],
+  hasNode: (id: string) => boolean,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  let max = 0;
+  for (const e of feed) {
+    if (e.from === e.to || !hasNode(e.from) || !hasNode(e.to)) continue;
+    const key = e.from < e.to ? `${e.from}|${e.to}` : `${e.to}|${e.from}`;
+    const c = (counts.get(key) ?? 0) + 1;
+    counts.set(key, c);
+    if (c > max) max = c;
+  }
+  if (max === 0) return counts;
+  for (const [k, c] of counts) counts.set(k, c / max);
+  return counts;
+}

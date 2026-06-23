@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim } from "../swarmGraph.ts";
+import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights } from "../swarmGraph.ts";
 import type { AgentState, FeedEvent } from "../../data/types.ts";
 
 // minimal agent factory — only the fields statusStyle reads
@@ -250,4 +250,33 @@ test("focusDim union: any focused kind stays full", () => {
 
 test("focusDim honors a custom dim level", () => {
   assert.equal(focusDim("x", new Set(["ceo"]), 0.3), 0.3);
+});
+
+// ── edgeWeights (P2-2) ──────────────────────────────────────────────────────
+const NODES2 = new Set(["a", "b", "c", "d"]);
+const has2 = (id: string) => NODES2.has(id);
+
+test("edgeWeights counts comms per pair, normalized to the busiest (=1)", () => {
+  const feed = [ev("t1", "a", "b"), ev("t2", "a", "b"), ev("t3", "c", "d")];
+  const w = edgeWeights(feed, has2);
+  assert.equal(w.get("a|b"), 1);    // 2 comms → busiest
+  assert.equal(w.get("c|d"), 0.5);  // 1 comm → half
+});
+
+test("edgeWeights is order-independent (a|b === b|a aggregated)", () => {
+  const feed = [ev("t1", "a", "b"), ev("t2", "b", "a")];
+  const w = edgeWeights(feed, has2);
+  assert.equal(w.size, 1);
+  assert.equal(w.get("a|b"), 1);
+});
+
+test("edgeWeights ignores non-node and self pairs", () => {
+  const feed = [ev("t1", "a", "ghost"), ev("t2", "a", "a"), ev("t3", "a", "b")];
+  const w = edgeWeights(feed, has2);
+  assert.equal(w.size, 1);
+  assert.equal(w.get("a|b"), 1);
+});
+
+test("edgeWeights returns an empty map for empty feed", () => {
+  assert.equal(edgeWeights([], has2).size, 0);
 });

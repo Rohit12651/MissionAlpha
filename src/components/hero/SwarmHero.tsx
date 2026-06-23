@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { AgentState, FeedEvent } from "../../data/types";
-import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, type StatusStyle } from "../../lib/swarmGraph";
+import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights, type StatusStyle } from "../../lib/swarmGraph";
 import { COLUMN_LABEL, TIER_LABEL } from "../../lib/agentMeta";
 
 /*
@@ -112,6 +112,14 @@ export function SwarmHero({
   useEffect(() => {
     feedRef.current = feed;
   }, [feed]);
+
+  // P2-2: per-pair normalized comms volume → edge weighting. Synced off the live feed (no per-frame
+  // React render); the canvas reads weightsRef when drawing links.
+  const weightsRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    const ids = new Set(agents.map((a) => a.id));
+    weightsRef.current = edgeWeights(feed, (id) => ids.has(id));
+  }, [feed, agents]);
 
   useEffect(() => {
     if (!open) return;
@@ -314,12 +322,15 @@ export function SwarmHero({
         ctx.fill();
       }
 
-      // edges — energy pulses along each link
-      ctx.lineWidth = 0.8;
+      // edges — energy pulses along each link; P2-2: width + brightness scale with comms volume.
       for (let k = 0; k < edges.length; k++) {
         const a = nodes[edges[k][0]], b = nodes[edges[k][1]];
-        // P1-3: edge lit if either endpoint is in the focused tier (reuses nodes' eased dim).
-        ctx.globalAlpha = (0.10 + 0.10 * (0.5 + 0.5 * Math.sin(t * 1.6 + k))) * Math.max(a.dim, b.dim);
+        const w = a.agentId && b.agentId
+          ? (weightsRef.current.get(a.agentId < b.agentId ? `${a.agentId}|${b.agentId}` : `${b.agentId}|${a.agentId}`) ?? 0)
+          : 0;
+        ctx.lineWidth = 0.8 + w * 2.4; // chattier pair → thicker link
+        // P1-3 dim × P2-2 brightness (baseline 0.55 so quiet links never vanish).
+        ctx.globalAlpha = (0.10 + 0.10 * (0.5 + 0.5 * Math.sin(t * 1.6 + k))) * (0.55 + 0.45 * w) * Math.max(a.dim, b.dim);
         ctx.strokeStyle = linkCol;
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       }
