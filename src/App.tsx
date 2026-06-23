@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { Users, LayoutDashboard, MessageSquare, PanelRightOpen } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import type { Counts } from "./data/types";
-import type { Msg } from "./components/workspace/ChatPane";
+import { ChatPane, type Msg } from "./components/workspace/ChatPane";
 import { AgentRoster } from "./components/cockpit/AgentRoster";
 import { RightPanel } from "./components/cockpit/RightPanel";
 import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDrawer";
@@ -21,7 +21,7 @@ import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
 import { runtimeUrl, type PreflightResult } from "./lib/runtimeBase";
-import { tok } from "./lib/agentMeta";
+import { tok, TIER_ACCENT, TIER_LABEL } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
 // Mission-control shell (ADR-048 rev2): clean 3-zone cockpit — agent roster (left,
@@ -79,6 +79,52 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // SwarmHero inline panel: which agent is open + a lazy per-agent message store (reuses ChatPane;
+  // no second chat engine). Each opened agent's history is fetched on demand, same path as the Boss.
+  const [heroAgentId, setHeroAgentId] = useState<string | null>(null);
+  const [agentMsgs, setAgentMsgs] = useState<Record<string, Msg[]>>({});
+  const setAgentMessages = useCallback(
+    (id: string) => (updater: (prev: Msg[]) => Msg[]) =>
+      setAgentMsgs((m) => ({ ...m, [id]: updater(m[id] ?? []) })),
+    [],
+  );
+  useEffect(() => {
+    if (!heroAgentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await runtimeToken();
+        const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(heroAgentId)}/thread`), {
+          cache: "no-store", headers: { "x-runtime-token": token },
+        });
+        const msgs = res.ok ? (((await res.json()) as { messages?: Msg[] }).messages ?? []) : [];
+        if (!cancelled) setAgentMsgs((m) => ({ ...m, [heroAgentId]: msgs }));
+      } catch { /* empty */ }
+    })();
+    return () => { cancelled = true; };
+  }, [heroAgentId]);
+
+  // The hero panel's chat slot: the EXISTING ChatPane for an agent thread (isBoss=false). All
+  // send/apply still routes through sendCommand + the ChatPane permission gates — no new path.
+  const renderHeroChat = useCallback(
+    (id: string) => {
+      const a = state?.agents.find((x) => x.id === id);
+      return (
+        <ChatPane
+          threadId={id}
+          title={id}
+          subtitle={a ? `${a.role} · ${TIER_LABEL[a.tier]}` : id}
+          accent={a ? TIER_ACCENT[a.tier] : "accent-cyan"}
+          isBoss={false}
+          messages={agentMsgs[id] ?? []}
+          setMessages={setAgentMessages(id)}
+          onCommand={sendCommand}
+        />
+      );
+    },
+    [state?.agents, agentMsgs, setAgentMessages, sendCommand],
+  );
 
   // Board + replay.
   const [kanbanMode, setKanbanMode] = useState<BoardView>("state");
@@ -326,7 +372,17 @@ export default function App() {
           feedForReplay={state.feed}
         />
       )}
-      {state && <SwarmHero open={heroOpen} agents={state.agents} feed={state.feed} onClose={() => setHeroOpen(false)} />}
+      {state && (
+        <SwarmHero
+          open={heroOpen}
+          agents={state.agents}
+          feed={state.feed}
+          onClose={() => { setHeroOpen(false); setHeroAgentId(null); }}
+          openAgentId={heroAgentId}
+          onSelectAgent={setHeroAgentId}
+          renderChat={renderHeroChat}
+        />
+      )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />
