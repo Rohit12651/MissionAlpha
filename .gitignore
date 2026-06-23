@@ -28,6 +28,38 @@ agent-status/*.md
 # S1 engine durable store (ADR-024/027) — runtime data, not source
 agent-runtime/engine-store/
 
-# vendored Anthropic skill libs (not project source)
-.claude/skills/
+# Vendored skill catalog (C1) is committed PRUNED — markdown only.
+# Block heavy/binary assets if any ever slip into the vendored tree:
+.claude/skills/**/*.ts
+.claude/skills/**/*.js
+.claude/skills/**/*.map
+.claude/skills/**/*.mjs
+.claude/skills/**/*.cjs
+.claude/skills/**/*.py
+.claude/skills/**/*.sh
+.claude/skills/**/*.json
+.claude/skills/**/*.ttf
+.claude/skills/**/*.woff
+.claude/skills/**/*.woff2
+.claude/skills/**/*.png
+.claude/skills/**/*.jpg
+.claude/skills/**/*.jpeg
+.claude/skills/**/*.gif
+.claude/skills/**/*.zip
+.claude/commands/**/*.ts
+.claude/commands/**/*.js
+.claude/commands/**/*.map
+.claude/commands/**/*.mjs
+.claude/commands/**/*.cjs
+.claude/commands/**/*.py
+.claude/commands/**/*.sh
+.claude/commands/**/*.json
+.claude/commands/**/*.ttf
+.claude/commands/**/*.woff
+.claude/commands/**/*.woff2
+.claude/commands/**/*.png
+.claude/commands/**/*.jpg
+.claude/commands/**/*.jpeg
+.claude/commands/**/*.gif
+.claude/commands/**/*.zip
 release/

@@ -10,6 +10,9 @@
     "preview": "vite preview --port 3004",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test src/lib/__tests__/*.test.ts",
+    "test:vendor": "node --test scripts/lib/__tests__/vendor.test.mjs",
+    "vendor:skills": "node scripts/vendor-skills.mjs",
+    "gen:skills": "node scripts/gen-skills.mjs",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "electron:dev": "concurrently -k \"npm:dev\" \"wait-on tcp:3004 && RUNTIME_BACKEND=cli electron .\"",
     "electron:build": "npm run build && electron-builder"
