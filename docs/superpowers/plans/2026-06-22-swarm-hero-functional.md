@@ -161,11 +161,46 @@ Panel layout (per the reference mockup):
 
 ### Nice-to-Have (P1)
 
-**P1-1 — Selected-node highlight** — the currently-open agent's node gets a white selection ring
-while its drawer is open.
-**P1-2 — Comms label on packet** — on hover/near a packet, show the `topic` of the message it
-represents.
-**P1-3 — Filter/dim by tier** — clicking a legend chip (CEO/principal/senior/support) dims the rest.
+**P1-1 — Selected-node highlight — ✅ DONE (shipped in P0-4).** The open agent's node already gets a
+white selection ring. No further work; listed for completeness.
+
+**P1-2 — Comms label on packet**
+A packet (which represents a real `FeedEvent`) carries a small label of its `topic`, so the operator
+can read WHAT is flowing, not just that something is.
+- Acceptance (Given/When/Then):
+  - Given a packet spawned from a feed event with a `topic`, When it is in flight, Then a small
+    mono label (the topic, ≤16 chars) renders next to it, fading in/out with the packet.
+  - Given the cursor is near a packet, Then that packet's label is emphasized (brighter/larger);
+    far packets stay subtle so the view doesn't clutter.
+  - Given many simultaneous packets, Then at most ~6 labels render at once (nearest-to-cursor or
+    most-recent), capped to protect readability + 60fps.
+  - Given `prefers-reduced-motion` (no packet stream), Then no labels (n/a). No regression to P0-2.
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `emil-design-eng` (label fade with the packet) →
+  `impeccable` (`typeset` the micro-label) → `sp-test-driven-development` → `sp-verification-before-completion`.
+  **Agents:** `react-specialist` (canvas label render), `react-reviewer`, `performance-engineer`
+  (label-cap + fps), `ui-ux-tester`.
+
+**P1-3 — Filter / dim by tier (interactive legend)**
+The bottom legend chips (CEO / principal / senior / support) become clickable filters: click a tier
+to focus it (others dim), so the operator can isolate a layer of the swarm.
+- Acceptance (Given/When/Then):
+  - Given the legend, When a tier chip is clicked, Then nodes/edges/packets of OTHER tiers dim
+    (lower opacity, no glow), the focused tier stays full, and the chip shows an active state.
+  - Given multiple chips clicked, Then the focus set is their union (all active tiers stay lit).
+  - Given an active chip is clicked again, Then it leaves the focus set; with NO chips active, all
+    nodes show full (default).
+  - Given the dim transition, Then it eases ≤200ms (no hard flicker), honoring `prefers-reduced-motion`
+    (instant, no animation).
+  - Given keyboard, Then each legend chip is a real focusable button (Tab + Enter/Space toggles),
+    with a visible focus ring + `aria-pressed`.
+- **Fire (CLAUDE.md):** `sp-writing-plans` → `impeccable` (chip interaction states) →
+  `emil-design-eng` (dim ease) → `kw-design-accessibility-review` → `sp-test-driven-development` →
+  `sp-verification-before-completion`. **Agents:** `react-specialist` (legend buttons + focus-set
+  state → canvas dim), `a11y-architect` (WCAG 2.2 keyboard/focus/aria), `ui-ux-tester`.
+
+> **P1 scope note:** P1-1 is already done (P0-4). P1 = **P1-2 + P1-3** only. Both are pure-visual /
+> read-only enhancements — NO new action surface, so **no `security-reviewer` gate** is required
+> (unlike P0-4). Build order: **P1-2 → P1-3**. Each is independently shippable.
 
 ### Future Considerations (P2)
 
@@ -254,7 +289,7 @@ hover tooltip; right: the inline real-time inspect+chat panel (header · RECENT 
 
 ## Open Questions
 
-- **[design — non-blocking]** Selection ring (P1-1) in v1 or fast-follow? (Default: fast-follow.)
+- ~~**[design — non-blocking]** Selection ring (P1-1) timing.~~ **RESOLVED — shipped in P0-4.**
 - **[design — non-blocking]** Idle-trickle rate when feed is quiet — how subtle? (`emil-design-eng`
   to tune; default ~1 packet / 0.6s.)
 - **[a11y — non-blocking]** Is the cockpit roster/board a sufficient keyboard-equivalent path, or
