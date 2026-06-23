@@ -381,6 +381,7 @@ export default function App() {
           openAgentId={heroAgentId}
           onSelectAgent={setHeroAgentId}
           renderChat={renderHeroChat}
+          onCommand={sendCommand}
         />
       )}
       {/* P2-3: mini live-ops dock on the cockpit home (when the full hero is closed). */}

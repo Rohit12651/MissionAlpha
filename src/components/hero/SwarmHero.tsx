@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { X, Maximize2 } from "lucide-react";
-import type { AgentState, FeedEvent } from "../../data/types";
+import { X, Maximize2, Check, RefreshCw } from "lucide-react";
+import type { AgentState, FeedEvent, CommandRequest, CommandResult } from "../../data/types";
 import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights, type StatusStyle } from "../../lib/swarmGraph";
 import { COLUMN_LABEL, TIER_LABEL } from "../../lib/agentMeta";
+import { PermissionGate } from "../PermissionGate";
 
 /*
   SwarmHero (publicity) — a live force-directed knowledge graph of the swarm.
@@ -42,6 +43,7 @@ export function SwarmHero({
   renderChat,
   variant = "full",
   onExpand,
+  onCommand,
 }: {
   open: boolean;
   agents: AgentState[];
@@ -57,12 +59,18 @@ export function SwarmHero({
   variant?: "full" | "dock";
   /** Dock-only: open the full-screen hero (expand button + node click). */
   onExpand?: () => void;
+  /** P2-1: gated agent actions (Ack / Re-dispatch) in the panel via the EXISTING AgentAction +
+   *  PermissionGate + sendCommand path. Omit → display-only (no actions). */
+  onCommand?: (cmd: CommandRequest) => Promise<CommandResult>;
 }) {
   const cvRef = useRef<HTMLCanvasElement>(null);
   const statusRef = useRef<Map<string, StatusStyle>>(new Map());
   const feedRef = useRef<readonly FeedEvent[]>(feed);
   const [hovered, setHovered] = useState<{ id: string; x: number; y: number } | null>(null);
   const hoveredRef = useRef<string | null>(null);
+  // P2-1: which gated action is awaiting PermissionGate confirmation (null = none).
+  const [pendingAction, setPendingAction] = useState<{ type: "ack" | "respawn"; label: string } | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   // P1-3 tier focus: legend chips toggle this set; canvas reads it via focusRef (no per-frame render).
   const [focusTiers, setFocusTiers] = useState<ReadonlySet<string>>(new Set());
   const focusRef = useRef<ReadonlySet<string>>(focusTiers);
@@ -582,10 +590,46 @@ export function SwarmHero({
               })}
             </ul>
           </div>
+          {/* P2-1: gated Ack / Re-dispatch. Every action is confirmed via the EXISTING PermissionGate
+              before sendCommand fires (no one-click mutation). Omit onCommand → display-only. */}
+          {onCommand && (
+            <div className="flex gap-2 border-b px-4 py-2.5" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+              <button type="button" disabled={actionBusy} onClick={() => setPendingAction({ type: "ack", label: "Acknowledge" })}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0d14] disabled:opacity-50"
+                style={{ borderColor: "rgba(255,255,255,0.22)", color: "#e7e9f0" }}>
+                <Check size={13} aria-hidden /> Ack
+              </button>
+              <button type="button" disabled={actionBusy} onClick={() => setPendingAction({ type: "respawn", label: "Re-dispatch" })}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0d14] disabled:opacity-50"
+                style={{ borderColor: "rgba(245,178,52,0.5)", background: "rgba(245,178,52,0.14)", color: "#ffd9a0" }}>
+                <RefreshCw size={13} aria-hidden /> Re-dispatch
+              </button>
+            </div>
+          )}
           <div className="min-h-0 flex-1">
             {renderChat && renderChat(openAgent.id)}
           </div>
         </aside>
+      )}
+      {onCommand && openAgent && pendingAction && (
+        <PermissionGate
+          open
+          title={`${pendingAction.label} ${openAgent.id}?`}
+          summary={pendingAction.type === "respawn"
+            ? "Cancels the current block and re-queues this agent. Routed through the operator command gate."
+            : "Acknowledges this agent's stall. Routed through the operator command gate."}
+          affected={[openAgent.id]}
+          confirmLabel={pendingAction.label}
+          accent={pendingAction.type === "respawn" ? "ceo-gold" : "accent-cyan"}
+          onConfirm={async () => {
+            const act = pendingAction;
+            setPendingAction(null);
+            setActionBusy(true);
+            try { await onCommand({ type: act.type, target: openAgent.id, issuedBy: "operator" }); }
+            finally { setActionBusy(false); }
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
       )}
       <div className="pointer-events-none absolute left-8 top-7">
         <div className="text-2xl font-semibold tracking-tight" style={{ color: "#f3f5f8", fontFamily: '"Lato", system-ui, sans-serif' }}>MissionAlpha</div>
