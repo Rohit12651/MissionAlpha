@@ -215,3 +215,24 @@ export function edgeWeights(
   for (const [k, c] of counts) counts.set(k, c / max);
   return counts;
 }
+
+/**
+ * Clamp a draggable dock's top-left so it stays within the viewport (minus a margin). Pure.
+ * If the dock is larger than the viewport on an axis, it pins to the margin.
+ */
+export function clampDockPos(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  vpW: number,
+  vpH: number,
+  margin = 8,
+): { x: number; y: number } {
+  const maxX = Math.max(margin, vpW - w - margin);
+  const maxY = Math.max(margin, vpH - h - margin);
+  return {
+    x: Math.min(Math.max(x, margin), maxX),
+    y: Math.min(Math.max(y, margin), maxY),
+  };
+}

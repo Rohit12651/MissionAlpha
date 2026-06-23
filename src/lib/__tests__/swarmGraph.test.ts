@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights } from "../swarmGraph.ts";
+import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights, clampDockPos } from "../swarmGraph.ts";
 import type { AgentState, FeedEvent } from "../../data/types.ts";
 
 // minimal agent factory — only the fields statusStyle reads
@@ -279,4 +279,21 @@ test("edgeWeights ignores non-node and self pairs", () => {
 
 test("edgeWeights returns an empty map for empty feed", () => {
   assert.equal(edgeWeights([], has2).size, 0);
+});
+
+// ── clampDockPos (movable dock) ─────────────────────────────────────────────
+test("clampDockPos leaves an in-bounds position unchanged", () => {
+  assert.deepEqual(clampDockPos(100, 100, 240, 184, 1440, 900, 8), { x: 100, y: 100 });
+});
+
+test("clampDockPos clamps past the right/bottom edges", () => {
+  assert.deepEqual(clampDockPos(9999, 9999, 240, 184, 1440, 900, 8), { x: 1440 - 240 - 8, y: 900 - 184 - 8 });
+});
+
+test("clampDockPos clamps past the top/left edges", () => {
+  assert.deepEqual(clampDockPos(-50, -50, 240, 184, 1440, 900, 8), { x: 8, y: 8 });
+});
+
+test("clampDockPos handles a dock larger than the viewport (pins to margin)", () => {
+  assert.deepEqual(clampDockPos(50, 50, 2000, 2000, 1440, 900, 8), { x: 8, y: 8 });
 });

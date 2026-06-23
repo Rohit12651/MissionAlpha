@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Users, LayoutDashboard, MessageSquare, PanelRightOpen } from "lucide-react";
+import { Users, LayoutDashboard, MessageSquare, PanelRightOpen, GripVertical, Maximize2, X } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import type { Counts } from "./data/types";
 import { ChatPane, type Msg } from "./components/workspace/ChatPane";
@@ -21,6 +21,7 @@ import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
 import { runtimeUrl, type PreflightResult } from "./lib/runtimeBase";
+import { clampDockPos } from "./lib/swarmGraph";
 import { tok, TIER_ACCENT, TIER_LABEL } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
@@ -83,6 +84,36 @@ export default function App() {
   // SwarmHero inline panel: which agent is open + a lazy per-agent message store (reuses ChatPane;
   // no second chat engine). Each opened agent's history is fetched on demand, same path as the Boss.
   const [heroAgentId, setHeroAgentId] = useState<string | null>(null);
+  // P2-3 movable/dismissible mini dock: persisted position + dismissed flag.
+  const DOCK_W = 240, DOCK_H = 190;
+  const [dockDismissed, setDockDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem("ma.dockDismissed") === "1"; } catch { return false; }
+  });
+  const [dockPos, setDockPos] = useState<{ x: number; y: number }>(() => {
+    try { const s = localStorage.getItem("ma.dockPos"); if (s) return JSON.parse(s) as { x: number; y: number }; } catch { /* ignore */ }
+    const vpH = typeof window !== "undefined" ? window.innerHeight : 900;
+    return { x: 16, y: vpH - DOCK_H - 80 };
+  });
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  useEffect(() => { try { localStorage.setItem("ma.dockPos", JSON.stringify(dockPos)); } catch { /* ignore */ } }, [dockPos]);
+  useEffect(() => { try { localStorage.setItem("ma.dockDismissed", dockDismissed ? "1" : "0"); } catch { /* ignore */ } }, [dockDismissed]);
+  const onDockDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    dragRef.current = { dx: e.clientX - dockPos.x, dy: e.clientY - dockPos.y };
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return;
+      setDockPos(clampDockPos(ev.clientX - dragRef.current.dx, ev.clientY - dragRef.current.dy, DOCK_W, DOCK_H, window.innerWidth, window.innerHeight, 8));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = ""; document.body.style.cursor = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    document.body.style.userSelect = "none"; document.body.style.cursor = "grabbing";
+  }, [dockPos.x, dockPos.y]);
   const [agentMsgs, setAgentMsgs] = useState<Record<string, Msg[]>>({});
   const setAgentMessages = useCallback(
     (id: string) => (updater: (prev: Msg[]) => Msg[]) =>
@@ -377,25 +408,45 @@ export default function App() {
           open={heroOpen}
           agents={state.agents}
           feed={state.feed}
-          onClose={() => { setHeroOpen(false); setHeroAgentId(null); }}
+          onClose={() => { setHeroOpen(false); setHeroAgentId(null); setDockDismissed(false); }}
           openAgentId={heroAgentId}
           onSelectAgent={setHeroAgentId}
           renderChat={renderHeroChat}
           onCommand={sendCommand}
         />
       )}
-      {/* P2-3: mini live-ops dock on the cockpit home (when the full hero is closed). */}
-      {state && !heroOpen && (
-        <div className="fixed bottom-16 left-4 z-30 hidden h-40 w-60 lg:block">
-          <SwarmHero
-            variant="dock"
-            open
-            agents={state.agents}
-            feed={state.feed}
-            onClose={() => {}}
-            onExpand={() => setHeroOpen(true)}
-            onSelectAgent={(id) => { if (id) { setHeroAgentId(id); setHeroOpen(true); } }}
-          />
+      {/* P2-3: movable + dismissible mini live-ops dock (when the full hero is closed). */}
+      {state && !heroOpen && !dockDismissed && (
+        <div
+          className="fixed z-30 hidden flex-col overflow-hidden rounded-xl border shadow-xl lg:flex"
+          style={{ left: dockPos.x, top: dockPos.y, width: DOCK_W, height: DOCK_H, backgroundColor: "#0a0b14", borderColor: "rgba(255,255,255,0.18)" }}
+          role="group" aria-label="Live ops dock"
+        >
+          <div onPointerDown={onDockDragStart} className="flex items-center gap-1.5 border-b px-2 py-1.5"
+            style={{ borderColor: "rgba(255,255,255,0.08)", cursor: "grab", touchAction: "none" }}>
+            <GripVertical size={13} aria-hidden style={{ color: "#6b7280" }} />
+            <span className="flex-1 select-none text-[10px]" style={{ color: "#9aa0ad" }}>live ops</span>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => setHeroOpen(true)}
+              aria-label="Expand to full swarm view" title="Expand"
+              className="rounded p-1 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2" style={{ color: "#9aa0ad" }}>
+              <Maximize2 size={13} aria-hidden />
+            </button>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => setDockDismissed(true)}
+              aria-label="Close live ops dock" title="Close"
+              className="rounded p-1 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2" style={{ color: "#d39a9a" }}>
+              <X size={14} aria-hidden />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <SwarmHero
+              variant="dock"
+              open
+              agents={state.agents}
+              feed={state.feed}
+              onClose={() => {}}
+              onSelectAgent={(id) => { if (id) { setHeroAgentId(id); setHeroOpen(true); } }}
+            />
+          </div>
         </div>
       )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />

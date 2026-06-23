@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { X, Maximize2, Check, RefreshCw } from "lucide-react";
+import { X, Check, RefreshCw } from "lucide-react";
 import type { AgentState, FeedEvent, CommandRequest, CommandResult } from "../../data/types";
 import { statusStyle, packetsFromFeed, hitTest, recentComms, selectPacketLabels, focusDim, edgeWeights, type StatusStyle } from "../../lib/swarmGraph";
 import { COLUMN_LABEL, TIER_LABEL } from "../../lib/agentMeta";
@@ -42,7 +42,6 @@ export function SwarmHero({
   onSelectAgent,
   renderChat,
   variant = "full",
-  onExpand,
   onCommand,
 }: {
   open: boolean;
@@ -55,10 +54,8 @@ export function SwarmHero({
   onSelectAgent?: (id: string | null) => void;
   /** Slot returning the existing ChatPane for an agent (App-owned; no chat code lives here). */
   renderChat?: (agentId: string) => ReactNode;
-  /** "dock" = small embedded live-ops view on the cockpit home (no overlay/legend/panel). */
+  /** "dock" = small embedded live-ops view on the cockpit home (canvas only; App owns the chrome). */
   variant?: "full" | "dock";
-  /** Dock-only: open the full-screen hero (expand button + node click). */
-  onExpand?: () => void;
   /** P2-1: gated agent actions (Ack / Re-dispatch) in the panel via the EXISTING AgentAction +
    *  PermissionGate + sendCommand path. Omit → display-only (no actions). */
   onCommand?: (cmd: CommandRequest) => Promise<CommandResult>;
@@ -499,21 +496,11 @@ export function SwarmHero({
   }, [open, agentSig]);
 
   if (variant === "dock") {
+    // Canvas-only — the App owns the draggable title bar (grip handle + expand + close) around this.
     return (
-      <div className="relative h-full w-full overflow-hidden rounded-xl border" style={{ backgroundColor: "#0a0b14", borderColor: "rgba(255,255,255,0.16)" }} aria-label="MissionAlpha live ops dock">
+      <div className="relative h-full w-full overflow-hidden" style={{ backgroundColor: "#0a0b14" }}>
         <canvas ref={cvRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
-        <span className="pointer-events-none absolute left-2.5 top-2 text-[10px]" style={{ color: "#9aa0ad" }}>live ops</span>
-        <button
-          type="button"
-          onClick={onExpand}
-          aria-label="Expand to full swarm view"
-          title="Expand"
-          className="app-no-drag absolute right-2 top-1.5 rounded-md p-1 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b14]"
-          style={{ color: "#9aa0ad" }}
-        >
-          <Maximize2 size={14} aria-hidden />
-        </button>
-        <p className="sr-only">Live agent swarm preview. Activate expand for the full interactive view; detailed agent data is in the roster and board.</p>
+        <p className="sr-only">Live agent swarm preview. Use the expand button for the full interactive view; detailed agent data is in the roster and board.</p>
       </div>
     );
   }
