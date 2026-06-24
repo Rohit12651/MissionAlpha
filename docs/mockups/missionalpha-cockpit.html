@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MissionAlpha — cockpit mockup</title>
+<style>
+  :root{
+    --c-bg:oklch(0.16 0.012 270); --c-panel:oklch(0.2 0.014 270); --c-panel-2:oklch(0.24 0.016 270);
+    --c-text:oklch(0.96 0.005 270); --c-muted:oklch(0.68 0.012 270); --c-border:oklch(0.3 0.014 270);
+    --c-cyan:oklch(0.82 0.14 200); --c-amber:oklch(0.82 0.15 75); --c-red:oklch(0.66 0.21 25);
+    --c-green:oklch(0.78 0.16 150); --c-gold:oklch(0.84 0.14 90); --c-violet:oklch(0.78 0.13 300);
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--c-bg);color:var(--c-text);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  .muted{color:var(--c-muted)}
+  h1,h2,h3{font-weight:500;margin:0}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px 16px 80px}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--c-muted);margin:28px 0 10px}
+
+  /* ── app frame ── */
+  .app{position:relative;height:680px;border:1px solid var(--c-border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;background:var(--c-bg)}
+  /* faint globe backdrop */
+  .globe{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.13;pointer-events:none}
+  .globe i{position:absolute;border:1px solid var(--c-cyan);border-radius:50%}
+  .topbar{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--c-border)}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;border:1px solid}
+  .nav{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--c-muted);font-size:13px}
+  .nav .btn{padding:4px 9px;border-radius:8px;display:inline-flex;gap:5px;align-items:center}
+  .nav .btn:hover{background:var(--c-panel-2)}
+  .body{position:relative;z-index:2;display:flex;flex:1;min-height:0}
+
+  /* roster */
+  .roster{width:200px;border-right:1px solid var(--c-border);padding:8px;overflow:auto}
+  .agent{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:9px;cursor:pointer}
+  .agent:hover{background:var(--c-panel-2)}
+  .agent.sel{background:color-mix(in oklch,var(--c-cyan) 12%,transparent)}
+  .av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;font-family:ui-monospace,monospace}
+  .agent .nm{font-size:12px;font-weight:500;line-height:1.2}
+  .agent .ro{font-size:10px;color:var(--c-muted);display:flex;gap:6px;align-items:center}
+  .tag{font-size:8px;text-transform:uppercase;letter-spacing:.04em;padding:0 4px;border-radius:4px;background:color-mix(in oklch,var(--c-cyan) 12%,transparent);color:var(--c-cyan)}
+
+  /* board */
+  .board{flex:1;min-width:0;display:flex;flex-direction:column}
+  .board-hd{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;border-bottom:1px solid var(--c-border)}
+  .toggle{display:flex;border:1px solid var(--c-border);border-radius:8px;overflow:hidden;font-size:11px}
+  .toggle span{padding:4px 10px;color:var(--c-muted)}
+  .toggle span.on{background:var(--c-panel-2);color:var(--c-text)}
+  .cols{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px;overflow:auto}
+  .col h3{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted);margin-bottom:8px;display:flex;justify-content:space-between}
+  .card{background:color-mix(in oklch,var(--c-panel) 80%,transparent);border-radius:12px;padding:10px;margin-bottom:8px;position:relative;overflow:hidden}
+  .card .rail{position:absolute;left:0;top:0;bottom:0;width:3px}
+  .card .cid{font-family:ui-monospace,monospace;font-size:12px;font-weight:600}
+  .card .ct{font-size:11px;color:var(--c-text);opacity:.85;margin-top:5px;line-height:1.35}
+  .card .meta{font-size:9px;color:var(--c-muted);margin-top:6px;display:flex;gap:8px}
+  .badge{display:inline-block;font-size:9px;padding:1px 7px;border-radius:999px;margin-top:2px}
+
+  /* right panel */
+  .right{width:360px;border-left:1px solid var(--c-border);display:flex;flex-direction:column}
+  .tabs{display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--c-border)}
+  .tabs span{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12px;color:var(--c-muted);font-weight:500}
+  .tabs span.on{background:color-mix(in oklch,var(--c-cyan) 12%,transparent);color:var(--c-cyan)}
+  .chat{flex:1;display:flex;flex-direction:column;min-height:0}
+  .msgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .bub{max-width:85%;font-size:12px;padding:7px 10px;border-radius:10px}
+  .bub.me{align-self:flex-end;background:color-mix(in oklch,var(--c-cyan) 16%,transparent);color:var(--c-cyan)}
+  .bub.ceo{align-self:flex-start;background:var(--c-panel-2);color:var(--c-text)}
+  .act{font-size:10px;color:var(--c-muted);display:flex;gap:6px;align-items:center}
+  .composer{border-top:1px solid var(--c-border);padding:10px}
+  .ta{background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--c-muted)}
+  .crow{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--c-muted)}
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;border:1px solid var(--c-border);font-size:10px}
+  .send{margin-left:auto;background:color-mix(in oklch,var(--c-gold) 16%,transparent);color:var(--c-gold);border:1px solid color-mix(in oklch,var(--c-gold) 34%,transparent);padding:4px 12px;border-radius:8px;font-weight:600}
+
+  /* screens grid */
+  .screens{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .screen{border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-panel);overflow:hidden}
+  .screen .cap{padding:8px 12px;border-bottom:1px solid var(--c-border);font-size:11px;color:var(--c-muted);text-transform:uppercase;letter-spacing:.06em}
+  .screen .in{padding:14px}
+  .row{display:flex;align-items:center;gap:8px;padding:6px 0}
+  .mini{font-size:11px}
+  .menuitem{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px}
+  .menuitem.on{background:color-mix(in oklch,var(--c-gold) 14%,transparent)}
+  .ktag{font-size:8px;text-transform:uppercase;padding:1px 5px;border-radius:4px;background:var(--c-panel-2);color:var(--c-muted);margin-left:auto}
+  .legend{font-size:11px;color:var(--c-muted);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 style="font-size:20px">MissionAlpha — cockpit mockup <span class="muted" style="font-size:13px">(static · no live data)</span></h1>
+  <div class="label">① Main cockpit — roster · board · Chat|Feed</div>
+
+  <div class="app">
+    <!-- globe backdrop -->
+    <div class="globe" aria-hidden="true">
+      <i style="width:300px;height:300px"></i><i style="width:220px;height:220px"></i><i style="width:130px;height:130px"></i>
+    </div>
+
+    <!-- top bar -->
+    <div class="topbar">
+      <span class="dot" style="background:var(--c-green);box-shadow:0 0 8px 1px var(--c-green)"></span>
+      <strong style="font-size:14px">MissionAlpha</strong>
+      <span class="muted" style="font-size:12px">All agents working · nothing needs you</span>
+      <span style="display:flex;gap:6px;margin-left:6px">
+        <span class="pill mono" style="color:var(--c-green);border-color:color-mix(in oklch,var(--c-green) 26%,transparent);background:color-mix(in oklch,var(--c-green) 12%,transparent)"><b>3</b> active</span>
+        <span class="pill mono" style="color:var(--c-amber);border-color:color-mix(in oklch,var(--c-amber) 26%,transparent);background:color-mix(in oklch,var(--c-amber) 12%,transparent)"><b>1</b> blocked</span>
+        <span class="pill mono" style="color:var(--c-red);border-color:color-mix(in oklch,var(--c-red) 26%,transparent);background:color-mix(in oklch,var(--c-red) 12%,transparent)"><b>0</b> stale</span>
+        <span class="pill mono" style="color:var(--c-muted);border-color:var(--c-border)"><b>2</b> offline</span>
+      </span>
+      <span class="nav">
+        <span class="btn">▤ Audit</span><span class="btn">🛠 Tools</span><span class="btn">⏱ Replay</span>
+        <span style="width:1px;height:18px;background:var(--c-border);margin:0 2px"></span>
+        <span class="btn">⌘K</span><span class="btn">⚙</span><span class="btn">◐</span>
+      </span>
+    </div>
+
+    <!-- body -->
+    <div class="body">
+      <!-- roster -->
+      <nav class="roster" aria-label="Agents">
+        <div class="label" style="margin:2px 0 8px">7 agents</div>
+        <div class="agent sel"><span class="av" style="color:var(--c-gold);background:color-mix(in oklch,var(--c-gold) 14%,transparent)">CE</span><span style="flex:1"><span class="nm">ceo</span><span class="ro">CEO <span class="tag">opus</span></span></span><span class="dot" style="background:var(--c-green)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-cyan);background:color-mix(in oklch,var(--c-cyan) 14%,transparent)">AR</span><span style="flex:1"><span class="nm">architect</span><span class="ro">Architect <span class="tag">opus</span></span></span><span class="dot" style="background:var(--c-green)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-cyan);background:color-mix(in oklch,var(--c-cyan) 14%,transparent)">SB</span><span style="flex:1"><span class="nm">senior-backend-1</span><span class="ro">Backend <span class="tag">sonnet</span></span></span><span class="dot" style="background:var(--c-green)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-cyan);background:color-mix(in oklch,var(--c-cyan) 14%,transparent)">SW</span><span style="flex:1"><span class="nm">senior-web-1</span><span class="ro">Web <span class="tag">sonnet</span></span></span><span class="dot" style="background:var(--c-cyan)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-amber);background:color-mix(in oklch,var(--c-amber) 14%,transparent)">SQ</span><span style="flex:1"><span class="nm">senior-qa</span><span class="ro">QA <span class="tag">haiku</span></span></span><span class="dot" style="background:var(--c-amber)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-cyan);background:color-mix(in oklch,var(--c-cyan) 14%,transparent)">SS</span><span style="flex:1"><span class="nm">senior-security</span><span class="ro">Security <span class="tag">sonnet</span></span></span><span class="dot" style="background:var(--c-muted)"></span></div>
+        <div class="agent"><span class="av" style="color:var(--c-violet);background:color-mix(in oklch,var(--c-violet) 14%,transparent)">MU</span><span style="flex:1"><span class="nm">memory-updater</span><span class="ro">Memory <span class="tag">haiku</span></span></span><span class="dot" style="background:var(--c-muted)"></span></div>
+      </nav>
+
+      <!-- board -->
+      <main class="board">
+        <div class="board-hd"><h2 style="font-size:14px">Squad missions</h2><div class="toggle"><span class="on">State</span><span>Pipeline</span></div></div>
+        <div class="cols">
+          <div class="col"><h3>idle <span>1</span></h3>
+            <div class="card"><span class="rail" style="background:var(--c-muted)"></span><div class="cid">memory-updater</div><div class="ct">standing by</div><div class="meta"><span>idle</span></div></div>
+          </div>
+          <div class="col"><h3>in progress <span>3</span></h3>
+            <div class="card"><span class="rail" style="background:var(--c-cyan)"></span><div class="cid">senior-web-1</div><span class="badge" style="background:color-mix(in oklch,var(--c-cyan) 14%,transparent);color:var(--c-cyan)">writing</span><div class="ct">build SplitForm.tsx + tip math</div><div class="meta mono"><span>active · 4s</span><span>splitter/</span></div></div>
+            <div class="card"><span class="rail" style="background:var(--c-cyan)"></span><div class="cid">architect</div><div class="ct">define single-page structure</div><div class="meta mono"><span>active · 11s</span></div></div>
+            <div class="card"><span class="rail" style="background:var(--c-gold)"></span><div class="cid">ceo</div><div class="ct">routing bill-splitter goal</div><div class="meta mono"><span>active · 2s</span></div></div>
+          </div>
+          <div class="col"><h3>blocked <span>1</span></h3>
+            <div class="card"><span class="rail" style="background:var(--c-amber)"></span><div class="cid">senior-qa</div><span class="badge" style="background:color-mix(in oklch,var(--c-amber) 14%,transparent);color:var(--c-amber)">⛓ blocked by senior-web-1</span><div class="ct">await build to test split math</div><div class="meta mono"><span>blocked</span></div></div>
+          </div>
+          <div class="col"><h3>review <span>0</span></h3></div>
+          <div class="col"><h3>done <span>1</span></h3>
+            <div class="card" style="opacity:.8"><span class="rail" style="background:var(--c-green)"></span><div class="cid">architect</div><div class="ct">stack chosen: vanilla HTML/CSS/JS</div><div class="meta mono"><span>done · 1m</span></div></div>
+          </div>
+        </div>
+      </main>
+
+      <!-- right panel: Chat | Feed -->
+      <section class="right" aria-label="Chat and feed">
+        <div class="tabs"><span class="on">Chat</span><span>Feed</span><span style="flex:0;padding:6px 8px">⇥</span></div>
+        <div class="chat">
+          <div class="msgs">
+            <div class="bub me">Build a bill &amp; tip splitter — single-page, clean UI, no backend, remember last tip %.</div>
+            <div class="bub ceo">Plan: 1 page, vanilla JS, localStorage. Dispatching architect → web-1 → qa. Confirm?</div>
+            <div class="act">▸ CEO dispatched to architect + senior-web-1</div>
+            <div class="act">✓ architect: structure done</div>
+            <div class="act">▸ senior-web-1: writing SplitForm + tip math</div>
+            <div class="bub me">looks good, add a round-up toggle</div>
+            <div class="bub ceo">Added to web-1's task. Diff ready to review shortly.</div>
+          </div>
+          <div class="composer">
+            <div class="ta">Message your CEO…  (Enter to send · / for skills)</div>
+            <div class="crow">
+              <span class="chip" style="color:var(--c-green)">●  quota 41/200</span>
+              <span class="chip mono">▮▮▮▯▯ 37%·ctx</span>
+              <span class="chip">Sonnet ▾</span>
+              <span class="send">Send ➤</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ② screens -->
+  <div class="label">② Key screens (overlays + states)</div>
+  <div class="screens">
+
+    <!-- "/" menu -->
+    <div class="screen">
+      <div class="cap">"/" command menu — type "/" in chat</div>
+      <div class="in">
+        <div style="border:1px solid var(--c-border);border-radius:9px;overflow:hidden">
+          <div style="padding:5px 10px;border-bottom:1px solid var(--c-border);font-size:9px;text-transform:uppercase;color:var(--c-muted)">Prompts</div>
+          <div class="menuitem on"><span class="mono" style="color:var(--c-gold);font-size:12px">/standup</span><span class="mini muted">what each agent did + blockers</span><span class="ktag">prompt</span></div>
+          <div class="menuitem"><span class="mono" style="color:var(--c-gold);font-size:12px">/ship</span><span class="mini muted">run build + tests, report</span><span class="ktag">prompt</span></div>
+          <div style="padding:5px 10px;border-top:1px solid var(--c-border);border-bottom:1px solid var(--c-border);font-size:9px;text-transform:uppercase;color:var(--c-muted)">Commands</div>
+          <div class="menuitem"><span class="mono" style="color:var(--c-gold);font-size:12px">/code-review</span><span class="mini muted">quality code review</span><span class="ktag">cmd</span></div>
+          <div class="menuitem"><span class="mono" style="color:var(--c-gold);font-size:12px">/react-build</span><span class="mini muted">fix React build</span><span class="ktag">cmd</span></div>
+          <div style="padding:5px 10px;border-top:1px solid var(--c-border);border-bottom:1px solid var(--c-border);font-size:9px;text-transform:uppercase;color:var(--c-muted)">Skills</div>
+          <div class="menuitem"><span class="mono" style="color:var(--c-gold);font-size:12px">/sp-test-driven-development</span><span class="ktag">skill</span></div>
+          <div class="menuitem"><span class="mono" style="color:var(--c-gold);font-size:12px">/impeccable</span><span class="mini muted">UI craft</span><span class="ktag">skill</span></div>
+        </div>
+        <div class="legend">109 entries · 4 prompts · 61 commands · 44 skills · ↑↓ Enter Esc</div>
+      </div>
+    </div>
+
+    <!-- agent drawer + model picker -->
+    <div class="screen">
+      <div class="cap">Agent inspect drawer (click a card)</div>
+      <div class="in">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div style="flex:1">
+            <div class="mono" style="font-size:17px;font-weight:600">principal-ux-design</div>
+            <div class="mini"><span style="color:var(--c-green)">PRINCIPAL</span> <span class="muted">· Principal UX</span></div>
+            <div class="label" style="margin:10px 0 4px">Model</div>
+            <span class="chip" style="border-color:color-mix(in oklch,var(--c-cyan) 40%,transparent);color:var(--c-text)">⚙ Sonnet <span class="muted">balanced</span> ▾</span>
+            <div style="margin-top:10px"><span class="badge" style="background:color-mix(in oklch,var(--c-green) 12%,transparent);color:var(--c-green)">● AWAITING REVIEW</span></div>
+          </div>
+          <div style="text-align:center"><div style="width:42px;height:42px;border-radius:50%;border:2px solid var(--c-red);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--c-red)" class="mono">37h</div><div class="mini" style="color:var(--c-red)">overdue</div></div>
+        </div>
+        <div style="margin-top:12px;border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:12px" class="muted">✓ running normally — nothing for you to do.</div>
+        <div class="label" style="margin:12px 0 4px">Why-stuck · Heartbeat · Conversations · Inbox</div>
+      </div>
+    </div>
+
+    <!-- settings -->
+    <div class="screen">
+      <div class="cap">Settings (⚙)</div>
+      <div class="in">
+        <div class="row"><span class="mini" style="flex:1">Theme</span><span class="chip">Dark</span><span class="chip muted">Light</span></div>
+        <div class="row"><span class="mini" style="flex:1">Accent</span>
+          <span style="width:18px;height:18px;border-radius:50%;background:var(--c-cyan);border:2px solid var(--c-text)"></span>
+          <span style="width:18px;height:18px;border-radius:50%;background:var(--c-violet)"></span>
+          <span style="width:18px;height:18px;border-radius:50%;background:var(--c-gold)"></span>
+          <span style="width:18px;height:18px;border-radius:50%;background:var(--c-green)"></span>
+        </div>
+        <div class="row"><span class="mini" style="flex:1">Default model</span><span class="chip">Opus</span><span class="chip" style="color:var(--c-cyan)">Sonnet ✓</span><span class="chip muted">Haiku</span></div>
+        <div class="row"><span class="mini" style="flex:1">Confirm every sensitive command</span><span class="chip" style="color:var(--c-green)">ON ●</span></div>
+        <div class="row"><span class="mini" style="flex:1">Network default for exec</span><span class="chip muted">OFF ○</span></div>
+      </div>
+    </div>
+
+    <!-- onboarding -->
+    <div class="screen">
+      <div class="cap">First-run onboarding</div>
+      <div class="in">
+        <div class="mini" style="color:var(--c-gold);text-transform:uppercase;letter-spacing:.1em;font-size:10px">Welcome to MissionAlpha</div>
+        <div style="width:40px;height:40px;border-radius:11px;background:color-mix(in oklch,var(--c-cyan) 12%,transparent);color:var(--c-cyan);display:flex;align-items:center;justify-content:center;margin:10px 0">💬</div>
+        <h3 style="font-size:16px">Chat is the cockpit</h3>
+        <div class="mini muted" style="margin-top:6px">Talk to the swarm in plain language. Describe a goal — the CEO routes it to agents.</div>
+        <div style="display:flex;gap:5px;margin-top:14px"><i style="width:20px;height:5px;border-radius:9px;background:var(--c-cyan)"></i><i style="width:6px;height:5px;border-radius:9px;background:var(--c-border)"></i><i style="width:6px;height:5px;border-radius:9px;background:var(--c-border)"></i><i style="width:6px;height:5px;border-radius:9px;background:var(--c-border)"></i></div>
+        <div style="margin-top:14px;display:flex;justify-content:space-between"><span class="mini muted">Skip</span><span class="send" style="background:var(--c-cyan);color:var(--c-bg)">Next</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend" style="margin-top:18px">Static mockup of the current MissionAlpha cockpit. Dark theme shown (light + accents available via Settings). Globe is an ambient backdrop. Numbers/agents are illustrative.</div>
+</div>
+</body>
+</html>

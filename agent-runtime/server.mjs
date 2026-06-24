@@ -61,7 +61,7 @@ import { dirname, join, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { cp, readdir, readFile, writeFile, mkdir, stat, lstat, realpath } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, cpus } from "node:os";
 // Agent Factory — registry, agent-creator, credential broker, posting (own module).
 import * as factory from "./factory.mjs";
 // F2b apply-broker guards — moved VERBATIM to guards.mjs so the engine (ADR-024)
@@ -75,7 +75,7 @@ import { createBroker } from "./broker.mjs";
 // worktree isolation, durable task queue, retry/self-heal, auto-apply policy.
 import { createQueue } from "./queue.mjs";
 import { createPolicy } from "./policy.mjs";
-import { createWorktreeMgr } from "./worktree.mjs";
+import { createWorktreeMgr, isGitRepo } from "./worktree.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createEngine } from "./engine.mjs";
 import { escalationArgs } from "./self-heal.mjs";
@@ -87,18 +87,47 @@ import { createSecretScrubber, once } from "./secret-scrub.mjs";
 // ADR-037/038 full tool loop — real OS sandbox + mediated command broker.
 import { createSandbox } from "./sandbox.mjs";
 import { createToolBroker, classify } from "./tool-broker.mjs";
+// ADR-050 G5 — derive --allowed-tools from factory agent's spec at spawn frame.
+import { allowedToolsForAgent, webToolArgs } from "./agent-tools.mjs";
+import { computeMaxInflight } from "./concurrency.mjs";
+// ADR-050 A1+A2 — capability index + gap detector for /runtime/factory/detect-gaps (B3).
+import { capabilityIndex } from "./capabilities.mjs";
+import { detectGaps } from "./gap-detector.mjs";
+import { resolveAgents } from "./router.mjs"; // Phase 4 (#7) dynamic team routing
+// ADR-050 B1 — system-prompt builder (extracted to avoid server startup in unit tests).
+import { buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE } from "./system-prompt.mjs";
+// F4.1 — cockpit data feeds (no token required; loopback-gated by hostOk above).
+import { stateHandler, commandHandler, auditHandler, commandStatusHandler, sessionsHandler } from "./cockpit-feeds.mjs";
+import { buildLiveState } from "./live-state.mjs";
 // ADR-049 multimodal chat attachments — file intake for /chat (images/pdf/csv/txt).
 import Busboy from "busboy";
 import { createWriteStream } from "node:fs";
 import {
   MAX_FILES, MAX_FILE_BYTES, extAllowed, kindFor, sniffOk,
   safeName, displayName, uploadMsgDir, ensureUploadDir, buildManifest,
-  sweepStaleUploads,
+  sweepStaleUploads, xlsxToCsv,
 } from "./uploads.mjs";
 // Quota guard — self-throttle (pre-gate) + 429 backoff around every `claude` spawn,
 // so a runaway swarm can't lock the BOSS out of his Claude subscription. File-based.
 import { guardedSpawn, logCall as quotaLog, countInWindow as quotaCount, quotaStatus, is429 as isRateLimited, QuotaExceeded, MA_QUOTA_MAX, MA_QUOTA_WINDOW_MS } from "./quota-guard.mjs";
 const __dir = dirname(fileURLToPath(import.meta.url));
+// F4.1 — state file for the cockpit feeds (operator sets WAAHYU_STATE_PATH or drops a
+// state.json in <userData>/agent-status; absent → 503 → cockpit shows "connecting…" gracefully).
+const COCKPIT_STATE_PATH = process.env.WAAHYU_STATE_PATH || join(__dir, "..", "agent-status", "state.json");
+// Reads id/role/tier from the existing state file once per request; cheap, file is small.
+function rosterFromFile() {
+  try {
+    const raw = readFileSync(COCKPIT_STATE_PATH, "utf8");
+    const j = JSON.parse(raw);
+    return (j.agents || []).map((a) => ({ id: a.id, role: a.role, tier: a.tier }));
+  } catch { return []; }
+}
+// Pre-build the 5 handlers once at module scope (pure factories, statePath is closed over).
+const _stateH = stateHandler(COCKPIT_STATE_PATH);
+const _commandH = commandHandler(COCKPIT_STATE_PATH);
+const _auditH = auditHandler(COCKPIT_STATE_PATH);
+const _commandStatusH = commandStatusHandler(COCKPIT_STATE_PATH);
+const _sessionsH = sessionsHandler(COCKPIT_STATE_PATH);
 const TOOLS = process.env.RUNTIME_TOOLS || "none";
 // SANDBOX OUTSIDE the repo (sr-security: must not be inside REPO_ROOT). Each agent
 // edits an isolated COPY here; nothing reaches the live repo until the operator
@@ -128,6 +157,25 @@ try {
 } catch {
   /* non-fatal */
 }
+// F5 — the sandbox/token/worktree roots MUST stay OUTSIDE REPO_ROOT (a read-mode
+// agent runs with cwd=REPO_ROOT; an in-root token/sandbox would be self-readable →
+// self-authorize /apply). Default tmpdir roots already satisfy this; assert it for
+// ANY configured root + any operator-set RUNTIME_*_ROOT. Fail closed.
+{
+  const rootPfx = resolve(REPO_ROOT) + sep;
+  const outside = (p, name) => {
+    if (resolve(p).startsWith(rootPfx)) throw new Error(`${name} must be OUTSIDE RUNTIME_REPO_ROOT: ${p}`);
+  };
+  outside(SANDBOX_ROOT, "RUNTIME_SANDBOX_ROOT");
+  outside(TOKEN_DIR, "RUNTIME_TOKEN_DIR");
+  outside(process.env.RUNTIME_WORKTREE_ROOT || join(tmpdir(), "missionalpha-worktrees"), "RUNTIME_WORKTREE_ROOT");
+  if (process.env.RUNTIME_EXEC_WT_ROOT) outside(process.env.RUNTIME_EXEC_WT_ROOT, "RUNTIME_EXEC_WT_ROOT");
+  // Only assert these when the operator OVERRODE them — their defaults live under
+  // agent-runtime/ (inside the default root) and hold queue/thread state, not the
+  // token; a custom path nested in a configured REPO_ROOT would be agent-readable.
+  if (process.env.RUNTIME_ENGINE_STORE) outside(process.env.RUNTIME_ENGINE_STORE, "RUNTIME_ENGINE_STORE");
+  if (process.env.RUNTIME_THREADS_DIR) outside(process.env.RUNTIME_THREADS_DIR, "RUNTIME_THREADS_DIR");
+}
 // Constant-time token compare.
 function tokenOk(req) {
   const got = req.headers["x-runtime-token"];
@@ -155,8 +203,15 @@ function hostOk(req) {
 
 // Concurrency cap on spawned `claude` children — bounds cost/quota abuse + local
 // fork-bomb (sr-security #6). Excess /chat requests get 429.
-const MAX_INFLIGHT = Number(process.env.RUNTIME_MAX_INFLIGHT || 4);
+// CPU-derived default; RUNTIME_MAX_INFLIGHT still overrides (F1). All inflight gate
+// sites below read this single const — only its value source changed.
+const MAX_INFLIGHT = computeMaxInflight({ env: process.env, cpuCount: cpus().length });
 let inflight = 0;
+
+// Live cockpit signals — last-turn time per agent + who's currently streaming.
+const agentActivity = new Map(); // agentId → ISO ts of last turn
+const inflightAgents = new Set(); // agentIds with an in-flight turn
+const markActivity = (id) => { if (id) agentActivity.set(id, new Date().toISOString()); };
 
 // Per-agent conversation history. In-memory Map, backed by disk (ADR-023 §3B) so
 // history survives a runtime restart. Each thread → agent-runtime/threads/<id>.json
@@ -270,67 +325,9 @@ function deleteThread(id) {
   try { rmSync(threadFile(id), { force: true }); return true; } catch { return false; }
 }
 
-const CAVEMAN_SYSTEM = (agentId) =>
-  `You are the "${agentId}" agent in the MissionAlpha swarm (a multi-agent dev org building the Waahyu platform). ` +
-  `MANDATE: reply in /caveman FULL style — drop articles/filler/pleasantries/hedging, fragments OK, ` +
-  `keep technical terms + file paths + API names exact. Be terse and useful. ` +
-  `You are CHAT-ONLY right now: you have NO filesystem, command, or tool access — never claim you ran code or edited files. ` +
-  `If asked to do real work, say what you WOULD do, caveman-style.`;
-
-// BOSS console — Rohit (BOSS) sits ABOVE the CEO. This is the CEO answering its boss.
-// CEO speaks PERSUASIVE PROSE to BOSS (not caveman — caveman is for the bus), blends
-// Bezos/Musk/Solomon/Fink, is strategic, and is the supreme agent over the 16-agent swarm.
-const CEO_BOSS_SYSTEM =
-  `You are the CEO of the MissionAlpha / Waahyu multi-agent swarm — supreme over architect, ` +
-  `principals, seniors, QA, reviewer (16 agents). You report ONLY to BOSS (Rohit), the ultimate ` +
-  `authority above you. The person chatting with you now IS the BOSS. ` +
-  `Persona blend: Jeff Bezos (customer-obsession, long-term, Day 1, regret-minimization), ` +
-  `Elon Musk (first-principles, "best part is no part", speed), David Solomon (capital + ` +
-  `risk-adjusted return, Type-1 vs Type-2 decisions), Larry Fink (long-duration stewardship). ` +
-  `Stack reality: 13 FastAPI Python microservices (MongoDB/Motor/Redis), 4 React+Vite web apps, ` +
-  `4 Expo RN mobile apps, GCP Cloud Run, Stripe+Twilio. ` +
-  `Style to BOSS: clear, persuasive, decisive PROSE (NOT caveman — caveman is only for the agent ` +
-  `bus). Think first-principles. When proposing action, give options + a recommendation + the ` +
-  `tradeoff, and ask for GO/NO-GO. You can RECOMMEND dispatching work to specific agents ` +
-  `(architect, senior-web-1, etc.) but you never claim to have executed anything — BOSS confirms ` +
-  `dispatches. Be the strategic brain the BOSS talks to.\n\n` +
-  `DISPATCH PROTOCOL: when you want to command agents, END your reply with a fenced block:\n` +
-  "```dispatch\n" +
-  `task <agent-id> <short caveman instruction>\n` +
-  `task <agent-id> <short caveman instruction>\n` +
-  "```\n" +
-  `Valid verbs: task (assign work), ack (quiet a stalled agent), respawn (revive offline agent). ` +
-  `Valid agent-ids: ceo, architect, principal-ux-design, principal-db-engineer, ` +
-  `senior-security-engineer, senior-cicd-engineer, senior-lead-dev, senior-web-1, senior-web-2, ` +
-  `principal-rn-mobile-1, principal-rn-mobile-2, senior-backend-1, senior-backend-2, senior-qa, ` +
-  `senior-code-reviewer, memory-updater. Only include the block when BOSS actually wants action ` +
-  `taken — it becomes confirm-buttons the BOSS clicks. NEVER fabricate that it already ran.`;
-
-const TOOL_NOTE = {
-  none: "",
-  read:
-    "\n\nTOOLS: you have READ-ONLY repo access (Read, Glob, Grep) rooted at the MissionAlpha repo. " +
-    "Use them to inspect real files before answering. You CANNOT write, edit, or run commands — " +
-    "if asked to change something, read + propose the exact change, don't claim you made it.",
-  write:
-    "\n\nTOOLS: you can Read/Glob/Grep AND Write/Edit files — but ONLY inside your sandbox working " +
-    "directory (a scratch copy, never the live repo). No Bash/exec. Make changes in the sandbox and report what you did.",
-};
-const systemFor = (id) => {
-  if (id === "boss") return CEO_BOSS_SYSTEM + (TOOL_NOTE[TOOLS] || "");
-  // Factory-created agent → use its BOSS-authored persona (+ caveman bus mandate).
-  const persona = factory.createdPersona(id);
-  if (persona) {
-    return (
-      persona +
-      `\n\nYou are the "${id}" agent in the MissionAlpha swarm. Bus comms in /caveman full. ` +
-      `You can DRAFT/propose posts but you NEVER post to a real account yourself — the BOSS confirms every external post. ` +
-      `Never claim you posted, ran code, or accessed credentials.` +
-      (TOOL_NOTE[TOOLS] || "")
-    );
-  }
-  return CAVEMAN_SYSTEM(id) + (TOOL_NOTE[TOOLS] || "");
-};
+// systemFor — thin wrapper over buildSystemFor that captures the module-level TOOLS mode.
+// buildSystemFor, CAVEMAN_SYSTEM, CEO_BOSS_SYSTEM, TOOL_NOTE are all imported from system-prompt.mjs.
+const systemFor = (id) => buildSystemFor(id, TOOLS);
 
 // Lazy SDK load (only if key present + installed).
 let Anthropic = null;
@@ -381,7 +378,7 @@ const mcpRegistry = createMcpRegistry({
 const execWorktrees = createWorktreeMgr({ repoRoot: REPO_ROOT, worktreeRoot: process.env.RUNTIME_EXEC_WT_ROOT });
 const sandbox = createSandbox();
 const execWorktreeFor = (agentId) => { try { return execWorktrees.create(agentId).path; } catch { return null; } };
-const toolBroker = createToolBroker({ sandbox, worktreeFor: execWorktreeFor, audit: factory.audit });
+const toolBroker = createToolBroker({ sandbox, worktreeFor: execWorktreeFor, audit: factory.audit, isFactoryAgent: factory.isFactoryAgent });
 const pendingExec = new Map();        // callId → {agentId, command, network, klass, createdAt}
 const sessionGrants = new Map();       // agentId → Set(normalized command) approved for the session
 const normCmd = (c) => String(c).trim().replace(/\s+/g, " ");
@@ -495,6 +492,11 @@ async function seedSandbox(agentId) {
 // unchanged) so the engine (ADR-024, worktree-backed) reuses the SAME broker. The
 // manual /run path keeps its copy-sandbox via workdirFor=sandboxDir below.
 const { listChanges, applyChanges } = createBroker({ repoRoot: REPO_ROOT, workdirFor: sandboxDir, scrub });
+// F5 — warn loudly if NOTHING is seedable under the configured root (foreign repo
+// with a different layout) so an empty sandbox fails loud, not silent.
+if (!SEED_DIRS.some((d) => existsSync(join(REPO_ROOT, d)))) {
+  console.warn(`[runtime] WARNING: none of SEED_DIRS [${SEED_DIRS.join(", ")}] exist under REPO_ROOT (${REPO_ROOT}). Set RUNTIME_SEED_DIRS to this repo's source dirs, or the agent sandbox will be empty.`);
+}
 
 // Report-back — after an operator-confirmed apply, tell the swarm bus the agent's
 // task is DONE: a heartbeat (→ kanban/board) + a sync TO BOSS (→ live feed + Boss
@@ -509,15 +511,9 @@ function reportBack(agentId, summary) {
   const clean = (s) => String(s).replace(/[\x00-\x1f"'`|$=]/g, " ").replace(/\s+/g, " ").trim();
   const safeId = String(agentId).replace(/[^a-z0-9_-]/gi, "");
   const sum = clean(summary).slice(0, 140);
-  const sh = (script, args) => {
-    try {
-      spawn("bash", [script, ...args.map(String)], { stdio: "ignore", cwd: REPO_ROOT });
-    } catch {
-      /* non-fatal */
-    }
-  };
-  sh(HB, [safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"]);
-  sh(SYNC, [safeId, "BOSS", "task-done", "-", `done: ${sum}`]);
+  // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
+  if (existsSync(HB)) { try { spawn("bash", [HB, ...[safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+  if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...[safeId, "BOSS", "task-done", "-", `done: ${sum}`].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
 }
 
 // CLI backend — drive the local `claude` CLI headless. Uses the Claude Code
@@ -543,8 +539,24 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // request field. Distinct argv token, no shell → cannot flag-inject.
   if (modelId) args.push("--model", modelId);
   // F2 tool scoping. Bash NEVER allowed yet. Unlisted tools are auto-denied in -p.
+  // G5 (ADR-050): if this is a factory-minted agent, derive --allowed-tools from the
+  // agent's validated spec (Read always; Write+Edit if write-class skill; Bash never).
+  // Built-in agents keep the existing global TOOLS mode unchanged.
   let cwd = REPO_ROOT;
-  if (TOOLS === "read") {
+  let needStrictMcp = false; // G5: factory agents load NO global MCP — flag, push once below
+  const factoryTools = allowedToolsForAgent(agentId); // G5: null for built-ins
+  if (factoryTools !== null) {
+    // Factory agent — spec-derived tools, cwd = sandbox (Write-class) or repo (Read-only).
+    for (const t of factoryTools) args.push("--allowed-tools", t);
+    if (factoryTools.includes("Write")) {
+      cwd = sandboxDir(agentId); // isolated sandbox for write-capable factory agents
+      args.push("--add-dir", cwd, "--permission-mode", "acceptEdits");
+    }
+    // Factory agents get --strict-mcp-config (load NO global MCP). DEFERRED to after the
+    // MCP block + deduped (the MCP block also pushes it when an operator granted a
+    // connector) so a granted factory agent never gets a malformed double flag.
+    needStrictMcp = true;
+  } else if (TOOLS === "read") {
     for (const t of READ_TOOLS) args.push("--allowed-tools", t);
     cwd = REPO_ROOT; // read the live repo (no mutation possible — read tools only)
   } else if (TOOLS === "write") {
@@ -555,7 +567,7 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
     // the live repo is reached solely via the operator-gated /apply broker.
     args.push("--permission-mode", "acceptEdits");
   }
-  // TOOLS === "none" → no --allowed-tools → chat-only (all tools auto-denied).
+  // TOOLS === "none" (and no factory override) → no --allowed-tools → chat-only.
 
   // ── ADR-049 attachments — grant Read SCOPED TO THE UPLOAD DIR ONLY. In chat-only
   // ("none") mode the agent otherwise has no Read tool, so attachments would be
@@ -597,12 +609,21 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   } catch {
     /* MCP is optional — never block a turn on connector composition */
   }
+  // G5 — single --strict-mcp-config for a factory agent: push the bare flag only if the
+  // MCP block above didn't already add one (granted connector). Never a double flag.
+  if (needStrictMcp && !args.includes("--strict-mcp-config")) args.push("--strict-mcp-config");
+
+  // F2 — boss/CEO live web research. Unconditional append AFTER the TOOLS-mode branch
+  // (and after strict-mcp dedup) so the default "none" branch can't strip it. Built-in
+  // web tools are orthogonal to --strict-mcp-config (which only scopes MCP servers).
+  // Granted to the boss/CEO thread ONLY — webToolArgs() returns [] for every other id.
+  args.push(...webToolArgs(agentId));
 
   // Minimal child env — strip secret-shaped vars so a tool/log can't leak them
   // (claude CLI uses subscription auth via ~/.claude, not env keys).
   const childEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (/(_KEY|_SECRET|_TOKEN|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
+    if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
     childEnv[k] = v;
   }
   const child = spawn(CLAUDE_BIN, args, {
@@ -822,13 +843,39 @@ function handleChatMultipart(req, res, agentId) {
     if (t.error) { cleanup(); return jsonErr(400, { error: t.error, valid: t.valid }); }
     if (inflight >= MAX_INFLIGHT) { cleanup(); return jsonErr(429, { error: "busy — too many in-flight requests" }); }
     inflight++;
+    inflightAgents.add(agentId);
     // Release the slot AND delete the upload dir when the turn's response closes — the
     // CLI has already read the files by then (read happens during the turn, before
     // stream.done() → res.end() → close), so this is the success-path cleanup that
     // prevents UPLOADS_ROOT from accumulating between restarts (code-review HIGH).
-    res.on("close", () => { inflight = Math.max(0, inflight - 1); cleanup(); });
+    res.on("close", () => { inflight = Math.max(0, inflight - 1); inflightAgents.delete(agentId); markActivity(agentId); cleanup(); });
     const note = tooManyFiles ? `\n(note: only the first ${MAX_FILES} files were kept)` : "";
-    void handleChat(agentId, (message || "(see attached files)") + note, res, t.tier, t.modelId, accepted, dir);
+
+    // ADR-049 §2 — XLSX→CSV conversion inside an async IIFE so we can await xlsxToCsv
+    // before dispatching handleChat. The outer bb "close" handler stays synchronous;
+    // the async work is fully enclosed and unhandled-rejection-safe (caught inside).
+    void (async () => {
+      // Convert spreadsheet attachments to CSV before the agent sees them.
+      // The model can't read binary xlsx; CSV is text the Read tool handles.
+      // Mutate the accepted entry (absPath+kind+note) or drop on failure (soft note).
+      const xlsxSoftNotes = [];
+      for (let i = accepted.length - 1; i >= 0; i--) {
+        const entry = accepted[i];
+        if (entry.kind !== "spreadsheet") continue;
+        const result = await xlsxToCsv(entry.absPath); // eslint-disable-line no-await-in-loop
+        if (result.error) {
+          xlsxSoftNotes.push(`(xlsx "${displayName(entry.origName)}" could not be converted — skipped)`);
+          accepted.splice(i, 1);
+        } else {
+          const truncNote = result.truncated ? ", truncated" : "";
+          entry.absPath = result.csvPath;
+          entry.kind = "text";
+          entry.note = `from Excel "${displayName(entry.origName)}", ${result.rows} rows${truncNote}`;
+        }
+      }
+      const softNote = xlsxSoftNotes.length ? `\n${xlsxSoftNotes.join("\n")}` : "";
+      await handleChat(agentId, (message || "(see attached files)") + note + softNote, res, t.tier, t.modelId, accepted, dir);
+    })();
   });
 
   req.pipe(bb);
@@ -843,8 +890,13 @@ const ENGINE_STORE = process.env.RUNTIME_ENGINE_STORE || join(__dir, "engine-sto
 const engineQueue = createQueue({ dir: ENGINE_STORE, scrub });
 const enginePolicy = createPolicy({ file: join(ENGINE_STORE, "policy.json"), token: RUNTIME_TOKEN });
 const engineWorktrees = createWorktreeMgr({ repoRoot: REPO_ROOT });
+// F5 — probe once at boot; if the target is not a git repo, the engine uses copy-sandbox
+// isolation (same as the manual path) instead of git worktrees.
+const targetIsGit = isGitRepo(REPO_ROOT);
+if (!targetIsGit) console.warn(`[runtime] REPO_ROOT is not a git repo — engine uses copy-sandbox isolation (worktrees disabled).`);
 // Worktree-backed broker: per-task isolation keyed by taskId (vs the manual path's copy-sandbox).
-const engineBroker = createBroker({ repoRoot: REPO_ROOT, workdirFor: (id) => engineWorktrees.pathFor(id), scrub });
+// F5 — non-git: fall back to sandboxDir (copy-sandbox), same boundary as the manual path.
+const engineBroker = createBroker({ repoRoot: REPO_ROOT, workdirFor: targetIsGit ? (id) => engineWorktrees.pathFor(id) : sandboxDir, scrub });
 // Slot helpers over the EXISTING inflight counter (ADR-025 §2 — shared budget, never a 2nd one).
 function tryAcquireSlot() { if (inflight >= MAX_INFLIGHT) return false; inflight++; return true; }
 function releaseSlot() { inflight = Math.max(0, inflight - 1); }
@@ -853,25 +905,36 @@ const engineScheduler = createScheduler({ tryAcquireSlot, releaseSlot, claimNext
 // Headless agent dispatch — runs `claude` write-mode in the per-task WORKTREE (cwd),
 // no SSE client. Mirrors cliReply's write args (Bash NEVER allowed). cli backend only;
 // other backends reject (the write-loop is the subscription path for S1).
-function engineDispatch(ctx) {
-  if (BACKEND !== "cli") return Promise.resolve({ error: "engine write-loop requires the cli backend (claude subscription)" });
+async function engineDispatch(ctx) {
+  if (BACKEND !== "cli") return { error: "engine write-loop requires the cli backend (claude subscription)" };
   const { modelId } = resolveTier(ctx.tier);
+  // F5 — non-git target: ctx.workdir is null (worktreeMgr was null → engine skipped create).
+  // Fall back to the copy-sandbox path (same as the manual /run path). The apply broker
+  // stays identical — only the workdir SOURCE changes.
+  const workdir = ctx.workdir ?? await seedSandbox(ctx.agentId);
   // One spawn attempt as a promise: resolves the agent's output text, REJECTS with a
   // 429-shaped error on a detected rate limit (so the guard backs off + retries), or a
   // plain error on spawn failure.
   const runOnce = () => new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "stream-json", "--include-partial-messages", "--verbose", "--no-session-persistence"];
     if (modelId) args.push("--model", modelId);
-    for (const t of WRITE_TOOLS) args.push("--allowed-tools", t);
-    args.push("--add-dir", ctx.workdir, "--permission-mode", "acceptEdits");
+    // G5 (ADR-050): factory agents get spec-derived tools; built-ins keep WRITE_TOOLS.
+    const factoryToolsEng = allowedToolsForAgent(ctx.agentId);
+    if (factoryToolsEng !== null) {
+      for (const t of factoryToolsEng) args.push("--allowed-tools", t);
+      args.push("--strict-mcp-config");
+    } else {
+      for (const t of WRITE_TOOLS) args.push("--allowed-tools", t);
+    }
+    args.push("--add-dir", workdir, "--permission-mode", "acceptEdits");
     const childEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
-      if (/(_KEY|_SECRET|_TOKEN|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
+      if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
       childEnv[k] = v;
     }
     let child;
     try {
-      child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: ctx.workdir, env: childEnv });
+      child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: workdir, env: childEnv });
     } catch (e) {
       return reject(new Error(e.message));
     }
@@ -922,20 +985,36 @@ function engineDispatch(ctx) {
       : { error: e.message });
 }
 
+// Wrap engineDispatch so inflightAgents tracks the engine path (ctx.agentId is in scope).
+// The inflight counter itself is managed by tryAcquireSlot/releaseSlot (scheduler); we
+// mirror the same discipline — add on entry, delete+markActivity on settle.
+async function engineDispatchTracked(ctx) {
+  inflightAgents.add(ctx.agentId);
+  try {
+    return await engineDispatch(ctx);
+  } finally {
+    inflightAgents.delete(ctx.agentId);
+    markActivity(ctx.agentId);
+  }
+}
+
 const engine = createEngine({
   queue: engineQueue,
   policy: enginePolicy,
-  worktreeMgr: engineWorktrees,
+  // F5 — pass null when the target is not a git repo; engine.runStep skips worktree
+  // creation (workdir stays null), and engineDispatch seeds a copy-sandbox instead.
+  worktreeMgr: targetIsGit ? engineWorktrees : null,
   scheduler: engineScheduler,
   broker: engineBroker,
-  dispatchFn: engineDispatch,
+  dispatchFn: engineDispatchTracked,
   reportBackFn: reportBack,
   escalateFn: (agentId, kind, attempts, reason) => {
     const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
     const SYNC = join(REPO_ROOT, "scripts", "agent-sync.sh");
     const { heartbeat, sync } = escalationArgs(agentId, kind, attempts, reason);
-    try { spawn("bash", [HB, ...heartbeat.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ }
-    try { spawn("bash", [SYNC, ...sync.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ }
+    // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
+    if (existsSync(HB)) { try { spawn("bash", [HB, ...heartbeat.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+    if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...sync.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
   },
   watchdogMs: Number(process.env.RUNTIME_STEP_TIMEOUT_MS || 300_000),
   goalsDir: join(ENGINE_STORE, "goals"),
@@ -951,6 +1030,31 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify({ error: "forbidden host" }));
     return;
   }
+
+  // ── F4.1 COCKPIT FEEDS — no token required (matches dev vite posture) ────────
+  // Loopback-gated by the hostOk check above. No shell exec. READ-only except
+  // /api/command which validates + atomic-writes under dirname(statePath)/commands.
+  if (url.pathname === "/api/state.json") {
+    const roster = rosterFromFile().concat(
+      (factory.listAgents() || [])
+        .filter((m) => m && m.id)
+        .map((m) => ({ id: m.id, role: m.role || m.id, tier: m.tier || "support", factory: true }))
+    );
+    // de-dup by id (file roster wins)
+    const seen = new Set(); const merged = [];
+    for (const r of roster) { if (!seen.has(r.id)) { seen.add(r.id); merged.push(r); } }
+    if (!merged.length) return _stateH(req, res); // no roster → fall back to static file
+    const engineTasks = engineQueue.all().map((t) => ({ agentId: t.agentId, status: t.status, task: t.task || t.goalId || "", updatedAt: t.updatedAt || t.createdAt, blockedBy: t.heldReason && /blocked by (\S+)/i.test(t.heldReason) ? RegExp.$1 : null }));
+    const state = buildLiveState({ roster: merged, engineTasks, activity: Object.fromEntries(agentActivity), inflightAgents, nowMs: Date.now() });
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+    res.end(JSON.stringify(state));
+    return;
+  }
+  if (url.pathname === "/api/command")          return _commandH(req, res);
+  if (url.pathname === "/api/audit")            return _auditH(req, res);
+  if (url.pathname === "/api/commands/status")  return _commandStatusH(req, res);
+  if (url.pathname.startsWith("/api/sessions")) return _sessionsH(req, res);
 
   // ── S1 ENGINE ROUTES (ADRs 024–029) ───────────────────────────────────────
   // Handled BEFORE the generic /runtime/:agentId/* routes so "engine" is never
@@ -1038,6 +1142,48 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // B3 (ADR-050): POST /runtime/factory/detect-gaps {manifest} — advisory read-only gap check.
+  // Auth: same token+origin+host gate as engine routes (host already enforced globally).
+  // NEVER calls createAgent. Returns {gaps, covered} from detectGaps(manifest, capabilityIndex()).
+  if (req.method === "POST" && url.pathname === "/runtime/factory/detect-gaps") {
+    if (!originOk(req) || !tokenOk(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
+      return;
+    }
+    let b = "";
+    req.on("data", (c) => { b += c; if (b.length > 32_000) req.destroy(); });
+    req.on("end", () => {
+      let manifest = {};
+      try { manifest = JSON.parse(b || "{}"); } catch { /* use empty */ }
+      // Read-only: never mutates registry. capabilityIndex() is a pure static snapshot.
+      const result = detectGaps(manifest, capabilityIndex());
+      return ok2(res, result);
+    });
+    return;
+  }
+
+  // Phase 4 (#7 / ADR-050): POST /runtime/factory/resolve {needs} — map a stack to its
+  // owner agent (built-in OR minted; minted specialist wins the tie-break). Advisory
+  // read-only — NEVER mutates the registry. Same auth as detect-gaps.
+  if (req.method === "POST" && url.pathname === "/runtime/factory/resolve") {
+    if (!originOk(req) || !tokenOk(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
+      return;
+    }
+    let b = "";
+    req.on("data", (c) => { b += c; if (b.length > 32_000) req.destroy(); });
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(b || "{}"); } catch { /* use empty */ }
+      const needs = body.needs || body || {};
+      // listAgents() = minted registry (read-only). Built-ins come from capabilityIndex.
+      return ok2(res, resolveAgents(needs, factory.listAgents()));
+    });
+    return;
+  }
+
   // POST /runtime/:agentId/chat  body {message}
   const m = url.pathname.match(/^\/runtime\/([a-z0-9_-]{1,64})\/chat$/i);
   if (req.method === "POST" && m) {
@@ -1081,8 +1227,11 @@ const server = createServer(async (req, res) => {
         return;
       }
       inflight++;
+      inflightAgents.add(agentId);
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
+        inflightAgents.delete(agentId);
+        markActivity(agentId);
       });
       void handleChat(agentId, message, res, t.tier, t.modelId);
     });
@@ -1122,15 +1271,36 @@ const server = createServer(async (req, res) => {
       let command = "", wantNet = false;
       try { const j = JSON.parse(body || "{}"); command = String(j.command || "").slice(0, 4000); wantNet = !!j.network; } catch { /* */ }
       if (!command.trim()) return ok2(res, { error: "command required" }, 400);
+
+      // B2 (ADR-050): exec-capability gate — only builtins OR factory agents that hold a
+      // dev:true skill may reach the sandbox. A minted content-only agent cannot exec.
+      // Built-ins are NOT in the factory registry (isFactoryAgent returns false) → always pass.
+      // Factory agents: check their spec for at least one dev:true skill.
+      const isFactory = factory.isFactoryAgent(agentId);
+      if (isFactory) {
+        const agSpec = factory.specForAgent(agentId);
+        const hasDevSkill = Array.isArray(agSpec?.skills) &&
+          agSpec.skills.some((sid) => factory.SKILL_CATALOG.find((c) => c.id === sid)?.dev);
+        if (!hasDevSkill) {
+          factory.audit("exec.capability-denied", { agentId, reason: "no dev skill" });
+          return ok2(res, { error: "exec not permitted for this agent" }, 403);
+        }
+      }
+      // Non-factory (builtin) agents pass through unconditionally.
+
       const c = classify(command);
       if (c.klass === "forbidden") {
         factory.audit("exec.forbidden", { agentId, reason: c.reason });
         return ok2(res, { refused: true, klass: "forbidden", reason: c.reason });
       }
-      const granted = c.klass === "safe" || (sessionGrants.get(agentId)?.has(normCmd(command)));
+      // G1 (ADR-050): factory (AI-authored) agents NEVER auto-run — even a `safe` command
+      // requires operator approval. Built-ins keep auto-run for `safe`. Session grants only
+      // exist for built-ins (factory grants are denied at approve time below).
+      const granted = (!isFactory && c.klass === "safe") || (sessionGrants.get(agentId)?.has(normCmd(command)));
       if (granted) {
         if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
         inflight++;
+        inflightAgents.add(agentId);
         const callId = newCallId();
         try {
           const r = await toolBroker.execTool(agentId, command, { network: wantNet && c.network, callId, timeoutMs: 180000 });
@@ -1139,6 +1309,8 @@ const server = createServer(async (req, res) => {
           return ok2(res, { error: String(e?.message || e) }, 500);
         } finally {
           inflight = Math.max(0, inflight - 1); // never leak a slot, even on throw (QA HIGH)
+          inflightAgents.delete(agentId);
+          markActivity(agentId);
         }
       }
       // SENSITIVE + not session-granted → pending approval
@@ -1161,13 +1333,16 @@ const server = createServer(async (req, res) => {
       try { scope = JSON.parse(body || "{}").scope || "once"; } catch { /* */ }
       pendingExec.delete(callId);
       if (scope === "deny") { factory.audit("exec.denied", { agentId: pend.agentId, callId }); return ok2(res, { denied: true }); }
-      if (scope === "session") {
+      // G1 (ADR-050): factory agents get `once` ONLY — never a persistent session grant,
+      // so every exec re-prompts the operator. Session scope is silently downgraded to once.
+      if (scope === "session" && !factory.isFactoryAgent(pend.agentId)) {
         if (!sessionGrants.has(pend.agentId)) sessionGrants.set(pend.agentId, new Set());
         sessionGrants.get(pend.agentId).add(normCmd(pend.command));
       }
       if (inflight >= MAX_INFLIGHT) return ok2(res, { error: "busy" }, 429);
       factory.audit("exec.approved", { agentId: pend.agentId, callId, scope, klass: pend.klass }); // audit who/what authorized
       inflight++;
+      inflightAgents.add(pend.agentId);
       try {
         const r = await toolBroker.execTool(pend.agentId, pend.command, { network: pend.network, callId, timeoutMs: 180000 });
         return ok2(res, { ran: true, scope, klass: pend.klass, exitCode: r.exitCode, timedOut: r.timedOut, killed: r.killed, stdout: scrub(r.stdout || ""), stderr: scrub(r.stderr || "") });
@@ -1175,6 +1350,8 @@ const server = createServer(async (req, res) => {
         return ok2(res, { error: String(e?.message || e) }, 500);
       } finally {
         inflight = Math.max(0, inflight - 1); // never leak a slot (QA HIGH)
+        inflightAgents.delete(pend.agentId);
+        markActivity(pend.agentId);
       }
     });
     return;
@@ -1304,8 +1481,11 @@ const server = createServer(async (req, res) => {
         `sandbox root (or any other dir) are dropped and will NOT reach the live repo. ` +
         `Then summarize what you changed (caveman). The operator will review the diff before it reaches the live repo.`;
       inflight++;
+      inflightAgents.add(mr[1]);
       res.on("close", () => {
         inflight = Math.max(0, inflight - 1);
+        inflightAgents.delete(mr[1]);
+        markActivity(mr[1]);
       });
       void handleChat(mr[1], prompt, res, t.tier, t.modelId);
     });
@@ -1516,6 +1696,10 @@ const server = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not found" }));
 });
 
+// SECURITY INVARIANT (ADR-050 G1/G2/G5): loadRegistry() is SYNCHRONOUS (readFileSync)
+// and MUST run before server.listen() below — the factory trust-tier guards fail OPEN
+// for an unknown id (treated as built-in), so the registry must be fully hydrated
+// before any request is accepted. Do not make this async or move it after listen().
 factory.loadRegistry(); // hydrate created-agent personas before serving
 loadThreads(); // hydrate persisted conversation threads (ADR-023 §3B)
 try { const n = sweepStaleUploads(); if (n) console.log(`agent-runtime: swept ${n} stale upload dir(s)`); } catch { /* best-effort */ } // ADR-049

@@ -3,15 +3,32 @@
 // booting the HTTP server. LOGIC IS UNCHANGED — this is a move, not a rewrite.
 // server.mjs imports these back, so its behavior is byte-for-byte identical.
 //
+// F5 — RUNTIME_REPO_ROOT (absolute path) makes the target repo configurable.
+// Default (env unset) = MissionAlpha, byte-identical to before. Validation is
+// fail-closed and GATED on the env var being set (so the 287 existing tests,
+// which import with env unset, are byte-for-byte unaffected). Also reads
+// RUNTIME_SEED_DIRS (csv) to generalise the appliable scope for an arbitrary
+// repo. Uses node:fs for fail-closed validation.
+//
 // sr-security: applyAllowed / configGuardViolation / APPLY_DENY / CONFIG_GUARD /
 // SEED_DIRS / SEED_FILES are the security boundary. Any change here changes the
 // broker. Diff against the original server.mjs definitions to confirm equivalence.
 
 import { dirname, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync, statSync } from "node:fs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = resolve(__dir, ".."); // MissionAlpha repo root
+// F5 — configurable target repo. Default (env unset) = MissionAlpha, byte-identical
+// to before. resolve(env) takes an absolute path verbatim. Fail CLOSED if set-but-invalid.
+export const REPO_ROOT = process.env.RUNTIME_REPO_ROOT
+  ? resolve(process.env.RUNTIME_REPO_ROOT)
+  : resolve(__dir, "..");
+if (process.env.RUNTIME_REPO_ROOT) {
+  if (!existsSync(REPO_ROOT) || !statSync(REPO_ROOT).isDirectory()) {
+    throw new Error(`RUNTIME_REPO_ROOT does not exist or is not a directory: ${REPO_ROOT}`);
+  }
+}
 
 // Seeded + appliable scope. src/ + public/ + README + package.json. Still EXCLUDES
 // *.config.ts + scripts/ + infrastructure/ + .github/ (pure exec / CI). package.json
@@ -23,7 +40,14 @@ export const REPO_ROOT = resolve(__dir, ".."); // MissionAlpha repo root
 // appliable. It carries no exec semantics (Vite serves it verbatim), and apply stays
 // gated by APPLY_DENY + containment + symlink/realpath checks. SEED_DIRS is the SINGLE
 // source of truth for both the copy-sandbox broker AND the engine worktree broker.
-export const SEED_DIRS = ["src", "public"];
+//
+// F5 — RUNTIME_SEED_DIRS (csv) generalizes the appliable scope for an arbitrary
+// repo. Default unchanged = ["src","public"]. APPLY_DENY/PUBLIC_DENY/CONFIG_GUARD
+// are root-relative matchers and need NO change — applyAllowed recomputes relNorm
+// against the new root, so the same deny rules apply.
+export const SEED_DIRS = process.env.RUNTIME_SEED_DIRS
+  ? process.env.RUNTIME_SEED_DIRS.split(",").map((s) => s.trim()).filter(Boolean)
+  : ["src", "public"];
 export const SEED_FILES = ["README.md", "package.json"];
 // apply() refuses any path matching these (defense beyond the .claude denylist).
 export const APPLY_DENY = /(^|\/)(\.env|\.git|\.claude|node_modules|.*\.(pem|key|p12))(\/|$)/i;

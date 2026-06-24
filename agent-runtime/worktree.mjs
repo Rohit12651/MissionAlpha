@@ -92,3 +92,16 @@ export function createWorktreeMgr(opts = {}) {
 
   return { create, remove, pathFor, pruneOrphans, branchOf, worktreeRoot };
 }
+
+// F5 — cheap probe: is `dir` inside a git work tree? Used at boot to decide whether
+// the engine uses worktree isolation or falls back to the copy-sandbox (non-git target).
+export function isGitRepo(dir) {
+  try {
+    execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-C", dir, "rev-parse", "--is-inside-work-tree"], {
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

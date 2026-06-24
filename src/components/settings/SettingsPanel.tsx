@@ -3,9 +3,9 @@
 // settings store. Policy toggles are CLIENT DEFAULTS only — they pre-fill the
 // existing gated flows and never weaken server-side enforcement (see ADR-040 §3).
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { X, Palette, Sliders, ShieldCheck, Eye } from "lucide-react";
+import { X, Palette, Sliders, ShieldCheck, Eye, FolderOpen, Loader2 } from "lucide-react";
 import { useSettings } from "../../lib/settingsContext";
 import { ACCENTS, type AccentKey } from "../../lib/settings";
 import { MODEL_TIERS, type ModelTier } from "../../lib/modelTiers";
@@ -77,6 +77,72 @@ function ChoiceRow<T extends string>({ label, value, options, onChange }: { labe
         })}
       </div>
     </div>
+  );
+}
+
+function ProjectSection() {
+  const [folder, setFolder] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // Load current folder on mount (Electron only).
+  useEffect(() => {
+    window.missionAlpha?.getRepoRoot?.().then((p) => setFolder(p ?? null)).catch(() => {});
+  }, []);
+
+  const pick = useCallback(async () => {
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const picked = await window.missionAlpha?.pickFolder?.();
+      if (!picked) { setStatus("idle"); return; }
+      const result = await window.missionAlpha?.setRepoRoot?.(picked);
+      if (result?.ok) {
+        setFolder(picked);
+        setStatus("idle");
+      } else {
+        setErrorMsg(result?.error ?? "Failed to set folder");
+        setStatus("error");
+      }
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+      setStatus("error");
+    }
+  }, []);
+
+  const displayPath = folder
+    ? folder.replace(/^\/Users\/[^/]+/, "~")
+    : "Not set — agents write to the bundle directory";
+
+  return (
+    <Section icon={<FolderOpen size={15} aria-hidden />} title="Project Folder" desc="Where agents read and write files. Changing this restarts the runtime.">
+      <div className="flex flex-col gap-2">
+        <div
+          className="rounded-md px-3 py-2 font-mono text-[11px] break-all"
+          style={{ backgroundColor: tok("panel-2"), color: folder ? tok("text") : tok("muted"), border: `1px solid ${tok("border")}` }}
+          aria-label="Current project folder"
+        >
+          {displayPath}
+        </div>
+        <button
+          type="button"
+          onClick={pick}
+          disabled={status === "loading" || !window.missionAlpha?.pickFolder}
+          className="flex items-center gap-2 self-start rounded-md px-3 py-1.5 text-[12px] outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
+          style={{ backgroundColor: `color-mix(in oklch, ${tok("accent-cyan")} 14%, transparent)`, color: tok("accent-cyan"), border: `1px solid color-mix(in oklch, ${tok("accent-cyan")} 30%, transparent)` }}
+          aria-label="Choose project folder"
+        >
+          {status === "loading" ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <FolderOpen size={13} aria-hidden />}
+          {status === "loading" ? "Restarting runtime…" : folder ? "Change folder" : "Choose folder"}
+        </button>
+        {status === "error" && (
+          <p className="text-[11px]" style={{ color: tok("stale-red") }} role="alert">{errorMsg}</p>
+        )}
+        {!window.missionAlpha?.pickFolder && (
+          <p className="text-[11px]" style={{ color: tok("muted") }}>Only available in the packaged desktop app.</p>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -220,6 +286,8 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 onChange={(v) => update({ reduceMotionOverride: v })}
               />
             </Section>
+
+            <ProjectSection />
           </motion.div>
         </div>
       )}

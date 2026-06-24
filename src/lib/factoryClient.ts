@@ -1,5 +1,6 @@
 // Agent Factory client — typed fetchers over the vite-proxied /factory/* runtime
 // endpoints. Reuses the same same-origin runtime token as AgentChat/BossConsole.
+import { runtimeToken, runtimeUrl } from "./runtimeBase";
 
 export interface Skill {
   id: string;
@@ -57,18 +58,6 @@ export interface PostResult {
   handle?: string;
   rate?: { used: number; cap: number; remaining: number };
   error?: string;
-}
-
-// Cached same-origin runtime token (mirrors AgentChat).
-let tokenPromise: Promise<string> | null = null;
-export function runtimeToken(): Promise<string> {
-  if (!tokenPromise) {
-    tokenPromise = fetch("/api/runtime-token", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { token: "" }))
-      .then((j) => (j as { token?: string }).token ?? "")
-      .catch(() => "");
-  }
-  return tokenPromise;
 }
 
 async function authed(path: string, init: RequestInit = {}): Promise<Response> {
@@ -217,17 +206,17 @@ export interface ExecResult {
   error?: string;
 }
 export const proposeExec = (agentId: string, command: string, network: boolean) =>
-  authedJson<ExecResult>(`/runtime/${encodeURIComponent(agentId)}/exec`, {
+  authedJson<ExecResult>(runtimeUrl(`/runtime/${encodeURIComponent(agentId)}/exec`), {
     method: "POST",
     body: JSON.stringify({ command, network }),
   });
 export const approveExec = (callId: string, scope: "once" | "session" | "deny") =>
-  authedJson<ExecResult>(`/runtime/exec/${encodeURIComponent(callId)}/approve`, {
+  authedJson<ExecResult>(runtimeUrl(`/runtime/exec/${encodeURIComponent(callId)}/approve`), {
     method: "POST",
     body: JSON.stringify({ scope }),
   });
 export const killExec = (callId: string) =>
-  authedJson<{ ok?: boolean }>(`/runtime/exec/${encodeURIComponent(callId)}/kill`, { method: "POST" });
+  authedJson<{ ok?: boolean }>(runtimeUrl(`/runtime/exec/${encodeURIComponent(callId)}/kill`), { method: "POST" });
 
 // Stream the agent-creator: yields reasoning tokens, resolves with the parsed spec
 // (or an error). onToken receives streamed reasoning text for the live "authoring" UI.

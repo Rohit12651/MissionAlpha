@@ -3,13 +3,19 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --port 3004",
     "build": "tsc && vite build",
     "preview": "vite preview --port 3004",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test src/lib/__tests__/*.test.ts",
-    "lint": "eslint . --ext ts,tsx --max-warnings 0"
+    "test:vendor": "node --test scripts/lib/__tests__/vendor.test.mjs",
+    "vendor:skills": "node scripts/vendor-skills.mjs",
+    "gen:skills": "node scripts/gen-skills.mjs",
+    "lint": "eslint . --ext ts,tsx --max-warnings 0",
+    "electron:dev": "concurrently -k \"npm:dev\" \"wait-on tcp:3004 && RUNTIME_BACKEND=cli electron .\"",
+    "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
@@ -28,10 +34,14 @@
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "concurrently": "^9.2.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
-    "vite": "^5.3.3"
+    "vite": "^5.3.3",
+    "wait-on": "^8.0.5"
   },
   "description": "MissionAlpha — standalone agent swarm command tower (watches Waahyu + future swarms)"
 }

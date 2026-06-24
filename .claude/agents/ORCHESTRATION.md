@@ -74,6 +74,45 @@ READY_FOR_LEAD    DESIGN_CONTRACT_PUBLISHED      MIGRATION_APPROVED             
                           [memory-updater] final sync
 ```
 
+## On-Demand Agent Minting (Phase 4 — ADR-050)
+
+When architect's `stack-manifest.json` names a stack not covered by any installed builtin:
+
+```
+architect emits docs/plans/<feature>-stack-manifest.json
+   ↓
+CEO calls POST /runtime/factory/detect-gaps {manifest}  ← read-only, never creates
+   ↓
+{gaps:[...], covered:[...]} → any gap → CEO surfaces CAPABILITY_GAP to USER
+   ↓
+USER GO  → factory.createAgent() with matching dev skill + allowlisted redirect
+USER NO-GO → implement with nearest-fit builtin (accept lower stack competence)
+   ↓ (USER GO path only)
+Minted dev agent persona redirects to installed specialist (golang-pro / angular-architect / …)
+   ↓
+Minted agent writes code via /run (sandbox worktree)
+Minted agent builds/tests via /exec (jailed Docker — approval-forced, no auto-run)
+   ↓
+Operator approves exec → runs inside existing Docker jail (NO new exec path)
+```
+
+**Routing (Phase 4 — IMPLEMENTED):** `routing = BUILTIN_IDS ∪ minted_registry_ids`
+- **Resolver:** `senior-lead-dev` maps a task's needed stack to its owning agent via
+  `POST /runtime/factory/resolve {needs:{langs,frameworks,dbs}}` → `{assignments:[{kind,value,agentId,source}], unresolved}`.
+  Pure logic in `agent-runtime/router.mjs` (`resolveAgents`), built-in caps from
+  `capabilities.mjs`, minted caps from each registry spec's dev-skill `stack`.
+- **Tie-break:** a MINTED specialist wins over a broad built-in for the same stack
+  (the minted agent is purpose-built for it). `unresolved` items = a real gap → mint flow.
+- **Dispatch:** assigned agents (built-in OR minted) are dispatched through the existing
+  engine enqueue / `/run` — the engine already accepts any `agentId`, so NO engine change.
+- Builtins: always present, no gap check needed.
+- Minted agents: present only after USER GO on a detected gap; visible in `/factory/agents`.
+- A minted agent's persona REDIRECTS to an installed specialist for stack competence.
+- Exec approval is ALWAYS forced for factory agents (G1 guard — no auto-run, even for "safe" class).
+- Content-only factory agents (no dev skill) are blocked from `/exec` entirely (B2 gate → 403).
+
+**Security gates (G1–G6) are BLOCKING for this feature** — see ADR-050.
+
 ## Frontend Routing Matrix
 
 | Surface | Owner |

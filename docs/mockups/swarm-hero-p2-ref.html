@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>SwarmHero — P2 feature reference (2026-06-23)</title>
+<meta name="description" content="Non-interactive mockup: P2-1 gated node actions · P2-2 edge weighting by comms volume · P2-3 mini live-ops dock"/>
+<style>
+/* ── reset + base ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0b14; }
+body { font-family: 'Lato', system-ui, -apple-system, sans-serif; }
+
+/* ── root container ─────────────────────────────────────────── */
+#root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #0a0b14;
+  overflow: hidden;
+}
+
+/* ── canvas ─────────────────────────────────────────────────── */
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── title block ────────────────────────────────────────────── */
+#title {
+  position: absolute;
+  top: 28px;
+  left: 40px;
+  pointer-events: none;
+  z-index: 10;
+}
+#title h1 {
+  color: #f3f5f8;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+#title p {
+  color: #8a8f9c;
+  font-size: 13px;
+  margin-top: 5px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* ── P2-1 inspect panel (right side) ───────────────────────── */
+#panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 340px;
+  background: rgba(12,13,20,0.97);
+  border-left: 1px solid rgba(139,108,246,0.30);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  backdrop-filter: blur(10px);
+}
+
+#panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+}
+
+#panel-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(139,108,246,0.18);
+  color: #c4aeff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: ui-monospace, Menlo, monospace;
+  flex-shrink: 0;
+}
+
+#panel-id {
+  color: #f3f5f8;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: ui-monospace, Menlo, monospace;
+}
+#panel-meta {
+  color: #9aa0ad;
+  font-size: 11px;
+  margin-top: 2px;
+}
+#panel-status-blocked {
+  color: #e24b4a;
+  font-weight: 600;
+}
+
+/* action buttons */
+#panel-actions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px 12px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+}
+.btn-outline {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(139,108,246,0.55);
+  background: transparent;
+  color: #c4aeff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+}
+.btn-amber {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(245,178,52,0.55);
+  background: rgba(245,178,52,0.12);
+  color: #f5b234;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+}
+
+/* recent comms */
+#panel-comms {
+  padding: 12px 18px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+#panel-comms-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.comm-row {
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: #aab0be;
+  line-height: 1.7;
+}
+.comm-out { color: #22d3ee; }
+.comm-in  { color: #8b6cf6; }
+
+/* composer */
+#panel-composer {
+  margin: 14px 18px;
+  padding: 11px 14px;
+  background: #15171d;
+  border: 0.5px solid #2b2f3a;
+  border-radius: 10px;
+  color: #8a8f9c;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#panel-composer span { color: #5dcaa5; font-size: 16px; }
+
+/* ── P2-1 permission-gate popover ───────────────────────────── */
+#gate-popover {
+  position: absolute;
+  /* sits above the Re-dispatch button inside the panel */
+  bottom: 210px;
+  right: 18px;
+  width: 270px;
+  background: #1a1c28;
+  border: 1px solid rgba(245,178,52,0.40);
+  border-radius: 10px;
+  padding: 16px 18px;
+  z-index: 40;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.60), 0 0 0 1px rgba(245,178,52,0.12);
+}
+#gate-popover p.gate-warning {
+  color: #f5b234;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+#gate-popover p.gate-body {
+  color: #c8ccd6;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+#gate-popover p.gate-body strong {
+  color: #f3f5f8;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.gate-actions { display: flex; gap: 8px; }
+.gate-cancel {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: transparent;
+  color: #9aa0ad;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+.gate-confirm {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 6px;
+  border: none;
+  background: rgba(245,178,52,0.20);
+  border: 1px solid rgba(245,178,52,0.50);
+  color: #f5b234;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+
+/* ── P2-3 mini dock ─────────────────────────────────────────── */
+#mini-dock {
+  position: absolute;
+  bottom: 28px;
+  right: 358px; /* just left of the inspect panel */
+  width: 168px;
+  background: rgba(12,14,22,0.96);
+  border: 1px solid rgba(139,108,246,0.28);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 25;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.55);
+}
+#mini-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px 6px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.07);
+}
+#mini-dock-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a8f9c;
+  font-family: ui-monospace, Menlo, monospace;
+}
+#mini-dock-expand {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(139,108,246,0.12);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+#mini-dock-expand svg { display: block; }
+#mini-canvas {
+  display: block;
+  width: 168px;
+  height: 100px;
+}
+
+/* ── annotation badges ──────────────────────────────────────── */
+.badge {
+  position: absolute;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, Menlo, monospace;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+.badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* P2-1 badge */
+.badge-p2-1 {
+  background: rgba(139,108,246,0.20);
+  border: 1px solid rgba(139,108,246,0.55);
+  color: #c4aeff;
+}
+.badge-p2-1 .badge-dot { background: #8b6cf6; }
+
+/* P2-2 badge */
+.badge-p2-2 {
+  background: rgba(34,211,238,0.15);
+  border: 1px solid rgba(34,211,238,0.45);
+  color: #67e8f9;
+}
+.badge-p2-2 .badge-dot { background: #22d3ee; }
+
+/* P2-3 badge */
+.badge-p2-3 {
+  background: rgba(245,178,52,0.15);
+  border: 1px solid rgba(245,178,52,0.45);
+  color: #fcd34d;
+}
+.badge-p2-3 .badge-dot { background: #f5b234; }
+
+/* connector lines from badges to targets — SVG overlay */
+#connectors {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 45;
+}
+
+/* ── tier legend (bottom-left) ──────────────────────────────── */
+#legend {
+  position: absolute;
+  bottom: 24px;
+  left: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+.tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  font-size: 11px;
+  color: #b8bdc9;
+  background: rgba(10,11,20,0.70);
+}
+.tier-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  /* JS reads this and skips rAF; the canvas is rendered as a single static frame */
+}
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- canvas: force-directed graph with edge weighting (P2-2) -->
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <!-- SVG connector lines (annotation arrows) -->
+  <svg id="connectors" aria-hidden="true">
+    <!-- P2-2: arrow from badge to a thick edge in the graph (approximate positions, decorative) -->
+    <defs>
+      <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(34,211,238,0.55)"/>
+      </marker>
+      <marker id="arr-v" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(139,108,246,0.55)"/>
+      </marker>
+      <marker id="arr-g" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(245,178,52,0.55)"/>
+      </marker>
+    </defs>
+    <!-- P2-2 connector: badge → graph area -->
+    <path id="conn-p2-2" d="" stroke="rgba(34,211,238,0.40)" stroke-width="1.2" stroke-dasharray="5 4" fill="none" marker-end="url(#arr)"/>
+    <!-- P2-1 connector: badge → panel -->
+    <path id="conn-p2-1" d="" stroke="rgba(139,108,246,0.40)" stroke-width="1.2" stroke-dasharray="5 4" fill="none" marker-end="url(#arr-v)"/>
+    <!-- P2-3 connector: badge → mini-dock -->
+    <path id="conn-p2-3" d="" stroke="rgba(245,178,52,0.40)" stroke-width="1.2" stroke-dasharray="5 4" fill="none" marker-end="url(#arr-g)"/>
+  </svg>
+
+  <!-- title -->
+  <div id="title" aria-label="MissionAlpha agent swarm command tower">
+    <h1>MissionAlpha</h1>
+    <p>agent swarm command tower &nbsp;·&nbsp; live graph &nbsp;·&nbsp; P2 feature reference</p>
+  </div>
+
+  <!-- P2-1: inline inspect panel -->
+  <aside id="panel" aria-label="P2-1 in-hero gated node actions — architect inspect panel">
+    <div id="panel-header">
+      <div id="panel-avatar">AR</div>
+      <div>
+        <div id="panel-id">architect</div>
+        <div id="panel-meta">System &nbsp;·&nbsp; <span style="color:#8b6cf6">PRINCIPAL</span> &nbsp;·&nbsp; <span id="panel-status-blocked">Blocked</span></div>
+      </div>
+    </div>
+    <div id="panel-actions">
+      <button class="btn-outline" tabindex="-1">Ack</button>
+      <button class="btn-amber" tabindex="-1">Re-dispatch ↗</button>
+    </div>
+    <div id="panel-comms">
+      <div id="panel-comms-label">Recent comms</div>
+      <div class="comm-row"><span class="comm-out">→ ceo</span> &nbsp;·&nbsp; blocked · "awaiting review"</div>
+      <div class="comm-row"><span class="comm-in">← senior-backend-1</span> &nbsp;·&nbsp; review-req</div>
+      <div class="comm-row"><span class="comm-out">→ code-reviewer</span> &nbsp;·&nbsp; dispatch</div>
+    </div>
+    <div id="panel-composer">
+      <span style="color:#8a8f9c">Message architect…</span>
+      <span>&#10148;</span>
+    </div>
+    <div style="padding: 0 18px 10px; color:#5b6270; font-size:11px; font-family:ui-monospace,Menlo,monospace; flex-shrink:0">
+      embeds existing cockpit ChatPane — no new chat code
+    </div>
+
+    <!-- P2-1 PermissionGate popover (floats over the panel) -->
+    <div id="gate-popover" role="alertdialog" aria-label="Re-dispatch confirmation">
+      <p class="gate-warning">&#9888; Gated Action</p>
+      <p class="gate-body">Re-dispatch <strong>architect</strong>?<br/>
+        This will cancel the current block and re-queue the agent. Requires manager-level permission.</p>
+      <div class="gate-actions">
+        <button class="gate-cancel" tabindex="-1">Cancel</button>
+        <button class="gate-confirm" tabindex="-1">Confirm</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- P2-3: mini live-ops dock -->
+  <div id="mini-dock" aria-label="P2-3 mini live-ops dock">
+    <div id="mini-dock-header">
+      <span id="mini-dock-title">live ops</span>
+      <button id="mini-dock-expand" tabindex="-1" aria-label="Expand to full view">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 1h4v4M5 7l6-6M1 5V1h4M7 11H1v-4" stroke="#8b6cf6" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <canvas id="mini-canvas" aria-hidden="true"></canvas>
+  </div>
+
+  <!-- tier legend bottom-left -->
+  <div id="legend" role="group" aria-label="Tier colour legend">
+    <div class="tier-chip"><span class="tier-chip-dot" style="background:#f5b234"></span>CEO / supreme</div>
+    <div class="tier-chip"><span class="tier-chip-dot" style="background:#8b6cf6"></span>principal</div>
+    <div class="tier-chip"><span class="tier-chip-dot" style="background:#22d3ee"></span>senior</div>
+    <div class="tier-chip"><span class="tier-chip-dot" style="background:#8a8f9c"></span>support</div>
+  </div>
+
+  <!-- annotation badges — positioned by JS after layout settles -->
+  <div id="badge-p2-2" class="badge badge-p2-2" aria-label="P2-2 edge weighting annotation">
+    <span class="badge-dot"></span>P2-2 &nbsp;·&nbsp; thicker = chattier
+  </div>
+  <div id="badge-p2-1" class="badge badge-p2-1" aria-label="P2-1 gated node actions annotation">
+    <span class="badge-dot"></span>P2-1 &nbsp;·&nbsp; gated action (security-reviewed)
+  </div>
+  <div id="badge-p2-3" class="badge badge-p2-3" aria-label="P2-3 mini dock annotation">
+    <span class="badge-dot"></span>P2-3 &nbsp;·&nbsp; mini dock &#8594; expand
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── palette (exact KCOL from SwarmHero.tsx) ──────────────────────────── */
+  var BG       = '#0a0b14';
+  var C_CEO    = '#f5b234';   // gold
+  var C_PRIN   = '#8b6cf6';   // violet
+  var C_SENIOR = '#22d3ee';   // cyan
+  var C_SUPP   = '#8a8f9c';   // muted
+  var C_FILE   = '#22d3ee';
+  var C_REF    = '#7f8696';
+  var LINK_COL = '#8b6cf6';
+  var LABEL_COL = 'rgba(210,214,228,0.82)';
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── deterministic PRNG ───────────────────────────────────────────────── */
+  var seed = 20260623;
+  function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+
+  /* ── node definitions
+       id, color, radius, tier (for status), commsVolume (P2-2 weight)
+       commsVolume: 0–1 (1 = very chatty, drives edge thickness)
+  ───────────────────────────────────────────────────────────────────────── */
+  var DEFS = [
+    // id,               col,       r,  tier,      status,     commsVol
+    ['ceo',             C_CEO,    17,  'ceo',      'work',     0.9],
+    ['architect',       C_PRIN,   12,  'principal','blocked',  0.85],
+    ['code-reviewer',   C_PRIN,    9,  'principal','work',     0.70],
+    ['senior-web-1',    C_SENIOR, 10,  'senior',   'work',     0.55],
+    ['senior-backend-1',C_SENIOR,  9,  'senior',   'work',     0.45],
+    ['senior-qa',       C_SENIOR,  8,  'senior',   'idle',     0.30],
+    ['principal-ux',    C_PRIN,    8,  'principal','idle',     0.20],
+    ['support-mem',     C_SUPP,    7,  'support',  'idle',     0.12],
+    ['cicd',            C_SENIOR,  8,  'senior',   'work',     0.35],
+    ['rn-mobile-1',     C_PRIN,    8,  'principal','idle',     0.15],
+    // faint artifact/file nodes
+    ['SwarmHero.tsx',   C_FILE,    5,  'file',     'idle',     0],
+    ['system-design',   C_REF,     5,  'doc',      'idle',     0],
+    ['adr-004.md',      C_REF,     5,  'doc',      'idle',     0],
+  ];
+
+  /* ── edges: [fromIdx, toIdx, weight 0-1 for P2-2] ───────────────────── */
+  /* Chatty pairs (high weight): ceo↔architect, ceo↔senior-web-1, architect↔code-reviewer */
+  var EDGES = [
+    [0, 1, 0.88],   // ceo — architect       (very chatty)
+    [0, 3, 0.82],   // ceo — senior-web-1    (chatty)
+    [1, 2, 0.75],   // architect — code-reviewer (chatty)
+    [0, 4, 0.40],   // ceo — senior-backend-1
+    [1, 3, 0.35],   // architect — senior-web-1
+    [2, 3, 0.28],   // code-reviewer — senior-web-1
+    [3, 4, 0.22],   // senior-web-1 — senior-backend-1
+    [0, 5, 0.18],   // ceo — senior-qa
+    [0, 6, 0.15],   // ceo — principal-ux
+    [4, 8, 0.30],   // senior-backend-1 — cicd
+    [0, 9, 0.12],   // ceo — rn-mobile-1
+    [3, 10, 0.10],  // senior-web-1 — SwarmHero.tsx
+    [1, 11, 0.08],  // architect — system-design
+    [1, 12, 0.07],  // architect — adr-004.md
+    [7, 0, 0.14],   // support-mem — ceo
+  ];
+
+  /* ── main canvas setup ───────────────────────────────────────────────── */
+  var cv  = document.getElementById('fx');
+  var ctx = cv.getContext('2d');
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W, H;
+
+  function sizeMain() {
+    W = cv.clientWidth || window.innerWidth;
+    H = cv.clientHeight || window.innerHeight;
+    cv.width  = W * DPR;
+    cv.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  sizeMain();
+  window.addEventListener('resize', function () { sizeMain(); positionBadges(); });
+
+  /* ── build nodes ─────────────────────────────────────────────────────── */
+  /* The graph area is bounded away from the inspect panel (right 340px) and
+     the mini-dock area (bottom-right). We spread nodes across the available
+     canvas space — roughly left 60% of the screen. */
+  var availW = function() { return Math.max(200, W - 380); };
+
+  var nodes = DEFS.map(function (d, i) {
+    return {
+      id:   d[0],
+      col:  d[1],
+      r:    d[2],
+      tier: d[3],
+      st:   d[4],
+      cvol: d[5],
+      x:    60 + rnd() * (availW() - 80),
+      y:    80 + rnd() * (H - 140),
+      vx:   (rnd() - 0.5) * 0.5,
+      vy:   (rnd() - 0.5) * 0.5,
+    };
+  });
+
+  /* ── animation state ─────────────────────────────────────────────────── */
+  var t    = 0;
+  var raf  = 0;
+
+  /* ── packets ─────────────────────────────────────────────────────────── */
+  var packets = [];
+  var lastSpawn = 0;
+
+  function spawnPacket() {
+    var e = EDGES[(rnd() * EDGES.length) | 0];
+    // chatty edges emit packets more often (weight already baked in spawn selection)
+    var a = nodes[e[0]], b = nodes[e[1]];
+    packets.push({
+      a: a, b: b,
+      p: 0,
+      sp: 0.008 + rnd() * 0.016,
+      col: rnd() < 0.5 ? a.col : b.col,
+      vol: e[2],
+    });
+  }
+
+  /* ── CEO waves ───────────────────────────────────────────────────────── */
+  var waves = [];
+  var lastWave = 0;
+
+  /* ── nebula particles ────────────────────────────────────────────────── */
+  var parts = [];
+  for (var pi = 0; pi < 60; pi++) {
+    parts.push({
+      x:  rnd() * W, y: rnd() * H,
+      vx: (rnd() - 0.5) * 0.15,
+      vy: (rnd() - 0.5) * 0.15,
+      r:  0.5 + rnd() * 1.5,
+      a:  0.04 + rnd() * 0.14,
+    });
+  }
+
+  /* ── draw edge with P2-2 weighting ──────────────────────────────────── */
+  /* weight → stroke width: 0.08→0.6px, 0.88→4.5px
+     weight → brightness: low=faint 0.08 alpha, high=bright 0.50 alpha */
+  function edgeWidth(w)  { return 0.4 + w * 4.6; }
+  function edgeAlpha(w)  { return 0.07 + w * 0.44; }
+
+  /* ── main draw loop ──────────────────────────────────────────────────── */
+  function frame() {
+    t += 0.016;
+
+    /* physics — same force model as SwarmHero.tsx */
+    var aW = availW();
+    for (var i = 0; i < nodes.length; i++) {
+      var a = nodes[i];
+      a.vx *= 0.86; a.vy *= 0.86;
+      for (var j = i + 1; j < nodes.length; j++) {
+        var b = nodes[j];
+        var dx = a.x - b.x, dy = a.y - b.y;
+        var d2 = dx * dx + dy * dy + 0.01;
+        var d  = Math.sqrt(d2);
+        var f  = 3800 / d2;
+        var fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx; a.vy += fy;
+        b.vx -= fx; b.vy -= fy;
+      }
+      /* weak center gravity so graph fills the available area */
+      a.vx += (aW / 2 - a.x) * 0.00038;
+      a.vy += (H / 2 - a.y) * 0.00038;
+      /* gentle roam */
+      a.vx += Math.sin(t * 0.55 + i * 0.8) * 0.022;
+      a.vy += Math.cos(t * 0.48 + i * 1.2) * 0.022;
+    }
+    for (var k = 0; k < EDGES.length; k++) {
+      var ea = nodes[EDGES[k][0]], eb = nodes[EDGES[k][1]];
+      var dx2 = eb.x - ea.x, dy2 = eb.y - ea.y;
+      var len = Math.hypot(dx2, dy2) + 0.01;
+      var ef  = (len - 110) * 0.005;
+      ea.vx += (dx2 / len) * ef; ea.vy += (dy2 / len) * ef;
+      eb.vx -= (dx2 / len) * ef; eb.vy -= (dy2 / len) * ef;
+    }
+    for (var i = 0; i < nodes.length; i++) {
+      var a = nodes[i];
+      a.x += Math.max(-3.2, Math.min(3.2, a.vx));
+      a.y += Math.max(-3.2, Math.min(3.2, a.vy));
+      if (a.x < 24)        { a.x = 24;    a.vx =  Math.abs(a.vx); }
+      if (a.x > aW - 24)   { a.x = aW - 24; a.vx = -Math.abs(a.vx); }
+      if (a.y < 58)        { a.y = 58;    a.vy =  Math.abs(a.vy); }
+      if (a.y > H - 36)    { a.y = H - 36; a.vy = -Math.abs(a.vy); }
+    }
+
+    /* ── paint ── */
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    /* nebula */
+    for (var q = 0; q < parts.length; q++) {
+      var p = parts[q];
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x += W; if (p.x > W) p.x -= W;
+      if (p.y < 0) p.y += H; if (p.y > H) p.y -= H;
+      ctx.globalAlpha = p.a;
+      ctx.fillStyle = '#5aa9c9';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    /* ── P2-2: edges with varying width + brightness ── */
+    for (var k = 0; k < EDGES.length; k++) {
+      var ei   = EDGES[k];
+      var ea   = nodes[ei[0]], eb = nodes[ei[1]];
+      var w    = ei[2];
+      var flicker = 0.5 + 0.5 * Math.sin(t * 1.4 + k);
+      var alpha   = edgeAlpha(w) * (0.75 + 0.25 * flicker);
+      var lw      = edgeWidth(w);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = LINK_COL;
+      ctx.lineWidth   = lw;
+      ctx.shadowBlur  = w > 0.6 ? lw * 3 : 0;
+      ctx.shadowColor = '#8b6cf6';
+      ctx.beginPath();
+      ctx.moveTo(ea.x, ea.y);
+      ctx.lineTo(eb.x, eb.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth   = 1;
+
+    /* CEO command-waves */
+    if (t - lastWave > 3.4) { lastWave = t; waves.push({ r0: t }); }
+    for (var wi = waves.length - 1; wi >= 0; wi--) {
+      var rr = (t - waves[wi].r0) * 120;
+      var al = 0.5 * (1 - rr / 480);
+      if (al <= 0) { waves.splice(wi, 1); continue; }
+      ctx.globalAlpha = al;
+      ctx.strokeStyle = C_CEO;
+      ctx.lineWidth   = 1.2;
+      ctx.shadowBlur  = 8;
+      ctx.shadowColor = C_CEO;
+      ctx.beginPath();
+      ctx.arc(nodes[0].x, nodes[0].y, rr, 0, 6.2832);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth   = 1;
+
+    /* spawn packets — weighted by comms volume */
+    if (t - lastSpawn > 0.6 + rnd() * 0.4) {
+      lastSpawn = t;
+      /* bias toward chatty edges: pick with probability proportional to weight */
+      var totalW = 0;
+      for (var k = 0; k < EDGES.length; k++) totalW += EDGES[k][2] + 0.05;
+      var pick = rnd() * totalW;
+      var cumW = 0;
+      for (var k = 0; k < EDGES.length; k++) {
+        cumW += EDGES[k][2] + 0.05;
+        if (pick <= cumW) { spawnPacket(k); break; }
+      }
+    }
+    /* advance + draw packets */
+    for (var i = packets.length - 1; i >= 0; i--) {
+      var pk = packets[i];
+      pk.p += pk.sp;
+      if (pk.p >= 1) { packets.splice(i, 1); continue; }
+      var px = pk.a.x + (pk.b.x - pk.a.x) * pk.p;
+      var py = pk.a.y + (pk.b.y - pk.a.y) * pk.p;
+      /* chatty packets are bigger and brighter */
+      var pr   = 3.5 + pk.vol * 3.5;
+      var palp = 0.35 + pk.vol * 0.55;
+      ctx.globalAlpha = palp * 0.6;
+      ctx.fillStyle   = pk.col;
+      ctx.shadowBlur  = pr * 2;
+      ctx.shadowColor = pk.col;
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, 6.2832); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = palp;
+      ctx.beginPath(); ctx.arc(px, py, pr * 0.5, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    /* nodes */
+    for (var i = 0; i < nodes.length; i++) {
+      var a = nodes[i];
+      var isBlocked = (a.st === 'blocked');
+      var isIdle    = (a.st === 'idle');
+      var pulse     = (a.st === 'work') ? (1 + 0.16 * Math.sin(t * 2.8 + a.x * 0.01)) : 1;
+      var dim       = isIdle ? 0.45 : 1;
+
+      /* blocked ring */
+      if (isBlocked) {
+        ctx.globalAlpha  = 0.9;
+        ctx.strokeStyle  = '#e24b4a';
+        ctx.lineWidth    = 2.2;
+        ctx.shadowBlur   = 0;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r * pulse + 6, 0, 6.2832);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      /* node fill + glow */
+      ctx.globalAlpha = dim;
+      ctx.shadowBlur  = a.tier === 'file' || a.tier === 'doc' ? 0 : a.r * 2.2;
+      ctx.shadowColor = a.col;
+      ctx.fillStyle   = a.col;
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r * pulse, 0, 6.2832);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      /* specular */
+      ctx.globalAlpha = dim * 0.8;
+      ctx.fillStyle   = 'rgba(255,255,255,0.80)';
+      ctx.beginPath();
+      ctx.arc(a.x - a.r * 0.3, a.y - a.r * 0.3, a.r * 0.22, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth   = 1;
+
+    /* labels */
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle  = LABEL_COL;
+    ctx.font       = '11px ui-monospace, Menlo, monospace';
+    ctx.textAlign  = 'left';
+    for (var i = 0; i < nodes.length; i++) {
+      var a = nodes[i];
+      var labelAlpha = (a.st === 'idle') ? 0.45 : 0.85;
+      ctx.globalAlpha = labelAlpha;
+      ctx.fillText(a.id, a.x + a.r + 5, a.y + 4);
+    }
+    ctx.globalAlpha = 1;
+
+    /* draw mini-canvas copy */
+    drawMini();
+
+    if (!reduce) raf = requestAnimationFrame(frame);
+  }
+
+  /* ── mini canvas (P2-3 dock) ─────────────────────────────────────────── */
+  var mCV  = document.getElementById('mini-canvas');
+  var mCtx = mCV.getContext('2d');
+  var mDPR = Math.min(window.devicePixelRatio || 1, 2);
+  var MW   = 168, MH = 100;
+
+  (function sizeMini() {
+    mCV.width  = MW * mDPR;
+    mCV.height = MH * mDPR;
+    mCtx.setTransform(mDPR, 0, 0, mDPR, 0, 0);
+  })();
+
+  function drawMini() {
+    mCtx.fillStyle = BG;
+    mCtx.fillRect(0, 0, MW, MH);
+
+    /* find bounding box of main nodes (excluding artfacts) to fit them in mini */
+    var agentNodes = nodes.slice(0, 10);
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < agentNodes.length; i++) {
+      if (agentNodes[i].x < minX) minX = agentNodes[i].x;
+      if (agentNodes[i].y < minY) minY = agentNodes[i].y;
+      if (agentNodes[i].x > maxX) maxX = agentNodes[i].x;
+      if (agentNodes[i].y > maxY) maxY = agentNodes[i].y;
+    }
+    var pad = 14;
+    var rangeX = (maxX - minX) || 1, rangeY = (maxY - minY) || 1;
+    var scX = (MW - pad * 2) / rangeX, scY = (MH - pad * 2) / rangeY;
+    var sc  = Math.min(scX, scY, 0.18); /* cap scale so it looks map-like */
+    var offX = pad + (MW - pad * 2 - rangeX * sc) / 2 - minX * sc;
+    var offY = pad + (MH - pad * 2 - rangeY * sc) / 2 - minY * sc;
+
+    mCtx.globalCompositeOperation = 'lighter';
+
+    /* edges (thin, faint) */
+    for (var k = 0; k < EDGES.length; k++) {
+      var ei = EDGES[k];
+      if (ei[0] >= agentNodes.length || ei[1] >= agentNodes.length) continue;
+      var ea = agentNodes[ei[0]], eb = agentNodes[ei[1]];
+      var w  = ei[2];
+      mCtx.globalAlpha = 0.06 + w * 0.25;
+      mCtx.strokeStyle = LINK_COL;
+      mCtx.lineWidth   = 0.4 + w * 1.2;
+      mCtx.beginPath();
+      mCtx.moveTo(ea.x * sc + offX, ea.y * sc + offY);
+      mCtx.lineTo(eb.x * sc + offX, eb.y * sc + offY);
+      mCtx.stroke();
+    }
+    mCtx.globalAlpha = 1;
+
+    /* nodes */
+    for (var i = 0; i < agentNodes.length; i++) {
+      var a  = agentNodes[i];
+      var mr = Math.max(1.5, a.r * sc * 1.8);
+      mCtx.globalAlpha = (a.st === 'idle') ? 0.4 : 0.9;
+      mCtx.shadowBlur  = mr * 1.8;
+      mCtx.shadowColor = a.col;
+      mCtx.fillStyle   = a.col;
+      mCtx.beginPath();
+      mCtx.arc(a.x * sc + offX, a.y * sc + offY, mr, 0, 6.2832);
+      mCtx.fill();
+      mCtx.shadowBlur = 0;
+    }
+    mCtx.globalAlpha = 1;
+    mCtx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ── badge + connector positioning ──────────────────────────────────── */
+  function positionBadges() {
+    var b1 = document.getElementById('badge-p2-1');
+    var b2 = document.getElementById('badge-p2-2');
+    var b3 = document.getElementById('badge-p2-3');
+
+    /* P2-1 badge: top of inspect panel */
+    b1.style.top  = '22px';
+    b1.style.right = '348px';
+    b1.style.left  = 'auto';
+
+    /* P2-2 badge: mid-left area (near the graph thick edges) */
+    var p2x = Math.round(W * 0.28);
+    b2.style.top  = Math.round(H * 0.18) + 'px';
+    b2.style.left = p2x + 'px';
+
+    /* P2-3 badge: just above the mini-dock */
+    b3.style.bottom = '140px';
+    b3.style.right  = '358px';
+    b3.style.left   = 'auto';
+
+    /* update SVG connectors */
+    setTimeout(updateConnectors, 40);
+  }
+
+  function updateConnectors() {
+    var b1  = document.getElementById('badge-p2-1');
+    var b2  = document.getElementById('badge-p2-2');
+    var b3  = document.getElementById('badge-p2-3');
+    var pan = document.getElementById('panel');
+    var dok = document.getElementById('mini-dock');
+
+    /* P2-1: badge → top of panel */
+    var r1 = b1.getBoundingClientRect();
+    var rp = pan.getBoundingClientRect();
+    var x1s = r1.right - 10, y1s = r1.top + r1.height / 2;
+    var x1e = rp.left + 1,  y1e = rp.top + 30;
+    document.getElementById('conn-p2-1').setAttribute('d',
+      'M' + x1s + ',' + y1s + ' C' + (x1s + 30) + ',' + y1s + ' ' + (x1e - 30) + ',' + y1e + ' ' + x1e + ',' + y1e);
+
+    /* P2-2: badge → a point in the graph area (thick-edge zone, approximate) */
+    var r2  = b2.getBoundingClientRect();
+    var x2s = r2.right, y2s = r2.top + r2.height / 2;
+    /* aim at a point where chatty CEO-architect edge typically runs */
+    var x2e = Math.round(W * 0.42), y2e = Math.round(H * 0.38);
+    document.getElementById('conn-p2-2').setAttribute('d',
+      'M' + x2s + ',' + y2s + ' C' + (x2s + 60) + ',' + y2s + ' ' + x2e + ',' + (y2e - 40) + ' ' + x2e + ',' + y2e);
+
+    /* P2-3: badge → mini-dock top */
+    var r3  = b3.getBoundingClientRect();
+    var rd  = dok.getBoundingClientRect();
+    var x3s = r3.right, y3s = r3.top + r3.height / 2;
+    var x3e = rd.left + rd.width / 2, y3e = rd.top;
+    document.getElementById('conn-p2-3').setAttribute('d',
+      'M' + x3s + ',' + y3s + ' C' + (x3s + 20) + ',' + y3s + ' ' + x3e + ',' + (y3e - 30) + ' ' + x3e + ',' + y3e);
+  }
+
+  /* ── bootstrap ───────────────────────────────────────────────────────── */
+  positionBadges();
+
+  /* First frame fill */
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+
+  if (reduce) {
+    /* static: run enough ticks to settle the physics, then draw once */
+    for (var si = 0; si < 200; si++) frame();
+  } else {
+    frame();
+  }
+
+  /* re-seat connectors after fonts/layout have painted */
+  window.addEventListener('load', function () {
+    positionBadges();
+  });
+
+})();
+</script>
+</body>
+</html>
