@@ -3,9 +3,9 @@
 // ESM modules (runtime-supervisor.js, preflight.js) are imported via dynamic await import().
 "use strict";
 
-const { app, BrowserWindow, ipcMain, session, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, session, screen, dialog } = require("electron");
 const { join } = require("node:path");
-const { readFileSync } = require("node:fs");
+const { readFileSync, existsSync, mkdirSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { spawn } = require("node:child_process");
 const { promisify } = require("node:util");
@@ -76,7 +76,32 @@ resolveLoginPath();
 // Module-level state
 // ---------------------------------------------------------------------------
 let supervisor = null;
+let supervisorFactory = null;
 let win = null;
+
+// Project folder — persisted across restarts in <userData>/missionalpha/repo-root.txt.
+// RUNTIME_REPO_ROOT env override (dev) takes precedence.
+let repoRoot = process.env.RUNTIME_REPO_ROOT || null;
+let repoRootFile = null; // initialised in boot() once userData is available
+
+function buildSupervisorEnv() {
+  return {
+    ...process.env,
+    RUNTIME_PORT: String(RUNTIME_PORT),
+    RUNTIME_TOKEN_DIR,
+    RUNTIME_BACKEND: process.env.RUNTIME_BACKEND || "cli",
+    WAAHYU_STATE_PATH: process.env.WAAHYU_STATE_PATH || join(app.getPath("userData"), "agent-status", "state.json"),
+    ...(repoRoot ? { RUNTIME_REPO_ROOT: repoRoot } : {}),
+  };
+}
+
+async function restartSupervisor() {
+  if (supervisor) { try { supervisor.stop(); } catch { /* ignore */ } }
+  // Brief pause so the OS reclaims the port before the new child binds it.
+  await new Promise((r) => setTimeout(r, 600));
+  supervisor = supervisorFactory({ spawn, fetch: globalThis.fetch, serverPath: SERVER_PATH, port: RUNTIME_PORT, env: buildSupervisorEnv() });
+  await supervisor.start();
+}
 
 // ---------------------------------------------------------------------------
 // IPC: runtime token reader (only reads the single .runtime-token file)
@@ -86,6 +111,43 @@ ipcMain.handle("ma:get-runtime-token", () => {
     return readFileSync(TOKEN_FILE, "utf8").trim();
   } catch {
     return "";
+  }
+});
+
+// ---------------------------------------------------------------------------
+// IPC: project folder picker + RUNTIME_REPO_ROOT hot-swap
+// ---------------------------------------------------------------------------
+ipcMain.handle("ma:pick-folder", async () => {
+  if (!win) return null;
+  const result = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    title: "Select Project Folder",
+    buttonLabel: "Select Folder",
+  });
+  return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+});
+
+ipcMain.handle("ma:get-repo-root", () => repoRoot);
+
+ipcMain.handle("ma:set-repo-root", async (_event, folderPath) => {
+  if (!folderPath || !existsSync(folderPath)) {
+    return { ok: false, error: "Path does not exist" };
+  }
+  repoRoot = folderPath;
+  // Persist for next launch.
+  try {
+    if (repoRootFile) {
+      mkdirSync(join(app.getPath("userData"), "missionalpha"), { recursive: true });
+      writeFileSync(repoRootFile, folderPath, "utf8");
+    }
+  } catch { /* non-fatal */ }
+  // Restart runtime with new RUNTIME_REPO_ROOT.
+  if (!supervisorFactory) return { ok: true }; // boot not done yet; env picked up on start
+  try {
+    await restartSupervisor();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 
@@ -121,26 +183,27 @@ async function boot() {
   const { createSupervisor } = await import("./runtime-supervisor.js");
   const { preflight } = await import("./preflight.js");
 
+  // Store factory so hot-swap (ma:set-repo-root) can create a new supervisor.
+  supervisorFactory = createSupervisor;
+
+  // Initialise persistent repo-root path now that userData is available.
+  repoRootFile = join(app.getPath("userData"), "missionalpha", "repo-root.txt");
+  // Load persisted folder (env override already wins via module-level init).
+  if (!repoRoot) {
+    try { repoRoot = readFileSync(repoRootFile, "utf8").trim() || null; } catch { /* not set */ }
+  }
+
   // Run host dependency preflight (claude / docker / auth).
   const pf = await preflight({ exec, env: process.env });
 
   // Build supervisor with injected real spawn + global fetch.
+  // buildSupervisorEnv() injects RUNTIME_REPO_ROOT when repoRoot is set.
   supervisor = createSupervisor({
     spawn,
     fetch: globalThis.fetch,
     serverPath: SERVER_PATH,
     port: RUNTIME_PORT,
-    env: {
-      ...process.env,
-      RUNTIME_PORT: String(RUNTIME_PORT),
-      RUNTIME_TOKEN_DIR,
-      RUNTIME_BACKEND: process.env.RUNTIME_BACKEND || "cli",
-      // F4.1 — state file for the cockpit feeds.
-      // Tier-1 (dev-machine): operator sets WAAHYU_STATE_PATH (points at real swarm output)
-      // or drops a state.json in <userData>/agent-status.
-      // Absent → runtime returns 503 → cockpit shows "connecting to swarm…" gracefully (correct, no crash).
-      WAAHYU_STATE_PATH: process.env.WAAHYU_STATE_PATH || join(app.getPath("userData"), "agent-status", "state.json"),
-    },
+    env: buildSupervisorEnv(),
   });
 
   // Only start the runtime supervisor when preflight passes.

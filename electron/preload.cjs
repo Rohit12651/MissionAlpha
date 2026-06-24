@@ -17,4 +17,9 @@ contextBridge.exposeInMainWorld("missionAlpha", {
     ipcRenderer.on("ma:preflight", handler);
     return () => ipcRenderer.removeListener("ma:preflight", handler);
   },
+  // Project folder — lets the renderer open a native folder-picker dialog and
+  // hot-swap RUNTIME_REPO_ROOT without restarting the whole Electron process.
+  pickFolder: () => ipcRenderer.invoke("ma:pick-folder"),
+  getRepoRoot: () => ipcRenderer.invoke("ma:get-repo-root"),
+  setRepoRoot: (path) => ipcRenderer.invoke("ma:set-repo-root", path),
 });

@@ -18,6 +18,10 @@ interface MABridge {
   runtimeBase: string;
   getRuntimeToken: () => Promise<string>;
   onPreflight: (cb: (result: PreflightResult) => void) => void;
+  // Project folder hot-swap (added with the project-picker feature).
+  pickFolder?: () => Promise<string | null>;
+  getRepoRoot?: () => Promise<string | null>;
+  setRepoRoot?: (path: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 // Augment the global so consumers read a typed (optional) bridge — never crashes
