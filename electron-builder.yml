@@ -1,0 +1,35 @@
+appId: com.missionalpha.app
+productName: MissionAlpha
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+extraResources:
+  - from: agent-runtime
+    to: agent-runtime
+    filter:
+      - "**/*"
+      - "!**/threads/**"
+      - "!**/engine-store/**"
+      - "!**/test/**"
+      - "!**/sandboxes/**"
+      - "!**/worktrees/**"
+  - from: .claude/agents
+    to: .claude/agents
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+  identity: null
+
+win:
+  target:
+    - nsis
+
+asar: true

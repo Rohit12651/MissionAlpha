@@ -10,6 +10,7 @@ import { loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
 import { loadAgentModel } from "../../lib/agentModel";
 import { filterSkills, KIND_LABEL, type MissionSkill } from "../../lib/missionSkills";
 import { runtimeToken } from "../../lib/runtimeToken";
+import { runtimeUrl } from "../../lib/runtimeBase";
 import type { CommandRequest, CommandResult, CommandType } from "../../data/types";
 
 export interface Msg {
@@ -19,8 +20,8 @@ export interface Msg {
 
 // ADR-049 — client-side attachment caps (mirror agent-runtime/uploads.mjs; server
 // re-validates). Instant feedback only — never the security boundary.
-const ATTACH_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.csv,.txt,.md,image/*";
-const ATTACH_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".txt", ".md"]);
+const ATTACH_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.csv,.txt,.md,.xlsx,image/*";
+const ATTACH_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".txt", ".md", ".xlsx"]);
 const ATTACH_MAX_FILES = 8;
 const ATTACH_MAX_BYTES = 25 * 1024 * 1024;
 const extLower = (n: string) => { const i = n.lastIndexOf("."); return i < 0 ? "" : n.slice(i).toLowerCase(); };
@@ -28,6 +29,7 @@ function attachKind(n: string): "image" | "pdf" | "text" {
   const e = extLower(n);
   if (e === ".pdf") return "pdf";
   if ([".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(e)) return "image";
+  // .xlsx is converted to CSV server-side; treat as text for icon/chip purposes
   return "text";
 }
 const fmtBytes = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`);
@@ -136,6 +138,9 @@ export function ChatPane({
     el.style.height = "auto"; // reset so scrollHeight reflects content, not prior height
     el.style.height = Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, Math.max(composerH, el.scrollHeight))) + "px";
   }, [input, composerH]);
+  // Holds the teardown for an in-flight composer drag so an unmount mid-drag can
+  // remove the window listeners and restore document.body.style.userSelect.
+  const composerDragCleanupRef = useRef<(() => void) | null>(null);
   const startComposerResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const startY = e.clientY, startH = composerH;
@@ -145,10 +150,14 @@ export function ChatPane({
       document.body.style.userSelect = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      composerDragCleanupRef.current = null;
     };
+    composerDragCleanupRef.current = onUp;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, [composerH]);
+  // On unmount, tear down any drag still in progress (listeners + userSelect).
+  useEffect(() => () => { composerDragCleanupRef.current?.(); }, []);
 
   // Boss dispatch bridge state.
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
@@ -241,7 +250,7 @@ export function ChatPane({
   const fetchChanges = useCallback(async () => {
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(threadId)}/changes`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/changes`), {
         cache: "no-store",
         headers: { "x-runtime-token": token },
       });
@@ -257,7 +266,7 @@ export function ChatPane({
     setGateApply(false);
     try {
       const token = await runtimeToken();
-      const res = await fetch(`/runtime/${encodeURIComponent(threadId)}/apply`, {
+      const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/apply`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-runtime-token": token },
         body: JSON.stringify({ paths: changes.map((c) => c.path) }),
@@ -284,7 +293,7 @@ export function ChatPane({
     setStreaming(true);
     try {
       // multipart when files are attached (ADR-049); plain JSON otherwise (back-compat).
-      const url = `/runtime/${encodeURIComponent(threadId)}/chat`;
+      const url = runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/chat`);
       const res = files.length
         ? await fetch(url, {
             method: "POST",
@@ -374,7 +383,7 @@ export function ChatPane({
     const taskDirs = dirs.filter((d) => d.type === "task");
     void Promise.all(
       taskDirs.map((d) =>
-        fetch(`/runtime/${encodeURIComponent(d.target)}/run`, {
+        fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
           body: JSON.stringify({ task: d.body || "see CEO directive", model: loadAgentModel(d.target) }),
@@ -391,28 +400,34 @@ export function ChatPane({
   return (
     <section role="main" aria-label="Conversation" className="grid h-full min-h-0 grid-rows-[auto_1fr_auto]" style={{ backgroundColor: tok("panel") }}>
       {/* sticky header */}
-      <header className="flex items-center gap-3 border-b px-5 py-3" style={{ borderColor: tok("border") }}>
+      {/* Header — controls (usage · quota · model) sit top-right when the panel is
+          wide and wrap to a second line UNDER the title when it's narrow. Pure
+          flex-wrap, no JS: title is flex-1 (basis 160), the controls group is a
+          single shrink-0 unit that drops below once it can't fit beside the title. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-3" style={{ borderColor: tok("border") }}>
         <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: accentColor }} aria-hidden />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-[160px]">
           <div className="truncate text-[15px] font-semibold" style={{ color: tok("text") }}>{title}</div>
           <div className="truncate font-mono text-[10px] uppercase tracking-wide" style={{ color: tok("muted") }}>{subtitle}</div>
         </div>
-        {mode && (
-          <span
-            className="rounded font-mono text-[9px] uppercase tracking-wide"
-            style={{
-              padding: "2px 6px",
-              color: mode === "mock" ? tok("blocked-amber") : tok("done-green"),
-              backgroundColor: `color-mix(in oklch, ${mode === "mock" ? tok("blocked-amber") : tok("done-green")} 12%, transparent)`,
-            }}
-          >
-            {mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}
-          </span>
-        )}
-        <UsageMeter usage={usage} />
-        <QuotaChip />
-        <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
-        {headerExtra}
+        <div className="flex shrink-0 items-center gap-2">
+          {mode && (
+            <span
+              className="rounded font-mono text-[9px] uppercase tracking-wide"
+              style={{
+                padding: "2px 6px",
+                color: mode === "mock" ? tok("blocked-amber") : tok("done-green"),
+                backgroundColor: `color-mix(in oklch, ${mode === "mock" ? tok("blocked-amber") : tok("done-green")} 12%, transparent)`,
+              }}
+            >
+              {mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}
+            </span>
+          )}
+          <UsageMeter usage={usage} />
+          <QuotaChip />
+          <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
+          {headerExtra}
+        </div>
       </header>
 
       {/* thread (sole scroll owner) */}
@@ -660,7 +675,7 @@ export function ChatPane({
             placeholder={isBoss ? "Message your CEO…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
             disabled={streaming}
             aria-label={isBoss ? "Message the CEO" : `Message ${threadId}`}
-            className="w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
+            className="min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
             style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
           <button

@@ -83,6 +83,7 @@ Invoke before work:
 - Risk register
 - Rollback plan
 - Status update in `agent-status/ARCHITECT.md`
+- **Stack manifest** → `docs/plans/<feature>-stack-manifest.json` — emitted whenever the feature requires a language, framework, or DB not owned by any installed builtin agent. Shape: `{"needs":{"langs":[...],"frameworks":[...],"dbs":[...]}}`. CEO uses this via `POST /runtime/factory/detect-gaps` to surface capability gaps to USER before impl starts. Emit for every feature that touches an out-of-scope stack; omit only if all needs are fully covered by builtins.
 
 ## Gates (BLOCKING)
 - **ceo state = `STRATEGY_APPROVED_BY_USER` for this initiative — else BLOCK.**

@@ -49,9 +49,14 @@ const sha256 = (s) => createHash("sha256").update(String(s)).digest("hex");
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(__dir, "..");
-const AGENTS_DIR = join(REPO_ROOT, ".claude", "agents");
-const FACTORY_DIR = join(REPO_ROOT, "factory");
-const REGISTRY_FILE = join(FACTORY_DIR, "registry.json");
+// Repo-bound write targets (the persona .md files and the TRACKED factory/registry.json)
+// honor env overrides so a test run can isolate to a tmpdir and never pollute the repo.
+// Resolved LAZILY (per call) so an in-process test that sets the env in a before() hook —
+// which runs AFTER this module is imported — still redirects every write. Precedence:
+//   FACTORY_REGISTRY_FILE (exact file) > RUNTIME_FACTORY_DIR/registry.json > repo default.
+const agentsDir = () => process.env.RUNTIME_AGENTS_DIR || join(REPO_ROOT, ".claude", "agents");
+const factoryDir = () => process.env.RUNTIME_FACTORY_DIR || join(REPO_ROOT, "factory");
+const registryFile = () => process.env.FACTORY_REGISTRY_FILE || join(factoryDir(), "registry.json");
 // Runtime, NOT committed: encrypted creds + posting audit live OUTSIDE the repo (tmp)
 // so no agent read-scope (cwd=REPO_ROOT in read mode) can reach them.
 const RUNTIME_DIR = process.env.RUNTIME_TOKEN_DIR || join(tmpdir(), "missionalpha-runtime");
@@ -64,6 +69,9 @@ const COMPOSIO_KEY = process.env.COMPOSIO_API_KEY || "";
 
 // ── Skill catalog (CLOSED set — a spec may only reference these) ──────────────
 // `posting:true` skills are the only ones that unlock an integration platform.
+// `dev:true` skills are sandbox code-execution skills for factory dev-agents.
+//   They grant {Read,Write,Run} inside the Docker jail ONLY — no MCP, no posting,
+//   no SEED_DIRS/CONFIG_GUARD changes. They require an allowlisted `redirect`.
 export const SKILL_CATALOG = [
   { id: "content-writing", label: "Content Writing", desc: "Draft sharp copy, posts, threads, captions.", tools: ["Read"], platforms: [], posting: false },
   { id: "social-post-twitter", label: "Post to X / Twitter", desc: "Publish an approved post to a connected X account.", tools: ["Run"], platforms: ["twitter"], posting: true },
@@ -72,7 +80,30 @@ export const SKILL_CATALOG = [
   { id: "repo-edit", label: "Edit in Sandbox", desc: "Propose file edits in an isolated sandbox (operator-applied).", tools: ["Read", "Write"], platforms: [], posting: false },
   { id: "research-brief", label: "Research Brief", desc: "Synthesize a topic into a structured brief.", tools: ["Read"], platforms: [], posting: false },
   { id: "data-summary", label: "Data Summary", desc: "Summarize structured data into insights.", tools: ["Read"], platforms: [], posting: false },
+  // G4: dev skills — sandbox code execution inside the Docker jail only. No MCP, no posting.
+  {
+    id: "code-implement-go", label: "Implement in Go", dev: true,
+    desc: "Write and test Go code inside the sandbox worktree (exec approval-forced, no host paths).",
+    tools: ["Read", "Write", "Run"], platforms: [], posting: false,
+    redirect: "golang-pro",
+    stack: { langs: ["go"], frameworks: [], dbs: [] },
+  },
+  {
+    id: "code-implement-angular", label: "Implement in Angular", dev: true,
+    desc: "Write and test Angular/TypeScript components inside the sandbox worktree (exec approval-forced).",
+    tools: ["Read", "Write", "Run"], platforms: [], posting: false,
+    redirect: "angular-architect",
+    stack: { langs: ["typescript"], frameworks: ["angular"], dbs: [] },
+  },
 ];
+
+// G6: allowlist of specialist agent IDs that a dev skill's `redirect` may name.
+// Keeps the redirect field from becoming an injection/abuse vector.
+export const SPECIALIST_ALLOWLIST = new Set([
+  "golang-pro", "angular-architect", "node-specialist", "python-pro",
+  "react-specialist", "nextjs-developer", "typescript-pro", "java-architect",
+  "spring-boot-engineer", "rust-engineer", "kotlin-specialist", "swift-expert",
+]);
 const SKILL_IDS = new Set(SKILL_CATALOG.map((s) => s.id));
 export const PLATFORMS = [
   { id: "twitter", label: "X / Twitter", maxChars: 280, dailyCap: 25 },
@@ -100,7 +131,7 @@ const ok = (res, obj, code = 200) => {
   res.end(JSON.stringify(obj));
 };
 function ensureDirs() {
-  for (const d of [AGENTS_DIR, FACTORY_DIR, RUNTIME_DIR]) mkdirSync(d, { recursive: true });
+  for (const d of [agentsDir(), factoryDir(), dirname(registryFile()), RUNTIME_DIR]) mkdirSync(d, { recursive: true });
 }
 
 // ── REGISTRY ──────────────────────────────────────────────────────────────────
@@ -109,7 +140,7 @@ const registry = new Map();
 export function loadRegistry() {
   registry.clear();
   try {
-    const arr = JSON.parse(readFileSync(REGISTRY_FILE, "utf-8"));
+    const arr = JSON.parse(readFileSync(registryFile(), "utf-8"));
     if (Array.isArray(arr)) for (const a of arr) if (a?.id) registry.set(a.id, a);
   } catch {
     /* none yet */
@@ -118,12 +149,20 @@ export function loadRegistry() {
 }
 function saveRegistry() {
   ensureDirs();
-  writeFileSync(REGISTRY_FILE, JSON.stringify([...registry.values()], null, 2), "utf-8");
+  writeFileSync(registryFile(), JSON.stringify([...registry.values()], null, 2), "utf-8");
 }
 /** Persona system-prompt for a created agent, or null if not a created agent. */
 export function createdPersona(id) {
   const spec = registry.get(id);
   return spec ? spec.persona : null;
+}
+/** G3: true if `id` is a factory-minted (created) agent — used by tool-broker tier logic. */
+export function isFactoryAgent(id) {
+  return registry.has(String(id || ""));
+}
+/** G5: full spec for a factory agent (for tool derivation at the spawn frame), or null. */
+export function specForAgent(id) {
+  return registry.get(String(id || "")) || null;
 }
 export function listAgents() {
   return [...registry.values()].map((s) => ({ ...s, persona: undefined, personaPreview: s.persona.slice(0, 240) }));
@@ -144,7 +183,7 @@ function writePersonaFile(spec) {
     `**Skills:** ${spec.skills.join(", ") || "—"}\n` +
     `**Integrations:** ${spec.integrations.join(", ") || "—"}\n\n` +
     `## Persona\n\n${spec.persona}\n`;
-  writeFileSync(join(AGENTS_DIR, `${spec.id}.md`), md, "utf-8");
+  writeFileSync(join(agentsDir(), `${spec.id}.md`), md, "utf-8");
 }
 
 // ── SPEC VALIDATION (the security choke point for agent creation) ─────────────
@@ -168,6 +207,15 @@ export function validateSpec(raw) {
   const skills = Array.isArray(raw.skills) ? [...new Set(raw.skills.map(String))] : [];
   for (const s of skills) if (!SKILL_IDS.has(s)) return { error: `unknown skill: ${s}` };
 
+  // G6: dev skills require an allowlisted redirect — ensures the minted agent delegates
+  // to a vetted specialist and prevents redirect from becoming a free-text injection vector.
+  const hasDevSkill = skills.some((s) => SKILL_CATALOG.find((c) => c.id === s)?.dev);
+  if (hasDevSkill) {
+    const redirect = String(raw.redirect || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!redirect) return { error: "dev skill requires a redirect to an allowlisted specialist (redirect field missing)" };
+    if (!SPECIALIST_ALLOWLIST.has(redirect)) return { error: `redirect "${redirect}" not in SPECIALIST_ALLOWLIST — use one of: ${[...SPECIALIST_ALLOWLIST].join(", ")}` };
+  }
+
   let tools = Array.isArray(raw.tools) ? [...new Set(raw.tools.map(String))] : [];
   for (const t of tools) if (!ALLOWED_TOOLS.has(t)) return { error: `tool not allowed: ${t} (only Read|Write|Run)` };
   // Derive required tools from chosen skills (a posting skill needs Run, etc.).
@@ -182,9 +230,15 @@ export function validateSpec(raw) {
   for (const s of skills) for (const p of SKILL_CATALOG.find((c) => c.id === s)?.platforms ?? []) allowedPlatforms.add(p);
   for (const p of integrations) if (!allowedPlatforms.has(p)) return { error: `integration ${p} needs a matching posting skill` };
 
+  // Preserve redirect only when a dev skill is present (clean + allowlist already checked above).
+  const redirect = hasDevSkill
+    ? String(raw.redirect || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "")
+    : undefined;
+
   return {
     spec: {
       id, role, title, persona, skills, tools, integrations,
+      ...(redirect ? { redirect } : {}),
       createdBy: "BOSS", // forced — never trust client
       createdAt: raw.createdAt && /^\d{4}-\d{2}-\d{2}T/.test(String(raw.createdAt)) ? raw.createdAt : null,
     },

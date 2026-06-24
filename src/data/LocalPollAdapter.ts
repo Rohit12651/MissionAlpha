@@ -8,12 +8,16 @@ import type {
   SessionSummary,
   SessionDetail,
 } from "./types";
+// F4.1 — route the 5 cockpit feeds through runtimeUrl() so that:
+//   • dev (vite):     runtimeUrl → "" prefix → relative URL → vite middleware
+//   • packaged (Electron): runtimeUrl → "http://127.0.0.1:3005" → agent-runtime
+import { runtimeUrl } from "../lib/runtimeBase";
 
-const STATE_URL = "/api/state.json";
-const COMMAND_URL = "/api/command";
-const AUDIT_URL = "/api/audit";
-const STATUS_URL = "/api/commands/status";
-const SESSIONS_URL = "/api/sessions";
+const STATE_URL = runtimeUrl("/api/state.json");
+const COMMAND_URL = runtimeUrl("/api/command");
+const AUDIT_URL = runtimeUrl("/api/audit");
+const STATUS_URL = runtimeUrl("/api/commands/status");
+const SESSIONS_URL = runtimeUrl("/api/sessions");
 const POLL_MS = 2000;
 
 /**

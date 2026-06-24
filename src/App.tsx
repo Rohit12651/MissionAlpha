@@ -1,24 +1,30 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { Settings as SettingsIcon, Command, ScrollText, Wrench, History, Users, LayoutDashboard, MessageSquare, PanelRightOpen } from "lucide-react";
+import { Users, LayoutDashboard, MessageSquare, PanelRightOpen, GripVertical, Maximize2, X } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import type { Counts } from "./data/types";
-import type { Msg } from "./components/workspace/ChatPane";
+import { ChatPane, type Msg } from "./components/workspace/ChatPane";
 import { AgentRoster } from "./components/cockpit/AgentRoster";
 import { RightPanel } from "./components/cockpit/RightPanel";
 import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDrawer";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ViewToggle, type BoardView } from "./components/ViewToggle";
 import { PulseGlobe } from "./components/PulseGlobe";
-import { ThemeToggle } from "./components/ThemeToggle";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
+import { SkillPalette } from "./components/skills/SkillPalette";
+import { MISSION_SKILLS, type MissionSkill } from "./lib/missionSkills";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
+import { TitleBar } from "./components/shell/TitleBar";
+import { StatusStrip } from "./components/shell/StatusStrip";
+import { PreflightGate } from "./components/PreflightGate";
+import { SwarmHero } from "./components/hero/SwarmHero";
 import type { PaletteCommand } from "./lib/paletteCommands";
 import { MODEL_TIERS, saveTier } from "./lib/modelTiers";
 import { runtimeToken } from "./lib/runtimeToken";
-import { tok } from "./lib/agentMeta";
+import { runtimeUrl, type PreflightResult } from "./lib/runtimeBase";
+import { clampDockPos } from "./lib/swarmGraph";
+import { tok, TIER_ACCENT, TIER_LABEL } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 
 // Mission-control shell (ADR-048 rev2): clean 3-zone cockpit — agent roster (left,
@@ -34,42 +40,6 @@ function migrateOffLegacyShell() {
       localStorage.removeItem(k);
     }
   } catch { /* ignore */ }
-}
-
-const COUNT_PILLS: ReadonlyArray<{ key: keyof Counts; label: string; tone: string }> = [
-  { key: "active", label: "active", tone: "done-green" },
-  { key: "blocked", label: "blocked", tone: "blocked-amber" },
-  { key: "stale", label: "stale", tone: "stale-red" },
-  { key: "offline", label: "offline", tone: "muted" },
-];
-
-function CountPills({ counts }: { counts: Counts }) {
-  return (
-    <span className="hidden items-center gap-1.5 sm:flex" role="status" aria-live="polite"
-      aria-label={`${counts.active} active, ${counts.blocked} blocked, ${counts.stale} stale, ${counts.offline} offline of ${counts.total} agents`}>
-      {COUNT_PILLS.map((p) => {
-        const c = tok(p.tone);
-        return (
-          <span key={p.key} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] tabular-nums"
-            style={{ color: c, backgroundColor: `color-mix(in oklch, ${c} 12%, transparent)`, border: `1px solid color-mix(in oklch, ${c} 26%, transparent)` }}>
-            <motion.span key={counts[p.key]} initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="font-semibold">{counts[p.key]}</motion.span>
-            <span className="opacity-80">{p.label}</span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-function NavButton({ label, onClick, icon: Icon, active }: { label: string; onClick: () => void; icon: typeof ScrollText; active?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} title={label}
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] outline-none transition-colors focus-visible:ring-2"
-      style={{ color: active ? tok("text") : tok("muted"), backgroundColor: active ? tok("panel-2") : "transparent" }}>
-      <Icon size={16} aria-hidden />
-      <span className="hidden md:inline">{label}</span>
-    </button>
-  );
 }
 
 function LoadingShell() {
@@ -88,6 +58,14 @@ type MobilePane = "agents" | "board" | "chat";
 export default function App() {
   const { state, error, sendCommand, getAudit, getCommandStatus, listSessions } = useAgentState();
 
+  // Host-dependency preflight pushed from the electron bridge (claude/docker/auth).
+  // Undefined in dev/vite (bridge absent) → gate + status strip degrade gracefully.
+  // Optional-chained so it NEVER crashes when window.missionAlpha is missing.
+  const [preflight, setPreflight] = useState<PreflightResult | undefined>(undefined);
+  useEffect(() => {
+    window.missionAlpha?.onPreflight?.((result) => setPreflight(result));
+  }, []);
+
   // Boss command thread (the ONE chat).
   const [bossMsgs, setBossMsgs] = useState<Msg[]>([]);
   const setMessages = useCallback((updater: (prev: Msg[]) => Msg[]) => setBossMsgs((prev) => updater(prev)), []);
@@ -97,13 +75,89 @@ export default function App() {
     (async () => {
       try {
         const token = await runtimeToken();
-        const res = await fetch(`/runtime/${BOSS_ID}/thread`, { cache: "no-store", headers: { "x-runtime-token": token } });
+        const res = await fetch(runtimeUrl(`/runtime/${BOSS_ID}/thread`), { cache: "no-store", headers: { "x-runtime-token": token } });
         const msgs = res.ok ? (((await res.json()) as { messages?: Msg[] }).messages ?? []) : [];
         if (!cancelled) setBossMsgs(msgs);
       } catch { /* empty */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // SwarmHero inline panel: which agent is open + a lazy per-agent message store (reuses ChatPane;
+  // no second chat engine). Each opened agent's history is fetched on demand, same path as the Boss.
+  const [heroAgentId, setHeroAgentId] = useState<string | null>(null);
+  // P2-3 movable/dismissible mini dock: persisted position + dismissed flag.
+  const DOCK_W = 240, DOCK_H = 190;
+  const [dockDismissed, setDockDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem("ma.dockDismissed") === "1"; } catch { return false; }
+  });
+  const [dockPos, setDockPos] = useState<{ x: number; y: number }>(() => {
+    try { const s = localStorage.getItem("ma.dockPos"); if (s) return JSON.parse(s) as { x: number; y: number }; } catch { /* ignore */ }
+    const vpH = typeof window !== "undefined" ? window.innerHeight : 900;
+    return { x: 16, y: vpH - DOCK_H - 80 };
+  });
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  useEffect(() => { try { localStorage.setItem("ma.dockPos", JSON.stringify(dockPos)); } catch { /* ignore */ } }, [dockPos]);
+  useEffect(() => { try { localStorage.setItem("ma.dockDismissed", dockDismissed ? "1" : "0"); } catch { /* ignore */ } }, [dockDismissed]);
+  const onDockDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    dragRef.current = { dx: e.clientX - dockPos.x, dy: e.clientY - dockPos.y };
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return;
+      setDockPos(clampDockPos(ev.clientX - dragRef.current.dx, ev.clientY - dragRef.current.dy, DOCK_W, DOCK_H, window.innerWidth, window.innerHeight, 8));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = ""; document.body.style.cursor = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    document.body.style.userSelect = "none"; document.body.style.cursor = "grabbing";
+  }, [dockPos.x, dockPos.y]);
+  const [agentMsgs, setAgentMsgs] = useState<Record<string, Msg[]>>({});
+  const setAgentMessages = useCallback(
+    (id: string) => (updater: (prev: Msg[]) => Msg[]) =>
+      setAgentMsgs((m) => ({ ...m, [id]: updater(m[id] ?? []) })),
+    [],
+  );
+  useEffect(() => {
+    if (!heroAgentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await runtimeToken();
+        const res = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(heroAgentId)}/thread`), {
+          cache: "no-store", headers: { "x-runtime-token": token },
+        });
+        const msgs = res.ok ? (((await res.json()) as { messages?: Msg[] }).messages ?? []) : [];
+        if (!cancelled) setAgentMsgs((m) => ({ ...m, [heroAgentId]: msgs }));
+      } catch { /* empty */ }
+    })();
+    return () => { cancelled = true; };
+  }, [heroAgentId]);
+
+  // The hero panel's chat slot: the EXISTING ChatPane for an agent thread (isBoss=false). All
+  // send/apply still routes through sendCommand + the ChatPane permission gates — no new path.
+  const renderHeroChat = useCallback(
+    (id: string) => {
+      const a = state?.agents.find((x) => x.id === id);
+      return (
+        <ChatPane
+          threadId={id}
+          title={id}
+          subtitle={a ? `${a.role} · ${TIER_LABEL[a.tier]}` : id}
+          accent={a ? TIER_ACCENT[a.tier] : "accent-cyan"}
+          isBoss={false}
+          messages={agentMsgs[id] ?? []}
+          setMessages={setAgentMessages(id)}
+          onCommand={sendCommand}
+        />
+      );
+    },
+    [state?.agents, agentMsgs, setAgentMessages, sendCommand],
+  );
 
   // Board + replay.
   const [kanbanMode, setKanbanMode] = useState<BoardView>("state");
@@ -137,10 +191,12 @@ export default function App() {
   // Overlays.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [heroOpen, setHeroOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasOnboarded());
   const [utilOpen, setUtilOpen] = useState(false);
   const [utilTab, setUtilTab] = useState<UtilityTab>("audit");
   const [prefill, setPrefill] = useState<{ text: string; nonce: number }>({ text: "", nonce: 0 });
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [tierReloadKey, setTierReloadKey] = useState(0);
 
   // Resizable + collapsible chat dock (desktop only; mobile keeps the pane tabs).
@@ -161,6 +217,9 @@ export default function App() {
   }, []);
   useEffect(() => { try { localStorage.setItem("ma.chat.w", String(chatW)); } catch { /* ignore */ } }, [chatW]);
   useEffect(() => { try { localStorage.setItem("ma.chat.collapsed", chatCollapsed ? "1" : "0"); } catch { /* ignore */ } }, [chatCollapsed]);
+  // Holds the teardown for an in-flight chat-divider drag so an unmount mid-drag
+  // can remove the window listeners and restore document.body.style.userSelect.
+  const chatDragCleanupRef = useRef<(() => void) | null>(null);
   const startChatResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     draggingRef.current = true;
@@ -175,16 +234,28 @@ export default function App() {
       document.body.style.userSelect = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      chatDragCleanupRef.current = null;
     };
+    chatDragCleanupRef.current = onUp;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }, []);
+  // On unmount, tear down any drag still in progress (listeners + userSelect).
+  useEffect(() => () => { chatDragCleanupRef.current?.(); }, []);
 
   const openUtil = useCallback((t: UtilityTab) => { setUtilTab(t); setUtilOpen(true); }, []);
 
+  const skillsOpenRef = useRef(skillsOpen);
+  useEffect(() => { skillsOpenRef.current = skillsOpen; }, [skillsOpen]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setPaletteOpen((o) => !o); }
+      // "/" opens the Skills palette — only when not typing into a field.
+      else if (e.key === "/" && !skillsOpenRef.current) {
+        const t = e.target as HTMLElement | null;
+        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+        if (!typing) { e.preventDefault(); setSkillsOpen(true); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -192,6 +263,12 @@ export default function App() {
 
   const dispatchGoal = useCallback((text: string) => {
     setPrefill((p) => ({ text, nonce: p.nonce + 1 }));
+    setMobilePane("chat");
+  }, []);
+
+  // Pick a skill from the palette → drop its prompt into the composer (existing gated prefill flow).
+  const pickSkillIntoComposer = useCallback((s: MissionSkill) => {
+    setPrefill((p) => ({ text: s.prompt, nonce: p.nonce + 1 }));
     setMobilePane("chat");
   }, []);
 
@@ -203,6 +280,7 @@ export default function App() {
       { id: "open-replay", title: "Open Replay", group: "View", keywords: "time scrubber history", run: () => openUtil("replay") },
       { id: "open-settings", title: "Open Settings", group: "Settings", keywords: "theme accent tier policy", run: () => setSettingsOpen(true) },
       { id: "open-tour", title: "Replay onboarding tour", group: "Settings", keywords: "help welcome guide", run: () => setOnboardingOpen(true) },
+      { id: "open-skills", title: "Skills palette", group: "Open", hint: "/", keywords: "skill catalog library prompt", run: () => setSkillsOpen(true) },
     ];
     for (const t of MODEL_TIERS) {
       cmds.push({ id: `model-${t.key}`, title: `Switch model: ${t.label}`, group: "Model", hint: t.hint, keywords: `tier ${t.hint}`,
@@ -227,26 +305,21 @@ export default function App() {
         </div>
       )}
 
-      {/* top bar */}
-      <header className="relative z-10 flex items-center gap-3 border-b border-border px-4 py-2.5">
-        <span className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: tok(needYou ? "blocked-amber" : "done-green"), boxShadow: `0 0 8px 1px ${tok(needYou ? "blocked-amber" : "done-green")}` }} aria-hidden />
-          <span className="text-sm font-semibold tracking-tight">MissionAlpha</span>
-        </span>
-        {counts && <span className="hidden text-[12px] text-muted lg:inline">{reassurance}</span>}
-        {counts && <span className="ml-1"><CountPills counts={counts} /></span>}
+      {/* frameless title bar — drags the window + houses the topbar content */}
+      <TitleBar
+        counts={counts}
+        reassurance={reassurance}
+        needYou={needYou}
+        activeUtil={utilOpen ? utilTab : null}
+        onOpenUtil={openUtil}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHero={() => setHeroOpen(true)}
+        onOpenSkills={() => setSkillsOpen(true)}
+      />
 
-        <div className="ml-auto flex items-center gap-1">
-          <NavButton label="Audit" icon={ScrollText} onClick={() => openUtil("audit")} active={utilOpen && utilTab === "audit"} />
-          <NavButton label="Tools" icon={Wrench} onClick={() => openUtil("tools")} active={utilOpen && utilTab === "tools"} />
-          <NavButton label="Replay" icon={History} onClick={() => openUtil("replay")} active={utilOpen && utilTab === "replay"} />
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <button type="button" onClick={() => setPaletteOpen(true)} aria-label="Command palette (⌘K)" title="Command palette (⌘K)" className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2" style={{ color: tok("muted") }}><Command size={18} aria-hidden /></button>
-          <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings" className="rounded-md p-1.5 outline-none transition-colors focus-visible:ring-2" style={{ color: tok("muted") }}><SettingsIcon size={18} aria-hidden /></button>
-          <ThemeToggle />
-        </div>
-      </header>
-
+      {/* preflight gate — blocking setup screen / docker banner / cockpit */}
+      <PreflightGate preflight={preflight}>
       {/* mobile pane toggle */}
       <div className="relative z-10 flex gap-1 border-b border-border px-3 py-1.5 lg:hidden" role="tablist" aria-label="Pane">
         {([["agents", "Agents", Users], ["board", "Board", LayoutDashboard], ["chat", "Chat", MessageSquare]] as const).map(([id, label, Icon]) => (
@@ -331,6 +404,10 @@ export default function App() {
           </div>
         )}
       </div>
+      </PreflightGate>
+
+      {/* bottom status strip — runtime up? · Docker? · quota */}
+      <StatusStrip preflight={preflight} />
 
       {/* overlays */}
       {state && (
@@ -345,7 +422,54 @@ export default function App() {
           feedForReplay={state.feed}
         />
       )}
+      {state && (
+        <SwarmHero
+          open={heroOpen}
+          agents={state.agents}
+          feed={state.feed}
+          onClose={() => { setHeroOpen(false); setHeroAgentId(null); setDockDismissed(false); }}
+          openAgentId={heroAgentId}
+          onSelectAgent={setHeroAgentId}
+          renderChat={renderHeroChat}
+          onCommand={sendCommand}
+        />
+      )}
+      {/* P2-3: movable + dismissible mini live-ops dock (when the full hero is closed). */}
+      {state && !heroOpen && !dockDismissed && (
+        <div
+          className="fixed z-30 hidden flex-col overflow-hidden rounded-xl border shadow-xl lg:flex"
+          style={{ left: dockPos.x, top: dockPos.y, width: DOCK_W, height: DOCK_H, backgroundColor: "#0a0b14", borderColor: "rgba(255,255,255,0.18)" }}
+          role="group" aria-label="Live ops dock"
+        >
+          <div onPointerDown={onDockDragStart} className="flex items-center gap-1.5 border-b px-2 py-1.5"
+            style={{ borderColor: "rgba(255,255,255,0.08)", cursor: "grab", touchAction: "none" }}>
+            <GripVertical size={13} aria-hidden style={{ color: "#6b7280" }} />
+            <span className="flex-1 select-none text-[10px]" style={{ color: "#9aa0ad" }}>live ops</span>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => setHeroOpen(true)}
+              aria-label="Expand to full swarm view" title="Expand"
+              className="rounded p-1 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2" style={{ color: "#9aa0ad" }}>
+              <Maximize2 size={13} aria-hidden />
+            </button>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => setDockDismissed(true)}
+              aria-label="Close live ops dock" title="Close"
+              className="rounded p-1 outline-none transition-colors hover:bg-white/10 focus-visible:ring-2" style={{ color: "#d39a9a" }}>
+              <X size={14} aria-hidden />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <SwarmHero
+              variant="dock"
+              open
+              agents={state.agents}
+              feed={state.feed}
+              onClose={() => {}}
+              onSelectAgent={(id) => { if (id) { setHeroAgentId(id); setHeroOpen(true); } }}
+            />
+          </div>
+        </div>
+      )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
+      <SkillPalette open={skillsOpen} onClose={() => setSkillsOpen(false)} skills={MISSION_SKILLS} onPick={pickSkillIntoComposer} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />
     </div>

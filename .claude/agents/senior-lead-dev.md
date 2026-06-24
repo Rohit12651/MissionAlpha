@@ -64,6 +64,11 @@ DO NOT: write architect plans, write UI components solo (delegate to UX), write 
 1. `/caveman full`, prime via `learn-codebase` + `mem-search`
 2. Verify architect status = `READY_FOR_LEAD`. If not → BLOCK, return.
 3. Decompose plan into atomic tasks. Tag each task: `[UX]` / `[BE1]` / `[BE2]` / `[QA]`.
+   For an OUT-OF-SCOPE stack (no built-in owner), resolve the owner via
+   `POST /runtime/factory/resolve {needs:{langs,frameworks,dbs}}` (ADR-050 Phase 4):
+   `assignments` name the owning agent (built-in or minted) — tag the task `[<agentId>]`;
+   any `unresolved` item is a real gap → escalate to CEO for the USER-gated mint flow
+   before dispatching that slice.
 4. Create worktrees per parallel track (`sp-using-git-worktrees`)
 5. Dispatch tasks → write to `agent-status/<AGENT>.md` task queue
 6. Monitor sibling status files. Resolve cross-agent blockers.

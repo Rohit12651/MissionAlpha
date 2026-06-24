@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<title>SwarmHero — functional live-ops reference (boss-approved 2026-06-22)</title>
+<style>body{margin:0;background:#06070c;font-family:Lato,system-ui,sans-serif}</style>
+</head><body>
+<!-- Boss-approved reference for P0-4 (PRD 2026-06-22-swarm-hero-functional.md):
+     dark force-graph + hover tooltip (left) + INLINE real-time inspect+chat panel (right).
+     Panel embeds the existing ChatPane in the real build; this is the static layout reference. -->
+<div style="position:relative; width:1900px; max-width:100%; height:980px; background:#0a0b14; overflow:hidden; font-family:'Lato',system-ui,sans-serif;">
+  <canvas id="fx" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+
+  <div style="position:absolute; top:30px; left:40px; pointer-events:none;">
+    <div style="color:#f3f5f8; font-size:34px; font-weight:500;">MissionAlpha</div>
+    <div style="color:#8a8f9c; font-size:15px; margin-top:4px;">live ops · click an agent to inspect + chat</div>
+  </div>
+
+  <!-- hover tooltip (left) -->
+  <div style="position:absolute; left:610px; top:330px; width:360px; background:#15171dF2; border:0.5px solid #3a3f4d; border-radius:10px; padding:16px 18px; pointer-events:none;">
+    <div style="display:flex; align-items:center; gap:10px;"><span style="width:12px;height:12px;border-radius:50%;background:#22d3ee"></span><span style="color:#eef0f4; font-size:19px; font-weight:500; font-family:ui-monospace,monospace">senior-web-1</span></div>
+    <div style="color:#8a8f9c; font-size:14px; margin-top:5px;">Web Dev · senior</div>
+    <div style="margin-top:10px;"><span style="background:#22d3ee22;color:#22d3ee;font-size:13px;padding:3px 10px;border-radius:5px">IN PROGRESS</span></div>
+    <div style="color:#c8ccd6; font-size:14px; margin-top:10px;">task: build SplitForm.tsx + tip math</div>
+    <div style="color:#6b7280; font-size:12px; margin-top:8px;">click → open chat + inspect ↗</div>
+  </div>
+
+  <!-- inline inspect+chat panel (right) -->
+  <div style="position:absolute; right:0; top:0; bottom:0; width:430px; background:#0e1018F2; border-left:0.5px solid #232733; padding:22px;">
+    <div style="display:flex; align-items:center; gap:12px; border-bottom:0.5px solid #232733; padding-bottom:16px;">
+      <span style="width:40px;height:40px;border-radius:50%;background:#22d3ee22;color:#22d3ee;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:ui-monospace,monospace">SW</span>
+      <div><div style="color:#eef0f4;font-size:20px;font-weight:500;font-family:ui-monospace,monospace">senior-web-1</div><div style="color:#8a8f9c;font-size:14px">Web Dev · senior · <span style="color:#22d3ee">in progress</span></div></div>
+    </div>
+    <div style="color:#8a8f9c;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:18px 0 10px">recent comms <span style="color:#5dcaa5;text-transform:none;letter-spacing:0">· live</span></div>
+    <div style="display:flex;flex-direction:column;gap:9px;font-size:14px;font-family:ui-monospace,monospace">
+      <div style="color:#c8ccd6">→ ceo · status · "SplitForm scaffolded"</div>
+      <div style="color:#c8ccd6">← senior-qa · review-req · "await build"</div>
+      <div style="color:#c8ccd6">→ boss · file · "src/SplitForm.tsx"</div>
+    </div>
+    <div style="margin-top:22px; background:#15171d; border:0.5px solid #2b2f3a; border-radius:10px; padding:12px; color:#8a8f9c; font-size:15px">Message senior-web-1… <span style="float:right;color:#5dcaa5">➤</span></div>
+    <div style="color:#6b7280;font-size:12px;margin-top:12px">embeds the existing cockpit ChatPane — no new chat code</div>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('fx'),ctx=cv.getContext('2d'),DPR=Math.min(window.devicePixelRatio||1,2);
+  var W,H;function size(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}size();window.addEventListener('resize',size);
+  var defs=[['ceo','#f5b234',20,'work'],['architect','#8b6cf6',12,'work'],['senior-web-1','#22d3ee',13,'sel'],['senior-qa','#f5b234',10,'block'],['senior-backend-1','#22d3ee',10,'work'],['principal-ux','#8b6cf6',10,'idle'],['memory','#8a8f9c',8,'idle'],['cicd','#22d3ee',9,'work'],['rn-mobile-1','#8b6cf6',10,'idle']];
+  var seed=9;function R(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;}
+  var n=defs.map(function(d){return{id:d[0],c:d[1],r:d[2],st:d[3],x:80+R()*(W-560),y:90+R()*(H-180),vx:(R()-0.5)*0.6,vy:(R()-0.5)*0.6};});
+  var E=[[0,1],[0,2],[0,4],[1,2],[2,3],[2,4],[0,5],[4,7],[1,8]];
+  var pk=[],t=0,lp=0;
+  function frame(){
+    t+=0.016;
+    for(var i=0;i<n.length;i++){var a=n[i];a.x+=a.vx;a.y+=a.vy;if(a.x<60||a.x>W-480){a.vx*=-1;}if(a.y<80||a.y>H-40){a.vy*=-1;}a.x=Math.max(60,Math.min(W-480,a.x));a.y=Math.max(80,Math.min(H-40,a.y));}
+    ctx.fillStyle='#0a0b14';ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation='lighter';
+    for(var k=0;k<E.length;k++){var a=n[E[k][0]],b=n[E[k][1]];ctx.globalAlpha=0.14;ctx.strokeStyle='#8b6cf6';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    ctx.globalAlpha=1;
+    if(t-lp>0.5){lp=t;var e=E[(R()*E.length)|0];pk.push({a:n[e[0]],b:n[e[1]],p:0});}
+    for(var i=pk.length-1;i>=0;i--){var p=pk[i];p.p+=0.02;if(p.p>=1){pk.splice(i,1);continue;}var x=p.a.x+(p.b.x-p.a.x)*p.p,y=p.a.y+(p.b.y-p.a.y)*p.p;ctx.globalAlpha=0.5;ctx.fillStyle='#9ad';ctx.beginPath();ctx.arc(x,y,7,0,6.28);ctx.fill();ctx.globalAlpha=1;ctx.beginPath();ctx.arc(x,y,3,0,6.28);ctx.fill();}
+    ctx.globalAlpha=1;
+    for(var i=0;i<n.length;i++){var a=n[i];
+      if(a.st==='block'){ctx.globalAlpha=1;ctx.strokeStyle='#e24b4a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(a.x,a.y,a.r+7,0,6.28);ctx.stroke();}
+      var pulse=a.st==='work'?(1+0.18*Math.sin(t*3+a.x)):1;var dim=a.st==='idle'?0.5:1;
+      ctx.globalAlpha=dim;ctx.shadowBlur=a.r*2;ctx.shadowColor=a.c;ctx.fillStyle=a.c;ctx.beginPath();ctx.arc(a.x,a.y,a.r*pulse,0,6.28);ctx.fill();ctx.shadowBlur=0;
+      if(a.st==='sel'){ctx.globalAlpha=1;ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(a.x,a.y,a.r+6,0,6.28);ctx.stroke();}
+      ctx.globalAlpha=1;ctx.fillStyle='rgba(255,255,255,0.8)';ctx.beginPath();ctx.arc(a.x-a.r*0.3,a.y-a.r*0.3,a.r*0.22,0,6.28);ctx.fill();}
+    ctx.globalCompositeOperation='source-over';ctx.fillStyle='rgba(210,214,228,0.85)';ctx.font='14px ui-monospace,Menlo,monospace';ctx.textAlign='left';for(var i=0;i<n.length;i++)ctx.fillText(n[i].id,n[i].x+n[i].r+6,n[i].y+4);
+    requestAnimationFrame(frame);
+  }
+  ctx.fillStyle='#0a0b14';ctx.fillRect(0,0,W,H);requestAnimationFrame(frame);
+})();
+</script>
+</body></html>

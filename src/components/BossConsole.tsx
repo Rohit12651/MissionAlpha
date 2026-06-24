@@ -4,6 +4,7 @@ import { Crown, Send, Loader2, X, Bot, User, AlertTriangle, Zap, Check } from "l
 import { tok } from "../lib/agentMeta";
 import { PermissionGate } from "./PermissionGate";
 import type { CommandRequest, CommandResult, CommandType } from "../data/types";
+import { runtimeToken, runtimeUrl } from "../lib/runtimeBase";
 
 // A single CEO-proposed dispatch directive parsed from a ```dispatch``` block.
 interface Directive {
@@ -12,18 +13,6 @@ interface Directive {
   body: string;
 }
 const VALID_VERBS = new Set<CommandType>(["task", "ack", "respawn"]);
-
-// Cached runtime auth token (same-origin via vite) for /run calls.
-let tokenPromise: Promise<string> | null = null;
-function runtimeToken(): Promise<string> {
-  if (!tokenPromise) {
-    tokenPromise = fetch("/api/runtime-token", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { token: "" }))
-      .then((j) => (j as { token?: string }).token ?? "")
-      .catch(() => "");
-  }
-  return tokenPromise;
-}
 
 // Pull the ```dispatch``` block out of a CEO reply. Returns the prose (block
 // stripped) + the parsed directives. Lines: "<verb> <agent-id> <rest...>".
@@ -98,7 +87,7 @@ export function BossConsole({
     setMsgs((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
     setStreaming(true);
     try {
-      const res = await fetch("/runtime/boss/chat", {
+      const res = await fetch(runtimeUrl("/runtime/boss/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -176,7 +165,7 @@ export function BossConsole({
     const taskDirs = dirs.filter((d) => d.type === "task");
     void Promise.all(
       taskDirs.map((d) =>
-        fetch(`/runtime/${encodeURIComponent(d.target)}/run`, {
+        fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
           body: JSON.stringify({ task: d.body || "see CEO directive" }),
