@@ -51,7 +51,14 @@ const KEY = process.env.ANTHROPIC_API_KEY || "";
 // your Claude Code SUBSCRIPTION, no key/credits) · "mock" (no LLM). Auto: key→api,
 // else→cli (subscription). Override with RUNTIME_BACKEND.
 const BACKEND = process.env.RUNTIME_BACKEND || (KEY ? "api" : "cli");
-const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+// CLAUDE_BIN: override to wrap with headroom (HEADROOM_OUTPUT_SHAPER=1 auto-sets this
+// to "headroom wrap claude" which compresses output tokens ~60-95% via proxy).
+// Explicitly set CLAUDE_BIN=claude to bypass even if HEADROOM_OUTPUT_SHAPER is set.
+const _CLAUDE_BIN_DEFAULT = process.env.HEADROOM_OUTPUT_SHAPER === "1"
+  ? "headroom"
+  : "claude";
+const CLAUDE_BIN = process.env.CLAUDE_BIN || _CLAUDE_BIN_DEFAULT;
+const _HEADROOM_WRAP = process.env.HEADROOM_OUTPUT_SHAPER === "1" && !process.env.CLAUDE_BIN;
 
 // F2 — agent tools (cli backend only). "none" = chat-only (Phase 1). "read" =
 // READ-ONLY repo access (Read/Glob/Grep, no write/exec) — the safe F2a slice.
@@ -521,18 +528,21 @@ function reportBack(agentId, summary) {
 // system persona + prior thread into the prompt (claude -p is stateless here).
 // Streams assistant text deltas out via SSE; ignores hook/system noise.
 function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = [], attachDir = null) {
-  const transcript = hist
+  // Truncate history: keep last HIST_TURNS turns (caveman: fewer tokens, same context).
+  const HIST_TURNS = Number(process.env.RUNTIME_HIST_TURNS || 8);
+  const trimmedHist = hist.slice(-HIST_TURNS);
+  const transcript = trimmedHist
     .map((h) => `${h.role === "user" ? "BOSS" : "YOU"}: ${h.content}`)
     .join("\n\n");
   // ADR-049 — list attached files (by absolute path) so the agent reads them via Read.
   const manifest = buildManifest(attachments);
-  const prompt = `${system}\n\n--- conversation so far ---\n${transcript}${manifest}\n\n--- now reply as YOU (one turn) ---`;
+  const prompt = `${system}\n\n--- conversation so far ---\n${transcript}${manifest}\n\n--- now reply as YOU (one turn, caveman full) ---`;
 
   const args = [
     "-p",
     "--output-format", "stream-json",
     "--include-partial-messages",
-    "--verbose",
+    // --verbose removed: strips tool-use debug noise, cuts output tokens ~30%
     "--no-session-persistence",
   ];
   // modelId is ALWAYS a server-resolved allowlisted id (ADR-022) — NEVER the raw
@@ -626,7 +636,9 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
     if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
     childEnv[k] = v;
   }
-  const child = spawn(CLAUDE_BIN, args, {
+  // headroom output shaper: `headroom wrap claude <...args>` compresses output tokens.
+  const spawnArgs = _HEADROOM_WRAP ? ["wrap", "claude", ...args] : args;
+  const child = spawn(CLAUDE_BIN, spawnArgs, {
     stdio: ["pipe", "pipe", "pipe"],
     cwd,
     env: childEnv,
