@@ -8,7 +8,9 @@
 > this header: the earlier version over-claimed execution-readiness.)
 
 **Goal:** Raise swarm build throughput, give the CEO live web research, make the target repo
-configurable, and ship MissionAlpha as a Docker-Desktop-styled Electron app (Lato).
+configurable, and ship MissionAlpha as an Electron desktop app styled to match the **dark cockpit
+mockup** (`docs/mockups/missionalpha-cockpit.html` — dark OKLCH, cyan/gold/violet/amber/green accents,
+5-col kanban, globe backdrop, Chat|Feed panel).
 
 **Architecture:** agent-runtime (Node ESM, spawns `claude` CLI + Docker jail) stays the
 backend; the React/Vite cockpit stays the UI. F1/F2/F5 are surgical runtime edits. F4 wraps
@@ -42,7 +44,7 @@ specialists on top:
 |---|---|---|---|
 | **F1** scale ceiling | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `performance-engineer` (concurrency design), `node-specialist` (impl), `security-reviewer` (fork-bomb/quota) | tune `MAX_INFLIGHT` default + dynamic backoff without breaking the safety throttle |
 | **F2** CEO web | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `claude-code-guide` (confirm `claude -p` WebSearch/WebFetch flags), `node-specialist` (impl), `security-reviewer` (egress) | grant web tools to boss/CEO only, outside the TOOLS=none gate |
-| **F4** desktop | `sp-writing-plans` → **design chain:** `hallmark study <Docker-Desktop ref>` (extract its design DNA) → `impeccable` (`craft` → `critique` → `polish` → `typeset` Lato → `colorize` Docker blue) → `frontend-design` → `emil-design-eng` (title-bar/status-strip motion + interactions) → `kw-design-design-system` + `kw-design-accessibility-review` → `sp-test-driven-development` (supervisor units) → `webapp-testing` (visual verify) → `sp-verification-before-completion` | **`principal-ux-design`** (MissionAlpha's OWN design authority — OWNS the Docker-Desktop shell, Lato tokens in `src/index.css`, the rail/title-bar/status-strip system; every other frontend agent consumes its contract), `ui-designer` (visual + component library), `a11y-architect` (WCAG 2.2 for the desktop shell), `electron-pro` (main/preload/supervisor/packaging), `ui-ux-tester` (interaction QA), `security-reviewer` (Electron hardening: contextIsolation/CSP/token bridge) | wrap cockpit+runtime in Electron with a real Docker-Desktop-grade UI/UX, not a default shell |
+| **F4** desktop | `sp-writing-plans` → **design chain:** `hallmark study docs/mockups/missionalpha-cockpit.html` (extract dark-cockpit DNA FIRST) → `impeccable` (`craft` → `colorize` OKLCH dark → `typeset` → `critique` → `polish`) → `frontend-design` → `emil-design-eng` (topbar/kanban/panel motion + interactions) → `kw-design-design-system` + `kw-design-accessibility-review` → `sp-test-driven-development` (supervisor units) → `webapp-testing` (visual verify) → `sp-verification-before-completion` | **`principal-ux-design`** (MissionAlpha's OWN design authority — OWNS the dark OKLCH palette + tokens in `src/index.css`, topbar/roster/kanban/chat-feed layout; every other frontend agent consumes its contract), `ui-designer` (visual + component library), `a11y-architect` (WCAG 2.2 dark contrast), `electron-pro` (main/preload/supervisor/packaging), `ui-ux-tester` (interaction QA), `security-reviewer` (Electron hardening: contextIsolation/CSP/token bridge) | wrap cockpit+runtime in Electron matching the dark cockpit mockup exactly — NOT a default shell or Docker-Desktop light |
 | **F5** configurable target repo | `sp-writing-plans` → `sp-test-driven-development` → `sp-verification-before-completion` | `architect` (root/scope generalization design), `node-specialist` (impl), `security-reviewer` (containment + apply-boundary for an arbitrary root) | let the swarm operate on ANY repo, not just MissionAlpha itself |
 
 Rule: **never free-code a phase** — fire `sp-writing-plans` first to expand it into RED/GREEN
@@ -96,10 +98,11 @@ boss/CEO thread ONLY.
 
 ---
 
-## F4 — Desktop app (Electron, Docker-Desktop look, Lato)  (~1–1.5 day)
+## F4 — Desktop app (Electron, dark cockpit mockup)  (~1–1.5 day)
 
 **Goal:** One double-click app. Native window, no terminals. Bundles the Vite cockpit +
-auto-spawns the agent-runtime child. Restyled to look like **Docker Desktop**, **Lato** font.
+auto-spawns the agent-runtime child. Restyled to **exactly match the dark cockpit mockup**
+at `docs/mockups/missionalpha-cockpit.html` — NOT Docker-Desktop light.
 
 ### 🔴 HOST-DEPENDENCY GAP (validation-flagged — design this FIRST)
 The runtime spawns the **`claude` CLI** + a **Docker jail**. A double-click app therefore still
@@ -130,19 +133,28 @@ reads the runtime token FILE (`RUNTIME_TOKEN_DIR/.runtime-token`) and exposes it
 via `contextBridge` (preload); the client's token-fetch switches from `/api/runtime-token` (dev)
 to the bridge (packaged). Ties into F4.2 (supervisor knows the token dir) + `preload.js`.
 
-### Design direction — "Docker Desktop" (OWNER: `principal-ux-design`; skills: `hallmark study` the real Docker Desktop → `impeccable craft/polish` → `emil-design-eng` motion → `a11y-architect` WCAG)
-- **Font:** `Lato` (Google Fonts; bundle locally for offline), weights 400/700. Set
-  `--font-sans: "Lato", system-ui, sans-serif` in **`src/index.css`** (the real tokens/font file —
-  NOT `src/styles/tokens.css`). Add the Lato `@font-face`/preload in `index.html`.
-- **Layout:** left **icon rail** (whale-blue) + section list; thin custom title bar (frameless,
-  mac traffic-light inset); main content; bottom **status strip** (runtime up? Docker? quota — like
-  Docker's bottom bar).
-- **Palette:** Docker light — white/`#f8fafc` surfaces, `#1d63ed` (Docker blue) primary, slate
-  text, flat 0.5px borders, minimal shadow. Keep a dark variant.
+### Design direction — "Dark Cockpit Mockup" (OWNER: `principal-ux-design`; source of truth: `docs/mockups/missionalpha-cockpit.html`)
+**Skills:** `hallmark study <docs/mockups/missionalpha-cockpit.html>` (extract its design DNA first) → `impeccable craft/colorize/typeset/polish` → `emil-design-eng` motion → `a11y-architect` WCAG.
+
+Implement EXACTLY what the mockup shows — no light-mode fallback, no Docker Desktop:
+- **Theme:** dark OKLCH — bg `oklch(0.16 0 0)`, panels `oklch(0.20 0 0)` / `oklch(0.24 0 0)`.
+- **Accents:** cyan `oklch(0.75 0.18 200)` (primary/active), gold `oklch(0.80 0.15 85)` (warnings/stale),
+  violet `oklch(0.65 0.20 290)` (in-progress), amber `oklch(0.78 0.16 65)` (blocked), green `oklch(0.72 0.16 150)` (done).
+- **Font:** no preference — use system-ui or Inter; do NOT force Lato. Set tokens in **`src/index.css`**.
+- **Topbar:** status dot (green/red), agent count pills (active / blocked / stale / offline),
+  nav buttons (Audit · Tools · Replay · ⌘K · ⚙); frameless title bar, mac traffic-light inset.
+- **Left roster panel (200 px):** agent avatar list with model-tier tags (pro/opus/sonnet); active ring.
+- **Centre: 5-column kanban:** idle · in-progress · blocked · review · done columns with card drag.
+- **Right panel (360 px):** Chat | Feed tabs; message bubbles (system/user/agent colour-coded);
+  quota / ctx / model chips; Send composer.
+- **Globe backdrop:** faint animated ring overlay behind the kanban (CSS, not SVG import).
+- **Key screens:** "/" command menu, agent drawer (model picker + overdue ring), settings modal,
+  onboarding wizard.
+- Keep a light toggle only if trivial; the dark cockpit IS the primary.
 
 **Assigned skills/agents:** `sp-writing-plans` (sub-plan) →
-**UI/UX skills:** `hallmark` (`study` the Docker-Desktop reference → extract design DNA; anti-AI-slop structural fidelity) · `impeccable` (`craft`/`critique`/`polish`/`typeset` Lato/`colorize` Docker-blue) · `frontend-design` · `emil-design-eng` (title-bar + status-strip motion/interactions) · `kw-design-design-system` · `kw-design-accessibility-review` ·
-**UI/UX agents:** `principal-ux-design` (MissionAlpha's OWN design-system/a11y/motion authority — OWNS the shell + Lato tokens in `src/index.css`; all other frontend work consumes its contract) · `ui-designer` (visual + component library) · `a11y-architect` (WCAG 2.2) · `ui-ux-tester` (interaction QA) ·
+**UI/UX skills (dark cockpit):** `hallmark` (`study docs/mockups/missionalpha-cockpit.html` → extract DNA first, NEVER guess) · `impeccable` (`craft`/`colorize` OKLCH dark/`typeset`/`critique`/`polish`) · `frontend-design` · `emil-design-eng` (topbar/kanban-card/panel motion + interactions) · `kw-design-design-system` · `kw-design-accessibility-review` ·
+**UI/UX agents:** `principal-ux-design` (MissionAlpha's OWN design authority — OWNS the dark palette, OKLCH tokens in `src/index.css`, the topbar/roster/kanban/chat-feed layout; all other frontend agents consume its contract) · `ui-designer` (visual + component library) · `a11y-architect` (WCAG 2.2 — dark contrast, focus rings) · `ui-ux-tester` (interaction QA) ·
 **Build/verify:** `electron-pro` (main/preload/supervisor/packaging) · `sp-test-driven-development` (supervisor units) · `webapp-testing` (visual verify) · `security-reviewer` (Electron hardening) · `sp-verification-before-completion`.
 
 **Sub-plan files (to CREATE unless noted):** `electron/main.js`, `electron/preload.js`,
@@ -172,10 +184,12 @@ to the bridge (packaged). Ties into F4.2 (supervisor knows the token dir) + `pre
 - `security-reviewer`: contextIsolation on, no remote module, CSP, renderer can't hijack the child.
 - `electron:build` → `.dmg`; launch; preflight + cockpit + runtime auto-start + a chat; screenshot.
 
-**Exit Gate:** double-click app opens MissionAlpha (Docker look, Lato); preflight detects
-missing `claude`/Docker with a friendly screen; runtime auto-starts; **chat works in the PACKAGED
-build — token bridge live (no 401) + runtime base resolved** (not just in dev); Docker-down
-degrades gracefully; Electron security review clean; scope documented as dev-machine Tier-1.
+**Exit Gate:** double-click app opens MissionAlpha matching `docs/mockups/missionalpha-cockpit.html`
+(dark OKLCH palette, topbar pills, 5-col kanban, roster panel, Chat|Feed, globe backdrop); preflight
+detects missing `claude`/Docker with a friendly screen; runtime auto-starts; **chat works in the
+PACKAGED build — token bridge live (no 401) + runtime base resolved** (not just in dev); Docker-down
+degrades gracefully; WCAG 2.2 dark contrast ≥ 4.5:1; Electron security review clean; scope
+documented as dev-machine Tier-1.
 
 ---
 
