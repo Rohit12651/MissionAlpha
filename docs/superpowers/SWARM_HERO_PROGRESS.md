@@ -40,17 +40,31 @@ panel, and an interactive tier filter — all read-only, dark/no-pink, reduced-m
   `PermissionGate` before `sendCommand` fires (no one-click mutation, existing ack/respawn verbs).
   onCommand scoped to the full hero only (dock/display-only ungated). **security-reviewer PASS.** Committed `2edda98`.
 
+- **Dock UX upgrade** — the P2-3 mini dock is now **movable + dismissible**: a title bar with a grip
+  drag-handle (grab to move anywhere, pointer-capture, clamped on-screen via unit-tested
+  `clampDockPos`, position persisted to `localStorage`), an expand button, and an `✕` close button
+  (dismissed state persisted; dock returns after opening/closing the full hero). `SwarmHero
+  variant="dock"` is now canvas-only; App owns the draggable chrome. Committed `e2f5e12`.
+
 ## Gates (all phases)
-- `npm run test:unit` → **65/65** · `cd agent-runtime && npm test` → **297/297** (unaffected)
+- `npm run test:unit` → **69/69** · `cd agent-runtime && npm test` → **297/297** (unaffected)
 - `npm run typecheck` exit 0 · `npm run build` exit 0 · `npm run electron:build` exit 0 (DMG + `.app`)
 
-## Files (uncommitted working tree)
-- `src/lib/swarmGraph.ts` (new) · `src/lib/__tests__/swarmGraph.test.ts` (new)
-- `src/components/hero/SwarmHero.tsx` (M) · `src/App.tsx` (M)
-- Plan docs: `docs/superpowers/plans/2026-06-22-swarm-hero-P0-{1,2,3,4}-*.md`,
-  `2026-06-23-swarm-hero-P1-2-comms-label.md`, `2026-06-23-swarm-hero-P1-3-tier-filter.md`
+## Helpers added for P2
+- `edgeWeights(feed,hasNode)` (P2-2) · `clampDockPos(x,y,w,h,vpW,vpH,margin)` (movable dock).
 
-## Notes / next
-- Nothing committed or pushed (boss directive). Ready to commit per-GREEN (one per phase) or squashed on request.
-- Verification tooling: playwright + chromium installed locally for dev/packaged checks (devDep reverted from `package.json` to keep the feature diff clean; chromium stays in global cache).
-- Remaining PRD items (out of scope): P2-1 in-hero gated actions, P2-2 edge weighting, P2-3 mini dock.
+## Commit trail (all on `feat/multimodal-input`, LOCAL — NOT pushed)
+- `236f536` pure helpers + tests · `71a1e82` functional live ops view (P0-1..P0-5 + P1-2/P1-3) ·
+  `d44a7b7` P0/P1 docs · `f14599c` P2-2 edge weighting · `05031a6` P2-3 mini dock ·
+  `2edda98` P2-1 gated actions (security PASS) · `ff302b7` P2 directive + mockup + progress ·
+  `e2f5e12` movable/dismissible dock.
+
+## Status / next
+- **COMPLETE:** P0 (P0-1..P0-5), P1 (P1-2, P1-3), P2 (P2-1..P2-3), + movable/dismissible dock.
+  Open questions (idle-trickle, a11y keyboard) resolved. PRD has nothing left.
+- All committed locally on `feat/multimodal-input`; **NOT pushed** (no PR opened).
+- P2-1 is the only mutation surface — gated via existing `PermissionGate` + `sendCommand`; `security-reviewer` PASS.
+- Packaged desktop app (`release/mac-arm64/MissionAlpha.app`) rebuilt with all features.
+- Verification tooling: playwright + chromium local (devDep reverted from `package.json`; chromium in global cache).
+- Pending decisions: push / open PR (awaiting boss); the pre-existing `ROOT` hardcoded path in
+  `src/lib/actions.ts` + unauthenticated `issuedBy:"operator"` are tracked separately (not P2 regressions).
