@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm — Business OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B1220;
+    --deck:#121B2E;
+    --deck-raised:#182338;
+    --deck-raised-2:#1E2B45;
+    --line:#26324A;
+    --line-soft:#1D2A40;
+    --brass:#C89B3C;
+    --brass-bright:#E0B759;
+    --green:#4F9D69;
+    --amber:#D9A441;
+    --red:#C1554A;
+    --paper:#EDE6D6;
+    --paper-dim:#9BA3B4;
+    --paper-faint:#5D6579;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--paper-faint);
+  }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; font-weight:600; color:var(--paper); }
+
+  /* ---------- SHELL ---------- */
+  .app-shell{ display:flex; min-height:100vh; }
+  .sidebar{
+    width:230px; flex-shrink:0;
+    background:var(--deck);
+    border-right:1px solid var(--line);
+    display:flex; flex-direction:column;
+    padding:22px 16px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; padding:4px 8px 22px; }
+  .brand-mark{ width:26px; height:26px; }
+  .brand-name{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; letter-spacing:0.02em; }
+  .brand-sub{ font-size:10px; color:var(--paper-faint); letter-spacing:0.08em; text-transform:uppercase; margin-top:-2px; }
+
+  .nav-group{ margin-bottom:20px; }
+  .nav-label{ padding:0 8px 8px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--paper-faint); }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 10px; border-radius:6px;
+    font-size:13.5px; color:var(--paper-dim);
+    cursor:pointer; transition:background .15s, color .15s;
+  }
+  .nav-item svg{ width:16px; height:16px; opacity:.85; flex-shrink:0; }
+  .nav-item:hover{ background:var(--deck-raised); color:var(--paper); }
+  .nav-item.active{ background:var(--deck-raised-2); color:var(--brass-bright); border:1px solid var(--line); }
+  .nav-item.active svg{ opacity:1; }
+  .inbox-item{
+    position:relative; border:1px solid var(--brass); background:rgba(200,155,60,0.08); color:var(--paper);
+  }
+  .nav-badge{
+    margin-left:auto; background:var(--brass); color:#221803; font-family:'IBM Plex Mono',monospace;
+    font-size:10px; font-weight:600; padding:1px 7px; border-radius:20px;
+  }
+  .agent-quick{
+    display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px;
+    font-size:12.5px; color:var(--paper-dim); cursor:pointer;
+  }
+  .agent-quick:hover{ background:var(--deck-raised); color:var(--paper); }
+  .aq-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .aq-role{ margin-left:auto; font-size:10px; color:var(--paper-faint); }
+
+  .venture-switcher{
+    margin-top:auto; border-top:1px solid var(--line); padding-top:14px;
+  }
+  .venture-pill{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--deck-raised); border:1px solid var(--line);
+    border-radius:8px; padding:10px 12px; cursor:pointer;
+  }
+  .venture-pill-label{ font-size:12px; color:var(--paper-faint); }
+  .venture-pill-name{ font-size:13.5px; font-weight:500; color:var(--paper); margin-top:1px; }
+
+  .main{ flex:1; min-width:0; padding:28px 40px 60px; }
+  .page{ display:none; }
+  .page.active{ display:block; }
+
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:26px; }
+  .topbar .eyebrow{ margin-bottom:6px; }
+  .topbar h1{ font-size:26px; }
+  .topbar-status{ display:flex; align-items:center; gap:10px; }
+  .status-chip{
+    display:flex; align-items:center; gap:6px;
+    background:var(--deck-raised); border:1px solid var(--line);
+    padding:6px 12px; border-radius:20px; font-size:12px; color:var(--paper-dim);
+  }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--green); }
+  .dot.amber{ background:var(--amber); }
+  .dot.faint{ background:var(--paper-faint); }
+  .clock{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-faint); border:1px solid var(--line); padding:6px 12px; border-radius:20px; }
+
+  /* ---------- COMMAND DECK ---------- */
+  .captain-card{
+    background:linear-gradient(180deg, var(--deck-raised-2), var(--deck-raised));
+    border:1px solid var(--line); border-radius:14px;
+    padding:28px 30px; display:flex; align-items:center; gap:26px;
+    margin-bottom:34px; position:relative; overflow:hidden;
+  }
+  .captain-card::before{
+    content:''; position:absolute; right:-60px; top:-60px; width:220px; height:220px;
+    border-radius:50%; border:1px solid var(--line-soft);
+  }
+  .captain-card::after{
+    content:''; position:absolute; right:-20px; top:-20px; width:160px; height:160px;
+    border-radius:50%; border:1px solid var(--line-soft);
+  }
+  .compass{
+    width:64px; height:64px; border-radius:50%;
+    border:1.5px solid var(--brass); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 35% 30%, rgba(200,155,60,0.22), transparent 70%);
+    position:relative; z-index:1;
+  }
+  .compass svg{ width:30px; height:30px; }
+  .captain-body{ flex:1; z-index:1; }
+  .captain-title-row{ display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  .captain-title-row h2{ font-size:22px; }
+  .badge{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em;
+    padding:3px 9px; border-radius:20px; text-transform:uppercase;
+  }
+  .badge.working{ background:rgba(79,157,105,0.15); color:var(--green); border:1px solid rgba(79,157,105,0.4); }
+  .badge.standby{ background:rgba(217,164,65,0.14); color:var(--amber); border:1px solid rgba(217,164,65,0.4); }
+  .badge.off{ background:rgba(155,163,180,0.1); color:var(--paper-faint); border:1px solid var(--line); }
+  .captain-desc{ color:var(--paper-dim); font-size:13.5px; max-width:520px; line-height:1.55; }
+  .captain-stats{ display:flex; gap:26px; z-index:1; }
+  .cstat{ text-align:right; }
+  .cstat-num{ font-family:'IBM Plex Mono',monospace; font-size:22px; color:var(--paper); font-weight:600; }
+  .cstat-label{ font-size:10px; color:var(--paper-faint); letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
+  .captain-cta{
+    z-index:1; background:var(--brass); color:#221803; border:none; padding:10px 16px;
+    border-radius:8px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;
+    cursor:pointer; white-space:nowrap;
+  }
+  .captain-cta:hover{ background:var(--brass-bright); }
+
+  .stations-label{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .stations-label .line{ flex:1; height:1px; background:var(--line); }
+
+  .stations{ display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; }
+  .station{
+    background:var(--deck); border:1px solid var(--line); border-radius:12px;
+    padding:18px; cursor:pointer; transition:border-color .15s, transform .15s;
+  }
+  .station:hover{ border-color:var(--brass); transform:translateY(-2px); }
+  .station-top{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+  .station-icon{
+    width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    background:var(--deck-raised); border:1px solid var(--line);
+  }
+  .station-icon svg{ width:17px; height:17px; color:var(--brass); }
+  .station-eyebrow{ font-size:9.5px; }
+  .station h3{ font-size:15.5px; margin:12px 0 3px; }
+  .station-role{ font-size:11px; color:var(--paper-faint); letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px; }
+  .station-note{ font-size:12px; color:var(--paper-dim); line-height:1.5; min-height:34px; }
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(6,10,18,0.6); backdrop-filter:blur(2px);
+    display:none; align-items:center; justify-content:center; z-index:50;
+  }
+  .modal-overlay.active{ display:flex; }
+  .modal-panel{
+    width:560px; max-height:82vh; overflow-y:auto;
+    background:var(--deck); border:1px solid var(--line); border-radius:14px;
+    padding:26px 26px 8px;
+  }
+  .modal-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:6px; }
+  .modal-head h2{ font-size:22px; margin-top:8px; }
+  .modal-close{ background:none; border:1px solid var(--line); color:var(--paper-dim); width:28px; height:28px; border-radius:6px; cursor:pointer; font-size:14px; }
+  .modal-desc{ color:var(--paper-dim); font-size:13px; margin:6px 0 20px; line-height:1.5; }
+  .skill-row{ border-top:1px solid var(--line-soft); padding:14px 0; }
+  .skill-row:last-child{ padding-bottom:20px; }
+  .skill-name-row{ display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .skill-name{ font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:14px; }
+  .tag{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--paper-faint); border:1px solid var(--line); padding:2px 7px; border-radius:20px;
+  }
+  .tag.cadence{ color:var(--brass); border-color:rgba(200,155,60,0.4); }
+  .skill-desc{ font-size:12.5px; color:var(--paper-dim); line-height:1.55; }
+
+  /* ---------- DAILY BRIEF ---------- */
+  .brief-grid{ display:grid; grid-template-columns:1fr; gap:26px; }
+  .console{
+    background:var(--deck); border:1px solid var(--line); border-radius:14px;
+    padding:44px 30px; text-align:center;
+  }
+  .console-dial{
+    width:88px; height:88px; margin:0 auto 18px; border-radius:50%;
+    border:1.5px solid var(--brass);
+    background:radial-gradient(circle at 40% 35%, rgba(200,155,60,0.28), transparent 70%);
+    display:flex; align-items:center; justify-content:center;
+    animation:pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(200,155,60,0.0);} 50%{ box-shadow:0 0 0 10px rgba(200,155,60,0.05);} }
+  .console-dial svg{ width:38px; height:38px; }
+  .console h3{ font-size:17px; margin-bottom:6px; }
+  .console p{ color:var(--paper-dim); font-size:13px; max-width:380px; margin:0 auto 22px; line-height:1.5; }
+  .console-input-row{
+    display:flex; gap:10px; max-width:520px; margin:0 auto;
+    background:var(--deck-raised); border:1px solid var(--line); border-radius:10px; padding:6px 6px 6px 16px;
+  }
+  .console-input-row input{
+    flex:1; background:none; border:none; outline:none; color:var(--paper); font-size:13.5px; font-family:'Inter',sans-serif;
+  }
+  .console-input-row input::placeholder{ color:var(--paper-faint); }
+  .console-input-row button{
+    background:var(--brass); color:#221803; border:none; padding:9px 16px; border-radius:7px;
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:12.5px; cursor:pointer;
+  }
+
+  .log-panel{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:22px 24px; }
+  .log-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .log-panel-head h3{ font-size:15px; }
+  .log-count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-faint); border:1px solid var(--line); padding:3px 10px; border-radius:20px; }
+  .log-entry{ display:flex; align-items:flex-start; gap:14px; padding:13px 0; border-top:1px solid var(--line-soft); }
+  .log-entry:first-child{ border-top:none; }
+  .log-agent{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--brass); background:rgba(200,155,60,0.1); border:1px solid rgba(200,155,60,0.3);
+    padding:3px 8px; border-radius:5px; white-space:nowrap; margin-top:1px;
+  }
+  .log-entry-body{ flex:1; }
+  .log-entry-title{ font-size:13px; color:var(--paper); margin-bottom:2px; }
+  .log-entry-meta{ font-size:11px; color:var(--paper-faint); }
+  .log-entry-right{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .pill{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; padding:3px 10px; border-radius:20px; letter-spacing:0.04em;
+  }
+  .pill.done{ background:rgba(79,157,105,0.14); color:var(--green); border:1px solid rgba(79,157,105,0.35); }
+  .pill.open{ background:rgba(217,164,65,0.14); color:var(--amber); border:1px solid rgba(217,164,65,0.35); }
+  .time-ago{ font-size:11px; color:var(--paper-faint); width:44px; text-align:right; }
+
+  /* ---------- THE LOG (memory graph) ---------- */
+  .log-page-grid{ display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start; }
+  .search-row{
+    display:flex; align-items:center; gap:10px; background:var(--deck); border:1px solid var(--line);
+    border-radius:10px; padding:11px 16px; margin-bottom:8px;
+  }
+  .search-row input{ flex:1; background:none; border:none; outline:none; color:var(--paper); font-size:13px; font-family:'Inter',sans-serif; }
+  .search-row input::placeholder{ color:var(--paper-faint); }
+  .hint{ font-size:11.5px; color:var(--paper-faint); margin-bottom:22px; }
+
+  .graph-wrap{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .graph{ position:relative; width:100%; max-width:600px; height:600px; margin:0 auto; }
+  .graph svg.lines{ position:absolute; inset:0; width:100%; height:100%; }
+  .g-node{
+    position:absolute; width:78px; height:78px; margin-left:-39px; margin-top:-39px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; text-align:center;
+  }
+  .g-node .ring{
+    width:52px; height:52px; border-radius:50%; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; background:var(--deck-raised);
+    transition:border-color .15s, background .15s;
+  }
+  .g-node .ring svg{ width:20px; height:20px; color:var(--paper-dim); }
+  .g-node:hover .ring, .g-node.selected .ring{ border-color:var(--brass); background:rgba(200,155,60,0.1); }
+  .g-node:hover .ring svg, .g-node.selected .ring svg{ color:var(--brass); }
+  .g-node .g-label{ font-size:11px; margin-top:8px; color:var(--paper-dim); line-height:1.25; }
+  .g-node.selected .g-label{ color:var(--paper); }
+  .g-node.center .ring{ width:70px; height:70px; border-color:var(--brass); background:radial-gradient(circle at 35% 30%, rgba(200,155,60,0.22), transparent 70%); }
+  .g-node.center .ring svg{ width:28px; height:28px; color:var(--brass); }
+  .g-node.center .g-label{ font-weight:600; color:var(--paper); }
+  .g-node.center .g-sub{ font-size:9.5px; color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+
+  .detail-panel{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:22px; min-height:420px; }
+  .detail-empty{ color:var(--paper-faint); font-size:13px; text-align:center; padding:60px 20px; }
+  .crumb{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--paper-faint); margin-bottom:14px; letter-spacing:0.04em; }
+  .crumb span{ color:var(--brass); }
+  .detail-panel h3{ font-size:19px; margin-bottom:14px; }
+  .detail-meta-row{ display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .meta-chip{ font-size:10.5px; color:var(--paper-dim); border:1px solid var(--line); padding:4px 10px; border-radius:20px; }
+  .detail-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+  .dstat{ background:var(--deck-raised); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .dstat-num{ font-family:'IBM Plex Mono',monospace; font-size:18px; color:var(--paper); }
+  .dstat-label{ font-size:10px; color:var(--paper-faint); text-transform:uppercase; letter-spacing:0.06em; margin-top:2px; }
+  .file-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid var(--line-soft); font-size:12.5px; }
+  .file-row:first-child{ border-top:none; }
+  .file-name{ color:var(--paper); }
+  .file-size{ color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .file-label{ font-size:11px; color:var(--paper-faint); text-transform:uppercase; letter-spacing:0.06em; margin:16px 0 4px; }
+
+  /* ---------- INBOX ---------- */
+  .inbox-list{ background:var(--deck); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .inbox-row{ display:flex; align-items:center; gap:16px; padding:16px 22px; border-top:1px solid var(--line-soft); cursor:pointer; }
+  .inbox-row:first-child{ border-top:none; }
+  .inbox-row:hover{ background:var(--deck-raised); }
+  .inbox-row.unread{ background:rgba(200,155,60,0.04); }
+  .inbox-row.unread .inbox-subject{ font-weight:600; }
+  .inbox-dot{ width:7px; height:7px; border-radius:50%; background:var(--brass); flex-shrink:0; }
+  .inbox-dot.read{ background:transparent; }
+  .inbox-from{ width:110px; flex-shrink:0; }
+  .inbox-content{ flex:1; min-width:0; display:flex; gap:10px; align-items:baseline; }
+  .inbox-subject{ font-size:13px; color:var(--paper); white-space:nowrap; }
+  .inbox-snippet{ font-size:12.5px; color:var(--paper-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .inbox-time{ font-size:11px; color:var(--paper-faint); flex-shrink:0; width:40px; text-align:right; }
+
+  /* ---------- COMMAND CENTER ---------- */
+  .stat-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:30px; }
+  .stat-card{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  .stat-num{ font-family:'IBM Plex Mono',monospace; font-size:26px; color:var(--paper); }
+  .stat-label{ font-size:11.5px; color:var(--paper-dim); margin-top:4px; }
+  .stat-delta{ font-size:11px; color:var(--green); margin-top:6px; }
+  .center-cols{ display:grid; grid-template-columns:1.4fr 1fr; gap:22px; }
+  .venture-row{ display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-top:1px solid var(--line-soft); }
+  .venture-row:first-child{ border-top:none; }
+  .venture-name{ font-size:13.5px; color:var(--paper); }
+  .venture-sub{ font-size:11px; color:var(--paper-faint); margin-top:2px; }
+  .venture-metric{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--brass); }
+
+  /* ---------- WORKFLOWS / SCHEDULE TABLE ---------- */
+  .table-wrap{ background:var(--deck); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .table-head-row, .table-row{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 0.8fr; gap:12px; padding:13px 22px; align-items:center; }
+  .table-head-row{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-faint); border-bottom:1px solid var(--line); }
+  .table-row{ border-top:1px solid var(--line-soft); font-size:12.5px; }
+  .table-row:first-of-type{ border-top:none; }
+  .table-row:hover{ background:var(--deck-raised); }
+  .cell-name{ color:var(--paper); font-weight:500; }
+  .cell-dim{ color:var(--paper-dim); }
+  .cell-mono{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--paper-faint); }
+
+  /* ---------- SCHEDULE TIMELINE ---------- */
+  .timeline{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:24px 26px; }
+  .tl-row{ display:flex; align-items:center; gap:16px; padding:12px 0; border-top:1px solid var(--line-soft); }
+  .tl-row:first-child{ border-top:none; }
+  .tl-time{ width:70px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--brass); flex-shrink:0; }
+  .tl-body{ flex:1; }
+  .tl-title{ font-size:13px; color:var(--paper); }
+  .tl-sub{ font-size:11px; color:var(--paper-faint); margin-top:1px; }
+
+  /* ---------- LEAD PIPELINE (KANBAN) ---------- */
+  .kanban{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  .kanban-col{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .kanban-col-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 2px; }
+  .kanban-col-title{ font-size:12px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:0.05em; }
+  .kanban-count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-faint); }
+  .lead-card{ background:var(--deck-raised); border:1px solid var(--line); border-radius:9px; padding:12px 13px; margin-bottom:10px; }
+  .lead-name{ font-size:12.5px; color:var(--paper); margin-bottom:3px; }
+  .lead-meta{ font-size:10.5px; color:var(--paper-faint); }
+
+  /* ---------- CONTENT ---------- */
+  .content-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }
+  .content-card{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .content-status{ display:inline-block; margin-bottom:10px; }
+  .content-title{ font-size:14px; color:var(--paper); margin-bottom:6px; line-height:1.4; }
+  .content-meta{ font-size:11px; color:var(--paper-faint); }
+
+  /* ---------- OUTPUTS ---------- */
+  .output-row{ display:flex; align-items:center; gap:14px; padding:14px 22px; border-top:1px solid var(--line-soft); }
+  .output-row:first-child{ border-top:none; }
+  .output-icon{ width:32px; height:32px; border-radius:7px; background:var(--deck-raised); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .output-icon svg{ width:15px; height:15px; color:var(--brass); }
+  .output-body{ flex:1; }
+  .output-name{ font-size:13px; color:var(--paper); }
+  .output-meta{ font-size:11px; color:var(--paper-faint); margin-top:1px; }
+  .output-dl{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-dim); border:1px solid var(--line); padding:5px 12px; border-radius:6px; cursor:pointer; }
+  .output-dl:hover{ border-color:var(--brass); color:var(--brass); }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#C89B3C" stroke-width="1.4"/><path d="M12 6v6l4 2" stroke="#C89B3C" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <div>
+        <div class="brand-name">Helm</div>
+        <div class="brand-sub">Business OS</div>
+      </div>
+    </div>
+
+    <div class="nav-item inbox-item" data-page="inbox" onclick="showPage('inbox', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+      Inbox
+      <span class="nav-badge">10</span>
+    </div>
+
+    <div class="nav-group" style="margin-top:16px;">
+      <div class="nav-item" data-page="center" onclick="showPage('center', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 13a8 8 0 0 1 16 0M12 13v-4M4 20h16"/></svg>
+        Command center
+      </div>
+      <div class="nav-item" data-page="brief" onclick="showPage('brief', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4H12l-5 3 1-4.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+        CEO brief
+      </div>
+      <div class="nav-item active" data-page="deck" onclick="showPage('deck', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Agents
+      </div>
+      <div class="nav-item" data-page="workflows" onclick="showPage('workflows', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7l6 9M16 7l-6 9"/></svg>
+        Workflows
+      </div>
+      <div class="nav-item" data-page="schedule" onclick="showPage('schedule', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        Schedule
+      </div>
+      <div class="nav-item" data-page="pipeline" onclick="showPage('pipeline', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12l4-8h10l4 8-9 9-9-9Z"/></svg>
+        Lead pipeline
+      </div>
+      <div class="nav-item" data-page="content" onclick="showPage('content', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>
+        Content
+      </div>
+      <div class="nav-item" data-page="log" onclick="showPage('log', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="4" r="1.4"/><circle cx="19" cy="8" r="1.4"/><circle cx="19" cy="16" r="1.4"/><circle cx="12" cy="20" r="1.4"/><circle cx="5" cy="16" r="1.4"/><circle cx="5" cy="8" r="1.4"/><path d="M12 6.2v3.6M17.8 8.9l-4 2M17.8 15.1l-4-2M12 17.8v-3.6M6.2 15.1l4-2M6.2 8.9l4 2"/></svg>
+        Knowledge vault
+      </div>
+      <div class="nav-item" data-page="outputs" onclick="showPage('outputs', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18h16v3H4z"/></svg>
+        Outputs
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Agents</div>
+      <div class="agent-quick" onclick="openModal('cmo')"><span class="aq-dot" style="background:#5DCAA5"></span>CMO<span class="aq-role">Content &amp; intel</span></div>
+      <div class="agent-quick" onclick="openModal('sales')"><span class="aq-dot" style="background:#D4537E"></span>Sales rep<span class="aq-role">Revenue ops</span></div>
+      <div class="agent-quick" onclick="openModal('dev')"><span class="aq-dot" style="background:#639922"></span>Dev<span class="aq-role">Build system</span></div>
+      <div class="agent-quick" onclick="openModal('coo')"><span class="aq-dot" style="background:#378ADD"></span>COO<span class="aq-role">Comms layer</span></div>
+      <div class="agent-quick" onclick="openModal('analyst')"><span class="aq-dot" style="background:#EF9F27"></span>Data analyst<span class="aq-role">Signal layer</span></div>
+    </div>
+
+    <div class="venture-switcher">
+      <div class="venture-pill">
+        <div>
+          <div class="venture-pill-label">Venture</div>
+          <div class="venture-pill-name">WAAHYU</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- PAGE: COMMAND DECK -->
+    <div class="page active" id="page-deck">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Agent network · WAAHYU</div>
+          <h1>Command deck</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot"></span> 5 of 6 on watch</div>
+          <div class="clock" id="clock">00:00:00</div>
+        </div>
+      </div>
+
+      <div class="captain-card">
+        <div class="compass">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg>
+        </div>
+        <div class="captain-body">
+          <div class="captain-title-row">
+            <h2>Captain / CEO</h2>
+            <span class="badge working">On watch</span>
+          </div>
+          <div class="captain-desc">Reads what every station learned today, decides what actually needs attention, and hands out the follow-ups. Nothing here starts from a blank page.</div>
+        </div>
+        <div class="captain-stats">
+          <div class="cstat"><div class="cstat-num">6</div><div class="cstat-label">Decisions today</div></div>
+          <div class="cstat"><div class="cstat-num">1,204</div><div class="cstat-label">Records read</div></div>
+        </div>
+        <button class="captain-cta" onclick="showPage('brief', document.querySelector('[data-page=brief]'))">Open brief →</button>
+      </div>
+
+      <div class="stations-label"><span class="eyebrow">Six stations, one memory</span><span class="line"></span></div>
+
+      <div class="stations">
+        <div class="station" onclick="openModal('coo')">
+          <div class="station-top"><div class="station-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg></div><span class="badge working">On watch</span></div>
+          <div class="station-eyebrow eyebrow">Station 01</div>
+          <h3>COO</h3>
+          <div class="station-role">Comms &amp; ops</div>
+          <div class="station-note">Tracking 3 competitor grocery apps launching in DFW this month.</div>
+        </div>
+
+        <div class="station" onclick="openModal('cmo')">
+          <div class="station-top"><div class="station-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4V5Z"/></svg></div><span class="badge working">On watch</span></div>
+          <div class="station-eyebrow eyebrow">Station 02</div>
+          <h3>CMO</h3>
+          <div class="station-role">Content &amp; intel</div>
+          <div class="station-note">2 content briefs drafted from this morning's market scan.</div>
+        </div>
+
+        <div class="station" onclick="openModal('sales')">
+          <div class="station-top"><div class="station-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12l4-8h10l4 8-9 9-9-9Z"/></svg></div><span class="badge standby">Standing by</span></div>
+          <div class="station-eyebrow eyebrow">Station 03</div>
+          <h3>Sales rep</h3>
+          <div class="station-role">Revenue ops</div>
+          <div class="station-note">4 leads are overdue for follow-up — drafts are ready for review.</div>
+        </div>
+
+        <div class="station" onclick="openModal('dev')">
+          <div class="station-top"><div class="station-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 4L2 12l6 8M16 4l6 8-6 8"/></svg></div><span class="badge off">Off watch</span></div>
+          <div class="station-eyebrow eyebrow">Station 04</div>
+          <h3>Developer</h3>
+          <div class="station-role">Build system</div>
+          <div class="station-note">Last ran Monday. Flagged one workflow worth automating.</div>
+        </div>
+
+        <div class="station" onclick="openModal('analyst')">
+          <div class="station-top"><div class="station-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div><span class="badge working">On watch</span></div>
+          <div class="station-eyebrow eyebrow">Station 05</div>
+          <h3>Data analyst</h3>
+          <div class="station-role">Signal layer</div>
+          <div class="station-note">Daily rollup logged: 12 orders, $340 GMV, up 8% week over week.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: DAILY BRIEF -->
+    <div class="page" id="page-brief">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Captain's console · WAAHYU</div>
+          <h1>Daily brief</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot amber"></span> Last brief 6h ago</div>
+        </div>
+      </div>
+
+      <div class="brief-grid">
+        <div class="console">
+          <div class="console-dial"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg></div>
+          <h3>Talk to the Captain</h3>
+          <p>Say what's on your mind — it gets logged to shared memory and routed to whichever station should own it.</p>
+          <div class="console-input-row">
+            <input type="text" placeholder="e.g. check if the vendor invoice from Sysco cleared...">
+            <button>Send</button>
+          </div>
+        </div>
+
+        <div class="log-panel">
+          <div class="log-panel-head">
+            <h3>Agent log</h3>
+            <span class="log-count">Last 24</span>
+          </div>
+
+          <div class="log-entry">
+            <span class="log-agent">Captain</span>
+            <div class="log-entry-body">
+              <div class="log-entry-title">Prioritized today: vendor renewal, 2 stale leads, content brief review</div>
+              <div class="log-entry-meta">Decision · WAAHYU</div>
+            </div>
+            <div class="log-entry-right"><span class="pill done">logged</span><span class="time-ago">2h</span></div>
+          </div>
+
+          <div class="log-entry">
+            <span class="log-agent">COO</span>
+            <div class="log-entry-body">
+              <div class="log-entry-title">Scanned 3 DFW grocery-delivery competitors for pricing changes</div>
+              <div class="log-entry-meta">Market memory · WAAHYU</div>
+            </div>
+            <div class="log-entry-right"><span class="pill done">completed</span><span class="time-ago">4h</span></div>
+          </div>
+
+          <div class="log-entry">
+            <span class="log-agent">Sales rep</span>
+            <div class="log-entry-body">
+              <div class="log-entry-title">Drafted follow-ups for 4 leads idle &gt; 5 days</div>
+              <div class="log-entry-meta">Pipeline task · WAAHYU</div>
+            </div>
+            <div class="log-entry-right"><span class="pill open">needs review</span><span class="time-ago">5h</span></div>
+          </div>
+
+          <div class="log-entry">
+            <span class="log-agent">Data analyst</span>
+            <div class="log-entry-body">
+              <div class="log-entry-title">Daily rollup: 12 orders, $340 GMV, up 8% WoW</div>
+              <div class="log-entry-meta">Performance memory · WAAHYU</div>
+            </div>
+            <div class="log-entry-right"><span class="pill done">completed</span><span class="time-ago">8h</span></div>
+          </div>
+
+          <div class="log-entry">
+            <span class="log-agent">CMO</span>
+            <div class="log-entry-body">
+              <div class="log-entry-title">Drafted 2 content briefs from this morning's market scan</div>
+              <div class="log-entry-meta">Content memory · WAAHYU</div>
+            </div>
+            <div class="log-entry-right"><span class="pill done">completed</span><span class="time-ago">9h</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: THE LOG -->
+    <div class="page" id="page-log">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Shared memory · all ventures</div>
+          <h1>The log</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot"></span> 1,204 records</div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search records, ventures, topics...">
+      </div>
+      <div class="hint">Click a node to inspect it. The center holds everything every station has ever written.</div>
+
+      <div class="log-page-grid">
+        <div class="graph-wrap">
+          <div class="graph">
+            <svg class="lines" viewBox="0 0 600 600">
+              <line x1="300" y1="300" x2="300" y2="80" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="490" y2="190" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="490" y2="410" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="300" y2="520" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="110" y2="410" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="110" y2="190" stroke="#26324A" stroke-width="1"/>
+            </svg>
+
+            <div class="g-node center" style="left:300px; top:300px;">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg></div>
+              <div class="g-label">Helm memory</div>
+              <div class="g-sub">1,204 records</div>
+            </div>
+
+            <div class="g-node" style="left:300px; top:80px;" onclick="selectNode(this,'ventures')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><rect x="4" y="7" width="16" height="12" rx="1.5"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg></div>
+              <div class="g-label">Ventures</div>
+            </div>
+
+            <div class="g-node" style="left:490px; top:190px;" onclick="selectNode(this,'market')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M3 12l4-8h10l4 8-9 9-9-9Z"/></svg></div>
+              <div class="g-label">Market intel</div>
+            </div>
+
+            <div class="g-node" style="left:490px; top:410px;" onclick="selectNode(this,'content')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4V5Z"/></svg></div>
+              <div class="g-label">Content engine</div>
+            </div>
+
+            <div class="g-node" style="left:300px; top:520px;" onclick="selectNode(this,'pipeline')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
+              <div class="g-label">Pipeline</div>
+            </div>
+
+            <div class="g-node" style="left:110px; top:410px;" onclick="selectNode(this,'tech')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M8 4L2 12l6 8M16 4l6 8-6 8"/></svg></div>
+              <div class="g-label">Tech notes</div>
+            </div>
+
+            <div class="g-node" style="left:110px; top:190px;" onclick="selectNode(this,'decisions')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M9 11l3 3 8-8"/><path d="M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/></svg></div>
+              <div class="g-label">Decisions</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-panel" id="detail-panel">
+          <div class="detail-empty">Click a node to inspect it.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalBg(event)">
+  <div class="modal-panel" id="modal-panel"></div>
+</div>
+
+<script>
+function showPage(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+
+function tick(){
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h+':'+m+':'+s;
+}
+setInterval(tick, 1000); tick();
+
+const stations = {
+  coo: {
+    role:'Comms & ops', status:'On watch',
+    desc:"Keeps market intel, vendor admin, and inbox triage moving without you touching any of it.",
+    skills:[
+      {name:'scan-competitors', tag:'skill', cadence:'daily · 7am', desc:'Pulls pricing, launches, and positioning moves from a configured competitor list. Writes tagged market memories the CMO reads next.'},
+      {name:'vendor-tracker', tag:'skill', cadence:'daily', desc:'Watches vendor invoices and renewal dates, flags anything due in the next 14 days.'},
+      {name:'inbox-triage', tag:'skill', cadence:'2x daily', desc:'Classifies inbox into action-required, reference, and waiting-on. No manual sorting.'}
+    ]
+  },
+  cmo: {
+    role:'Content & intel', status:'On watch',
+    desc:"Turns the COO's market intel and last week's content performance into ready-to-write briefs.",
+    skills:[
+      {name:'content-brief-builder', tag:'skill', cadence:'daily · 8am', desc:'Reads fresh market memories and performance data, drafts 1-3 content briefs with angle and hook.'},
+      {name:'trend-scan', tag:'skill', cadence:'daily', desc:'Checks category trends against what has and hasn\u2019t performed historically before suggesting a topic.'},
+      {name:'calendar-sync', tag:'skill', cadence:'weekly', desc:'Lays briefs into the content calendar, flags gaps more than 3 days out.'}
+    ]
+  },
+  sales: {
+    role:'Revenue ops', status:'Standing by',
+    desc:"Checks leads and follow-up opportunities so nothing goes cold in the pipeline.",
+    skills:[
+      {name:'lead-scorer', tag:'skill', cadence:'daily · 7am', desc:'Scores inbound leads on engagement and fit, surfaces the ones worth calling today.'},
+      {name:'follow-up-drafts', tag:'skill', cadence:'daily', desc:'Drafts follow-up messages for leads idle more than 5 days, matched to prior tone.'},
+      {name:'pipeline-rollup', tag:'skill', cadence:'weekly', desc:'Summarizes stage movement and flags deals stuck without a next step.'}
+    ]
+  },
+  dev: {
+    role:'Build system', status:'Off watch',
+    desc:"Reviews the codebase and workflows, proposes fixes, and can hand real builds to Claude Code.",
+    skills:[
+      {name:'repo-health-check', tag:'skill', cadence:'weekly · Mon', desc:'Scans recent commits and open issues for patterns worth flagging \u2014 not a full code review.'},
+      {name:'workflow-audit', tag:'skill', cadence:'weekly', desc:'Looks for manual steps repeated across agent runs that could be automated.'},
+      {name:'claude-code-handoff', tag:'skill', cadence:'on demand', desc:'Packages a flagged improvement into a ready-to-run Claude Code prompt.'}
+    ]
+  },
+  analyst: {
+    role:'Signal layer', status:'On watch',
+    desc:"Watches performance across every venture and rolls it up so nothing gets missed.",
+    skills:[
+      {name:'daily-rollup', tag:'skill', cadence:'daily · EOD', desc:'Pulls orders, GMV, and usage from the connected source, writes a same-day summary memory.'},
+      {name:'anomaly-flag', tag:'skill', cadence:'daily', desc:'Flags any metric moving more than 20% outside its 14-day baseline.'},
+      {name:'weekly-digest', tag:'skill', cadence:'weekly · Sun', desc:'Rolls up the week for the Captain\u2019s Monday brief.'}
+    ]
+  }
+};
+
+function openModal(key){
+  const s = stations[key];
+  const names = {coo:'COO', cmo:'CMO', sales:'Sales rep', dev:'Developer', analyst:'Data analyst'};
+  let html = `
+    <div class="modal-head">
+      <div>
+        <span class="eyebrow">${s.role} · ${s.status}</span>
+        <h2>${names[key]}</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-desc">${s.desc}</div>
+  `;
+  s.skills.forEach(sk=>{
+    html += `
+      <div class="skill-row">
+        <div class="skill-name-row">
+          <span class="skill-name">${sk.name}</span>
+          <span class="tag">${sk.tag}</span>
+          <span class="tag cadence">${sk.cadence}</span>
+        </div>
+        <div class="skill-desc">${sk.desc}</div>
+      </div>
+    `;
+  });
+  document.getElementById('modal-panel').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('active'); }
+function closeModalBg(e){ if(e.target.id==='modal-overlay') closeModal(); }
+
+const nodes = {
+  ventures: {
+    crumb:'The log / ventures', title:'Ventures', meta:['4 ventures','Real folder'],
+    stats:[['4','Ventures tracked'],['58','Records total']],
+    files:[['waahyu.md','2.1 KB'],['barkback.md','1.4 KB'],['tadaa.md','0.9 KB'],['trading-desk.md','3.2 KB']]
+  },
+  market: {
+    crumb:'The log / market intel', title:'Market intel', meta:['Written by COO','Local'],
+    stats:[['3','Competitors tracked'],['12','Scans this month']],
+    files:[['competitor-scan-2026-07-28.md','1.8 KB'],['competitor-scan-2026-07-21.md','1.6 KB'],['vendor-renewals.md','0.7 KB']]
+  },
+  content: {
+    crumb:'The log / content engine', title:'Content engine', meta:['Written by CMO','Local'],
+    stats:[['2','Briefs drafted'],['10','Hooks saved']],
+    files:[['brief-waahyu-launch-recap.md','1.1 KB'],['brief-vendor-story.md','0.9 KB'],['hooks.jsonl','3.4 KB']]
+  },
+  pipeline: {
+    crumb:'The log / pipeline', title:'Pipeline', meta:['Written by Sales rep','Local'],
+    stats:[['4','Leads need follow-up'],['22','Total in pipeline']],
+    files:[['leads-2026-07-29.md','2.0 KB'],['follow-up-drafts.md','1.3 KB']]
+  },
+  tech: {
+    crumb:'The log / tech notes', title:'Tech notes', meta:['Written by Developer','Local'],
+    stats:[['1','Workflow flagged'],['6','Notes total']],
+    files:[['workflow-audit-2026-07-27.md','1.5 KB']]
+  },
+  decisions: {
+    crumb:'The log / decisions', title:'Decisions', meta:['Written by Captain','Real folder'],
+    stats:[['6','Decisions today'],['142','Decisions total']],
+    files:[['decision-2026-07-29.md','0.6 KB'],['decision-2026-07-28.md','0.5 KB']]
+  }
+};
+
+function selectNode(el, key){
+  document.querySelectorAll('.g-node').forEach(n=>n.classList.remove('selected'));
+  el.classList.add('selected');
+  const d = nodes[key];
+  let metaHtml = d.meta.map(m=>`<span class="meta-chip">${m}</span>`).join('');
+  let statHtml = d.stats.map(s=>`<div class="dstat"><div class="dstat-num">${s[0]}</div><div class="dstat-label">${s[1]}</div></div>`).join('');
+  let fileHtml = d.files.map(f=>`<div class="file-row"><span class="file-name">${f[0]}</span><span class="file-size">${f[1]}</span></div>`).join('');
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="crumb">${d.crumb.split(' / ')[0]} / <span>${d.crumb.split(' / ')[1]}</span></div>
+    <h3>${d.title}</h3>
+    <div class="detail-meta-row">${metaHtml}</div>
+    <div class="detail-stats">${statHtml}</div>
+    <div class="file-label">Files</div>
+    ${fileHtml}
+  `;
+}
+</script>
+</body>
+</html>

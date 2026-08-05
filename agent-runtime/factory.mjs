@@ -1,4 +1,4 @@
-// Agent Factory — BOSS spawns AI-authored agents with real-posting skills.
+// Agent Factory — BOSS spawns AI-authored agents from the governed skill catalog.
 //
 // Four concerns, one module (imported by server.mjs which owns the HTTP + auth gates):
 //   1. SKILL CATALOG    — the closed set of capabilities an agent may hold.
@@ -73,9 +73,6 @@ const COMPOSIO_KEY = process.env.COMPOSIO_API_KEY || "";
 //   They grant {Read,Write,Run} inside the Docker jail ONLY — no MCP, no posting,
 //   no SEED_DIRS/CONFIG_GUARD changes. They require an allowlisted `redirect`.
 export const SKILL_CATALOG = [
-  { id: "content-writing", label: "Content Writing", desc: "Draft sharp copy, posts, threads, captions.", tools: ["Read"], platforms: [], posting: false },
-  { id: "social-post-twitter", label: "Post to X / Twitter", desc: "Publish an approved post to a connected X account.", tools: ["Run"], platforms: ["twitter"], posting: true },
-  { id: "social-post-linkedin", label: "Post to LinkedIn", desc: "Publish an approved post to a connected LinkedIn account.", tools: ["Run"], platforms: ["linkedin"], posting: true },
   { id: "repo-read", label: "Read Repo", desc: "Inspect repository files (read-only).", tools: ["Read"], platforms: [], posting: false },
   { id: "repo-edit", label: "Edit in Sandbox", desc: "Propose file edits in an isolated sandbox (operator-applied).", tools: ["Read", "Write"], platforms: [], posting: false },
   { id: "research-brief", label: "Research Brief", desc: "Synthesize a topic into a structured brief.", tools: ["Read"], platforms: [], posting: false },
@@ -95,6 +92,14 @@ export const SKILL_CATALOG = [
     redirect: "angular-architect",
     stack: { langs: ["typescript"], frameworks: ["angular"], dbs: [] },
   },
+  // S0 — station skills. `station: true` marks a standing brief held by one of the ten
+  // seeded SE seats (seed-stations.mjs). Read-only: no tool beyond Read, no platform,
+  // no posting, no sandbox exec — so they widen the catalog's vocabulary without
+  // widening any agent's authority. They describe WHAT the seat is responsible for;
+  // SCHEDULED runs ride the cadence engine (cadence.mjs) and each desc says so.
+  { id: "repo-health-check", label: "Repo health check", station: true, desc: "Read recent commits and issues for patterns worth flagging to the operator. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
+  { id: "workflow-audit", label: "Workflow audit", station: true, desc: "Find repeated manual steps across agent runs that are worth automating. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
+  { id: "claude-code-handoff", label: "Claude Code handoff", station: true, desc: "Package a flagged improvement into a ready-to-run prompt for a coding agent. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
 ];
 
 // G6: allowlist of specialist agent IDs that a dev skill's `redirect` may name.
@@ -111,8 +116,10 @@ export const PLATFORMS = [
 ];
 const PLATFORM_BY_ID = new Map(PLATFORMS.map((p) => [p.id, p]));
 const ALLOWED_TOOLS = new Set(["Read", "Write", "Run"]); // Bash/exec NOT representable
+// S0: `architect` is NO LONGER reserved — it is one of the ten seeded SE seats
+// (seed-stations.mjs), minted through the same factory path as the rest of the roster.
 const BUILTIN_IDS = new Set([
-  "ceo", "architect", "principal-ux-design", "principal-db-engineer",
+  "ceo", "principal-ux-design", "principal-db-engineer",
   "senior-security-engineer", "senior-cicd-engineer", "senior-lead-dev",
   "senior-web-1", "senior-web-2", "principal-rn-mobile-1", "principal-rn-mobile-2",
   "senior-backend-1", "senior-backend-2", "senior-qa", "senior-code-reviewer",
@@ -120,16 +127,16 @@ const BUILTIN_IDS = new Set([
 ]);
 
 // ── small utils ──────────────────────────────────────────────────────────────
-const ID_RE = /^[a-z][a-z0-9-]{2,48}$/;
+// S0: min length is 2 (was 3) so short seat ids like `qa` are representable. The
+// character class is UNCHANGED — lowercase letter first, then [a-z0-9-] only — so the
+// containment properties every consumer relies on (filename safety, URL path safety)
+// are exactly as before; only the floor moved.
+const ID_RE = /^[a-z][a-z0-9-]{1,48}$/;
 // Strip control chars + bus/markdown-format metacharacters from free text so a
 // crafted persona/role can't inject a ```dispatch block, break the .md frontmatter,
 // or poison the BROADCAST bus the dashboard parses.
 // eslint-disable-next-line no-control-regex
 const clean = (s, max) => String(s ?? "").replace(/[\x00-\x1f\x7f]/g, " ").replace(/```/g, "ʼʼʼ").replace(/\s+$/g, "").slice(0, max);
-const ok = (res, obj, code = 200) => {
-  res.writeHead(code, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(obj));
-};
 function ensureDirs() {
   for (const d of [agentsDir(), factoryDir(), dirname(registryFile()), RUNTIME_DIR]) mkdirSync(d, { recursive: true });
 }
@@ -190,7 +197,7 @@ function writePersonaFile(spec) {
 export function validateSpec(raw) {
   if (!raw || typeof raw !== "object") return { error: "spec must be an object" };
   const id = String(raw.id || "").trim().toLowerCase();
-  if (!ID_RE.test(id)) return { error: "id must match ^[a-z][a-z0-9-]{2,48}$" };
+  if (!ID_RE.test(id)) return { error: "id must match ^[a-z][a-z0-9-]{1,48}$" };
   if (BUILTIN_IDS.has(id)) return { error: `id "${id}" is reserved (built-in agent)` };
   if (registry.has(id)) return { error: `id "${id}" already exists` };
 
@@ -260,7 +267,11 @@ function announceOnBus(spec) {
   }
 }
 
-export function createAgent(raw) {
+// `announce` exists for the B1 boot seed (seed-stations.mjs): a station that was
+// created by a startup seed never streamed a heartbeat, so announcing one on the comms
+// bus would put a fabricated event on the board. Every BOSS-driven path keeps the
+// default (true) and is byte-identical to before.
+export function createAgent(raw, { announce = true } = {}) {
   const v = validateSpec(raw);
   if (v.error) return v;
   const spec = v.spec;
@@ -269,7 +280,7 @@ export function createAgent(raw) {
   writePersonaFile(spec);
   registry.set(spec.id, spec);
   saveRegistry();
-  announceOnBus(spec);
+  if (announce) announceOnBus(spec);
   audit("agent.create", { id: spec.id, skills: spec.skills, integrations: spec.integrations });
   return { spec: { ...spec, persona: undefined, personaPreview: spec.persona.slice(0, 240) } };
 }
@@ -352,12 +363,13 @@ export const AGENT_CREATOR_SYSTEM =
   `you DESIGN one new agent and output its spec. Think briefly (2-4 caveman lines) about role + skills, ` +
   `then output EXACTLY ONE fenced \`\`\`spec block containing JSON with this shape:\n` +
   `{"id": "kebab-case-id", "role": "...", "title": "...", "persona": "system prompt for the agent", ` +
-  `"skills": ["fromCatalog"], "tools": ["Read"|"Write"|"Run"], "integrations": ["twitter"|"linkedin"]}\n\n` +
+  `"skills": ["fromCatalog"], "tools": ["Read"|"Write"|"Run"], "integrations": []}\n\n` +
   `RULES:\n` +
-  `- id: lowercase kebab, 3-49 chars, starts with a letter, unique-sounding (e.g. "growth-marketer").\n` +
+  `- id: lowercase kebab, 2-49 chars, starts with a letter, unique-sounding (e.g. "perf-profiler").\n` +
   `- skills: choose ONLY from this catalog:\n${catalogForPrompt}\n` +
-  `- integrations: include a platform ONLY if you also picked its posting skill (twitter→social-post-twitter, linkedin→social-post-linkedin).\n` +
-  `- tools: minimal. Read for analysis, Write for sandbox edits, Run for posting. NEVER request Bash/exec.\n` +
+  `- integrations: leave EMPTY. An integration is only valid alongside a posting skill, and the ` +
+  `catalog carries none — the swarm is engineering-only.\n` +
+  `- tools: minimal. Read for analysis, Write for sandbox edits, Run for sandbox execution. NEVER request Bash/exec.\n` +
   `- persona: a sharp system prompt (2-5 sentences) telling the agent who it is + how it works. ` +
   `End the persona with: "Bus comms in /caveman full." Do NOT put any \`\`\`dispatch or \`\`\` fences inside persona.\n` +
   `Output the reasoning lines THEN the single \`\`\`spec block. Nothing after the block.`;
@@ -423,26 +435,25 @@ export function authorSpec(description, stream, onDone, modelId) {
 }
 
 // Mock author — when no `claude` available (or for deterministic tests). Picks a
-// plausible spec from keywords so the create flow is demoable offline.
+// plausible spec from keywords so the create flow is demoable offline. Engineering-only
+// as of S0: every skill it can pick is read-only, and it never proposes an integration.
 export function mockAuthorSpec(description) {
   const d = description.toLowerCase();
-  const wantsTwitter = /(twitter|tweet|\bx\b|social)/.test(d);
-  const wantsLinkedIn = /(linkedin|professional|b2b)/.test(d);
-  const skills = ["content-writing"];
-  const integrations = [];
-  if (wantsTwitter) { skills.push("social-post-twitter"); integrations.push("twitter"); }
-  if (wantsLinkedIn) { skills.push("social-post-linkedin"); integrations.push("linkedin"); }
-  if (!wantsTwitter && !wantsLinkedIn) { skills.push("social-post-twitter"); integrations.push("twitter"); }
+  const wantsRepo = /(repo|code|codebase|build|test|ci|deploy)/.test(d);
+  const skills = ["repo-read"];
+  if (wantsRepo) skills.push("repo-health-check");
+  else skills.push("research-brief");
   const base = d.replace(/[^a-z0-9 ]/g, "").trim().split(/\s+/).slice(0, 3).join("-").replace(/^[^a-z]+/, "") || "new-agent";
-  const id = (base.length >= 3 ? base : "social-agent").slice(0, 40);
+  const id = (base.length >= 3 ? base : "swarm-analyst").slice(0, 40);
   return {
-    reasoning: `[mock author] need parsed. role = social/content. skills = ${skills.join(", ")}. tools = Run+Read. integrations = ${integrations.join(", ") || "none"}.`,
+    reasoning: `[mock author] need parsed. role = engineering analysis. skills = ${skills.join(", ")}. tools = Read. integrations = none.`,
     spec: {
-      id, role: "Social & content agent", title: "Social Content Agent",
+      id, role: "Engineering analyst", title: "Engineering Analyst",
       persona:
-        `You are a social content agent. You draft crisp, on-brand posts for ${integrations.join(" and ") || "social"} and propose them for BOSS approval. ` +
-        `You never post without explicit confirmation. Bus comms in /caveman full.`,
-      skills, tools: ["Read", "Run"], integrations,
+        `You are an engineering analyst agent. You read the repository and the swarm's own run history, ` +
+        `then report what you can source — findings first, recommendation second. You propose changes as ` +
+        `reviewable work, never as silent edits. Bus comms in /caveman full.`,
+      skills, tools: ["Read"], integrations: [],
     },
   };
 }
@@ -719,6 +730,29 @@ export function readAudit(limit = 100) {
       try { data = JSON.parse(rest.join("\t")); } catch { /* ignore */ }
       return { at, event, data };
     });
+  } catch {
+    return [];
+  }
+}
+// P8 (ADR-055) — AUDIT.log lines whose leading ISO timestamp falls in [from,to]
+// (inclusive), oldest first — the audit-export slice. ISO timestamps compare
+// lexicographically, so a string bound filters correctly. Absent bounds are open.
+// The caller (export route) scrubs the result on egress. This log is bounded (append
+// tail), so a read+filter is acceptable here while the large sections (deliveries,
+// usage) stream row-by-row.
+export function readAuditRange(from, to) {
+  try {
+    const lines = readFileSync(AUDIT_FILE, "utf-8").split("\n").filter((l) => l.trim());
+    const out = [];
+    for (const l of lines) {
+      const [at, event, ...rest] = l.split("\t");
+      if (from && at < String(from)) continue;
+      if (to && at > String(to)) continue;
+      let data = {};
+      try { data = JSON.parse(rest.join("\t")); } catch { /* ignore */ }
+      out.push({ at, event, data });
+    }
+    return out;
   } catch {
     return [];
   }

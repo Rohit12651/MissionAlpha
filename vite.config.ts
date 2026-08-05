@@ -137,21 +137,43 @@ function serveRuntimeToken(env: Record<string, string>): Plugin {
   };
 }
 
+// DEV-ONLY CSP relax. The packaged app keeps the strict index.html meta CSP (no inline
+// script). But vite's dev server injects an inline @vitejs/plugin-react refresh preamble
+// + a websocket HMR client — both blocked by `default-src 'self'`, which leaves the
+// renderer blank ("plugin-react can't detect preamble"). `apply: "serve"` scopes this to
+// the dev server only; `vite build` never runs it, so production CSP is unchanged.
+function devCspRelax(): Plugin {
+  const DEV_CSP =
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " + // vite react-refresh preamble is inline
+    "connect-src 'self' ws://localhost:3004 http://localhost:3004 http://127.0.0.1:3005; " + // HMR ws + runtime
+    "img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;";
+  return {
+    name: "dev-csp-relax",
+    apply: "serve",
+    transformIndexHtml(html) {
+      return html.replace(
+        /<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>/,
+        `<meta http-equiv="Content-Security-Policy" content="${DEV_CSP}" />`,
+      );
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
-  const statePath = resolveStatePath(env);
   return {
     // Relative asset paths in the production build so the packaged Electron app
     // (loaded via file://) resolves /assets/* against index.html, not the FS root.
     // Dev keeps "/" for the vite server + proxy.
     base: mode === "production" ? "./" : "/",
+    // Dev serves ONLY the runtime token from vite (it reads the token file, the runtime
+    // can't). Every OTHER /api/* feed is PROXIED to the runtime (below) so dev shows the
+    // SAME LIVE state as packaged — buildLiveState (real heartbeats + inflight + engine
+    // tasks), not the frozen on-disk snapshot the old static plugins read.
     plugins: [
       react(),
-      serveAgentState(statePath),
-      serveCommandChannel(statePath),
-      serveAuditLog(statePath),
-      serveCommandStatus(statePath),
-      serveSessions(statePath),
+      devCspRelax(),
       serveRuntimeToken(env),
     ],
     server: {
@@ -159,18 +181,21 @@ export default defineConfig(({ mode }) => {
       strictPort: false,
       // anti-DNS-rebinding: reject requests whose Host isn't loopback (sr-security #4).
       allowedHosts: ["localhost", "127.0.0.1"],
-      // Track B chat fork — proxy chat to the SEPARATE agent-runtime service so the
-      // browser stays same-origin. The watcher process never hosts the LLM runtime.
+      // Proxy chat + live feeds to the SEPARATE agent-runtime service so the browser stays
+      // same-origin. The watcher process never hosts the LLM runtime. /api/runtime-token is
+      // NOT proxied — the vite plugin above owns it (runtime has no such route).
       proxy: {
-        "/runtime": {
-          target: `http://localhost:${env.RUNTIME_PORT || "3005"}`,
-          changeOrigin: true,
-        },
-        // Agent Factory endpoints live on the same separate runtime service.
-        "/factory": {
-          target: `http://localhost:${env.RUNTIME_PORT || "3005"}`,
-          changeOrigin: true,
-        },
+        "/runtime": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/factory": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        // P3 Inbox (ADR-051) — Delivery list/detail/decide. Same runtime target as
+        // /runtime + /factory; without this every Inbox call would hit vite and 404.
+        "/inbox": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        // LIVE cockpit feeds — runtime builds these from real activity, not the static file.
+        "/api/state.json": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/command": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/audit": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/commands": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/sessions": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
       },
     },
     // Keep a single three.js instance across r3f / drei so refs/types line up.

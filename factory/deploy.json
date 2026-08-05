@@ -1,0 +1,6 @@
+{
+  "deployCmd": ["npm", "run", "build"],
+  "healthUrl": null,
+  "timeoutMs": 300000,
+  "network": false
+}

@@ -5,11 +5,15 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { X, Palette, Sliders, ShieldCheck, Eye, FolderOpen, Loader2 } from "lucide-react";
+import { X, Palette, Sliders, ShieldCheck, Eye, FolderOpen, FolderGit2, Loader2 } from "lucide-react";
 import { useSettings } from "../../lib/settingsContext";
 import { ACCENTS, type AccentKey } from "../../lib/settings";
 import { MODEL_TIERS, type ModelTier } from "../../lib/modelTiers";
 import { tok } from "../../lib/agentMeta";
+import { getWorkspace, setWorkspace, displayPath, ghLabel, ghTone, type WorkspaceInfo } from "../../lib/workspaceClient";
+import { PolicyEditor } from "./PolicyEditor";
+import { AdapterSettings } from "./AdapterSettings";
+import { UserManagement } from "../auth/UserManagement";
 
 function Section({ icon, title, desc, children }: { icon: React.ReactNode; title: string; desc: string; children: React.ReactNode }) {
   return (
@@ -80,66 +84,158 @@ function ChoiceRow<T extends string>({ label, value, options, onChange }: { labe
   );
 }
 
-function ProjectSection() {
-  const [folder, setFolder] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+// P5 — WORKSPACE. The runtime is the authority here: it validates the path (realpath,
+// is-git, not $HOME//, not a nested worktree, must not swallow a runtime state dir)
+// and persists it 0600 outside every repo. This panel only asks and reports.
+//
+// REPO_ROOT is immutable for a runtime process — that immutability is what makes the
+// apply broker's containment check trustworthy — so a change takes effect on the next
+// runtime start. Electron can do that restart itself; in the browser we say so plainly
+// instead of pretending the change is already live.
+function WorkspaceSection() {
+  const [info, setInfo] = useState<WorkspaceInfo | null>(null);
+  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  const [savedPath, setSavedPath] = useState<string | null>(null);
 
-  // Load current folder on mount (Electron only).
-  useEffect(() => {
-    window.missionAlpha?.getRepoRoot?.().then((p) => setFolder(p ?? null)).catch(() => {});
-  }, []);
-
-  const pick = useCallback(async () => {
-    setStatus("loading");
-    setErrorMsg("");
+  const load = useCallback(async () => {
     try {
-      const picked = await window.missionAlpha?.pickFolder?.();
-      if (!picked) { setStatus("idle"); return; }
-      const result = await window.missionAlpha?.setRepoRoot?.(picked);
-      if (result?.ok) {
-        setFolder(picked);
-        setStatus("idle");
-      } else {
-        setErrorMsg(result?.error ?? "Failed to set folder");
-        setStatus("error");
-      }
+      const w = await getWorkspace();
+      setInfo(w);
+      setDraft((d) => d || w.configured || w.repoPath);
+      setStatus("idle");
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+      setErrorMsg(e instanceof Error ? e.message : "Runtime unreachable");
       setStatus("error");
     }
   }, []);
 
-  const displayPath = folder
-    ? folder.replace(/^\/Users\/[^/]+/, "~")
-    : "Not set — agents write to the bundle directory";
+  useEffect(() => { void load(); }, [load]);
+
+  const save = useCallback(async (path: string) => {
+    if (!path.trim()) return;
+    setStatus("saving");
+    setErrorMsg("");
+    try {
+      const r = await setWorkspace(path.trim());
+      if (!r.ok) {
+        // The server's reason is the useful one — never replace it with "failed".
+        setErrorMsg(r.error ?? "Could not use that folder");
+        setStatus("error");
+        return;
+      }
+      setSavedPath(r.repoPath ?? path.trim());
+      // In the packaged app the supervisor can restart itself, so the choice goes
+      // live immediately. In the browser it cannot — the note below says so.
+      if (window.missionAlpha?.setRepoRoot) {
+        await window.missionAlpha.setRepoRoot(r.repoPath ?? path.trim());
+      }
+      await load();
+      setStatus("idle");
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+      setStatus("error");
+    }
+  }, [load]);
+
+  const pick = useCallback(async () => {
+    try {
+      const picked = await window.missionAlpha?.pickFolder?.();
+      if (picked) setDraft(picked);
+    } catch { /* the dialog was dismissed */ }
+  }, []);
+
+  const busy = status === "loading" || status === "saving";
+  const pinned = !!info?.envPinned;
+  const active = info?.repoPath ?? null;
+  const pendingRestart = !!info && !!info.configured && info.configured !== info.repoPath;
+  const dirty = !!draft.trim() && draft.trim() !== (info?.configured ?? info?.repoPath ?? "");
 
   return (
-    <Section icon={<FolderOpen size={15} aria-hidden />} title="Project Folder" desc="Where agents read and write files. Changing this restarts the runtime.">
+    <Section
+      icon={<FolderGit2 size={15} aria-hidden />}
+      title="Workspace"
+      desc="The git repo your agents work in. Each task runs in its own git worktree; approving a delivery commits to that branch, never straight into your working tree."
+    >
       <div className="flex flex-col gap-2">
         <div
           className="rounded-md px-3 py-2 font-mono text-[11px] break-all"
-          style={{ backgroundColor: tok("panel-2"), color: folder ? tok("text") : tok("muted"), border: `1px solid ${tok("border")}` }}
-          aria-label="Current project folder"
+          style={{ backgroundColor: tok("panel-2"), color: active ? tok("text") : tok("muted"), border: `1px solid ${tok("border")}` }}
+          aria-label="Active workspace"
         >
-          {displayPath}
+          {displayPath(active)}
+          {info && !info.isGit && (
+            <span className="ml-2" style={{ color: tok("muted") }}>· not a git repo — agents fall back to a copy sandbox</span>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={pick}
-          disabled={status === "loading" || !window.missionAlpha?.pickFolder}
-          className="flex items-center gap-2 self-start rounded-md px-3 py-1.5 text-[12px] outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
-          style={{ backgroundColor: `color-mix(in oklch, ${tok("accent-cyan")} 14%, transparent)`, color: tok("accent-cyan"), border: `1px solid color-mix(in oklch, ${tok("accent-cyan")} 30%, transparent)` }}
-          aria-label="Choose project folder"
-        >
-          {status === "loading" ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <FolderOpen size={13} aria-hidden />}
-          {status === "loading" ? "Restarting runtime…" : folder ? "Change folder" : "Choose folder"}
-        </button>
-        {status === "error" && (
+
+        {info && (
+          <p className="flex items-center gap-1.5 text-[11px]" style={{ color: tok("muted") }}>
+            <span
+              aria-hidden
+              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: ghTone(info.gh) === "green" ? tok("accent-cyan") : tok("blocked-amber") }}
+            />
+            {ghLabel(info.gh)}
+          </p>
+        )}
+
+        {pendingRestart && (
+          <p className="text-[11px]" style={{ color: tok("blocked-amber") }} role="status">
+            Saved <span className="font-mono">{displayPath(info?.configured ?? null)}</span> — restart the runtime to switch to it.
+          </p>
+        )}
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px]" style={{ color: tok("muted") }}>Repo path</span>
+          <input
+            className="rounded-md px-3 py-2 font-mono text-[11px] outline-none focus-visible:ring-2"
+            style={{ backgroundColor: tok("panel-2"), color: tok("text"), border: `1px solid ${tok("border")}` }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && dirty && !busy && !pinned) void save(draft); }}
+            placeholder="/absolute/path/to/your/repo"
+            spellCheck={false}
+            disabled={busy || pinned}
+            aria-label="Workspace repo path"
+          />
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void save(draft)}
+            disabled={busy || pinned || !dirty}
+            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
+            style={{ backgroundColor: `color-mix(in oklch, ${tok("accent-cyan")} 14%, transparent)`, color: tok("accent-cyan"), border: `1px solid color-mix(in oklch, ${tok("accent-cyan")} 30%, transparent)` }}
+          >
+            {status === "saving" ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <ShieldCheck size={13} aria-hidden />}
+            {status === "saving" ? "Validating…" : "Validate & save"}
+          </button>
+          {window.missionAlpha?.pickFolder && (
+            <button
+              type="button"
+              onClick={() => void pick()}
+              disabled={busy || pinned}
+              className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
+              style={{ color: tok("muted"), border: `1px solid ${tok("border")}` }}
+            >
+              <FolderOpen size={13} aria-hidden /> Browse…
+            </button>
+          )}
+        </div>
+
+        {status === "error" && errorMsg && (
           <p className="text-[11px]" style={{ color: tok("stale-red") }} role="alert">{errorMsg}</p>
         )}
-        {!window.missionAlpha?.pickFolder && (
-          <p className="text-[11px]" style={{ color: tok("muted") }}>Only available in the packaged desktop app.</p>
+        {savedPath && status === "idle" && !pendingRestart && (
+          <p className="text-[11px]" style={{ color: tok("muted") }} role="status">Workspace is {displayPath(savedPath)}.</p>
+        )}
+        {pinned && (
+          <p className="text-[11px]" style={{ color: tok("muted") }}>
+            Pinned by <span className="font-mono">RUNTIME_REPO_ROOT</span> — unset it to choose a repo here.
+          </p>
         )}
       </div>
     </Section>
@@ -287,7 +383,13 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
               />
             </Section>
 
-            <ProjectSection />
+            <WorkspaceSection />
+
+            <PolicyEditor />
+
+            <AdapterSettings />
+
+            <UserManagement />
           </motion.div>
         </div>
       )}

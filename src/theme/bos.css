@@ -1,0 +1,2895 @@
+/* Business-OS shell (B0). ADDITIVE + scoped to [data-skin="helm"] .bos-* — this
+ * file contributes no unscoped rule and no rule that touches an existing class,
+ * so with VITE_BOS off (sidebar never mounted) the shipped app is unchanged.
+ *
+ * TOKENS: every value below is a var() off the helm palette (src/theme/helm.css).
+ * No raw hex, no mockup literals — the sidebar inherits the same brass/deck/paper
+ * system as the Inbox, so the two surfaces read as one product.
+ *
+ * MOTION (emil-design-eng): --helm-dur-press is 140ms, and the only animated
+ * properties are color / background-color / border-color. No transform, no
+ * layout-bound property, no looping motion — so there is nothing here for
+ * reduced-motion to strip beyond the global net already in index.css.
+ *
+ * FOCUS: intentionally absent. Sidebar controls sit outside .helm-root and pick
+ * up the ONE global ring from index.css (:focus-visible). Adding a second ring
+ * here would be a regression, not a feature.
+ */
+
+/* ── rail ─────────────────────────────────────────────────────────────────────
+   Desktop-only for B0: below 1024px the shipped mobile pane toggle is still the
+   navigation model, so the rail stays out of the way entirely (B1 revisits). */
+[data-skin="helm"] .bos-side {
+  display: none;
+  flex-direction: column;
+  gap: 18px;
+  width: 230px;
+  flex-shrink: 0;
+  padding: 18px 12px;
+  overflow-y: auto;
+  background: var(--helm-deck);
+  border-right: 1px solid var(--helm-line);
+  font-family: var(--helm-font-body);
+}
+@media (min-width: 1024px) {
+  [data-skin="helm"] .bos-side {
+    display: flex;
+  }
+}
+
+/* ── brand ────────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+}
+[data-skin="helm"] .bos-brand-mark {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--helm-brass);
+}
+[data-skin="helm"] .bos-brand-name {
+  display: block;
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-brand-sub {
+  display: block;
+  font-family: var(--helm-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+
+/* ── section label (eyebrow) ──────────────────────────────────────────────── */
+[data-skin="helm"] .bos-label {
+  padding: 0 8px;
+  font-family: var(--helm-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+
+/* ── group ────────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── pinned inbox ─────────────────────────────────────────────────────────────
+   The one always-visible destination. Brass-outlined so it reads as the primary
+   surface even when another view is current. */
+[data-skin="helm"] .bos-inbox-pin {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 11px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--helm-paper);
+  background: color-mix(in srgb, var(--helm-brass) 8%, transparent);
+  border: 1px solid var(--helm-brass);
+  border-radius: var(--helm-r-ctl);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-inbox-pin:hover {
+    background: color-mix(in srgb, var(--helm-brass) 14%, transparent);
+  }
+}
+[data-skin="helm"] .bos-inbox-pin[aria-current="true"] {
+  color: var(--helm-brass-bright);
+  background: color-mix(in srgb, var(--helm-brass) 16%, transparent);
+}
+/* ── nav item — dim → hover → current ─────────────────────────────────────── */
+[data-skin="helm"] .bos-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 11px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--helm-paper-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--helm-r-ctl);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-item:hover {
+    color: var(--helm-paper);
+    background: var(--helm-deck-raised);
+  }
+}
+[data-skin="helm"] .bos-item[aria-current="true"] {
+  color: var(--helm-brass-bright);
+  background: var(--helm-deck-raised-2);
+  border-color: var(--helm-line);
+}
+[data-skin="helm"] .bos-item-icon {
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── agent rows ───────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 11px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--helm-r-ctl);
+  transition:
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-agent:hover {
+    background: var(--helm-deck-raised);
+  }
+}
+[data-skin="helm"] .bos-agent-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+[data-skin="helm"] .bos-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-agent-role {
+  flex-shrink: 0;
+  max-width: 78px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--helm-font-mono);
+  font-size: 9.5px;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-empty {
+  padding: 4px 11px;
+  font-family: var(--helm-font-mono);
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+}
+
+/* ── venture pill (static in B0 — the popover lands in B2) ────────────────── */
+[data-skin="helm"] .bos-venture {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+  padding: 9px 11px;
+  text-align: left;
+  font-family: var(--helm-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-chip);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-venture {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-venture:hover {
+    color: var(--helm-paper-dim);
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  }
+}
+[data-skin="helm"] .bos-venture:disabled {
+  cursor: not-allowed;
+}
+[data-skin="helm"] .bos-venture-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--helm-paper-dim);
+}
+
+/* ══ B1 — Command deck ═══════════════════════════════════════════════════════
+ * Same rules as the rail above: every value is a var() off the helm palette, no
+ * raw hex, no new focus ring (the ONE global :focus-visible ring in index.css
+ * covers every control here).
+ *
+ * MOTION: the only animated properties are color / background-color /
+ * border-color (--helm-dur-press, 140ms) and ONE hover-gated transform on the
+ * station card (--helm-dur-move, 240ms). Both live inside
+ * `@media (hover:hover) and (pointer:fine)`, so a touch device never gets a
+ * stuck hover state, and the global reduced-motion net in index.css strips them.
+ */
+[data-skin="helm"] .bos-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px clamp(16px, 3vw, 40px) 56px;
+  background: var(--helm-ink);
+  font-family: var(--helm-font-body);
+  color: var(--helm-paper);
+}
+
+/* ── topbar ───────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+[data-skin="helm"] .bos-deck-topbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-deck-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-deck-h1 {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.15;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-deck-clock {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--helm-paper-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── captain band ─────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-captain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: linear-gradient(180deg, var(--helm-deck-raised-2), var(--helm-deck-raised));
+}
+[data-skin="helm"] .bos-deck-compass {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-deck-captain-body {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+[data-skin="helm"] .bos-deck-captain-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-deck-captain-title {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-deck-captain-sub {
+  color: var(--helm-paper-dim);
+  font-weight: 500;
+}
+[data-skin="helm"] .bos-deck-captain-desc {
+  max-width: 62ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-deck-note {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper-faint);
+}
+
+/* ── captain stats ────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+[data-skin="helm"] .bos-deck-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 84px;
+}
+[data-skin="helm"] .bos-deck-stat-value {
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--helm-paper);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-deck-stat-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+
+/* ── brass CTA ────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-cta {
+  padding: 9px 15px;
+  cursor: pointer;
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--helm-ink);
+  background: var(--helm-brass);
+  border: 1px solid var(--helm-brass);
+  border-radius: var(--helm-r-ctl);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-deck-cta:hover:not(:disabled) {
+    background: var(--helm-brass-bright);
+    border-color: var(--helm-brass-bright);
+  }
+}
+[data-skin="helm"] .bos-deck-cta:disabled {
+  cursor: not-allowed;
+  color: var(--helm-paper-faint);
+  background: transparent;
+  border-color: var(--helm-line);
+}
+
+/* ── stations divider ─────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+[data-skin="helm"] .bos-deck-divider-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-deck-hairline {
+  flex: 1;
+  height: 1px;
+  background: var(--helm-line-soft);
+}
+
+/* ── station grid ─────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+[data-skin="helm"] .bos-deck-empty {
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-deck-station {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  transition:
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-move) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-deck-station:hover {
+    border-color: var(--helm-brass);
+    background: var(--helm-deck-raised);
+    transform: translateY(-2px);
+  }
+}
+[data-skin="helm"] .bos-deck-station-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+[data-skin="helm"] .bos-deck-well {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  color: var(--helm-brass);
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+}
+[data-skin="helm"] .bos-deck-station-ord {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-deck-station-name {
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--helm-paper);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-deck-station-role {
+  font-size: 9.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--helm-paper-dim);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-deck-station-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-paper-faint);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-deck-foot {
+  display: flex;
+}
+
+/* ── station modal ────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-deck-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--helm-well) 72%, transparent);
+  backdrop-filter: blur(2px);
+}
+[data-skin="helm"] .bos-deck-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(560px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-pane);
+}
+[data-skin="helm"] .bos-deck-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-deck-modal-title {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-deck-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--helm-paper-dim);
+  background: transparent;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-deck-x:hover {
+    color: var(--helm-paper);
+    background: var(--helm-deck-raised);
+  }
+}
+[data-skin="helm"] .bos-deck-modal-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-deck-skills {
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="helm"] .bos-deck-skill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-deck-skill-name {
+  font-family: var(--helm-font-display);
+  font-weight: 500;
+  font-size: 13.5px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-deck-skill-id {
+  font-size: 10.5px;
+  color: var(--helm-paper-dim);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-deck-tag {
+  padding: 2px 7px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--helm-brass);
+  background: color-mix(in srgb, var(--helm-brass) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--helm-brass) 34%, transparent);
+  border-radius: var(--helm-r-chip);
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-deck-tag--faint {
+  color: var(--helm-paper-faint);
+  background: transparent;
+  border-color: var(--helm-line);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+[data-skin="helm"] .bos-deck-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid var(--helm-line-soft);
+}
+
+/* ══ B2 — venture switcher + Knowledge vault ═════════════════════════════════
+ * Same rules as everything above: every value is a var() off the helm palette
+ * (src/theme/helm.css) — no raw hex, no mockup literals.
+ *
+ * MOTION (emil-design-eng): the only animated properties are color /
+ * background-color / border-color / fill / stroke at --helm-dur-press (140ms), plus
+ * ONE hover-gated transform on a file row at --helm-dur-move (240ms) — the phase
+ * ceiling, never exceeded. Every transition lives inside
+ * `@media (hover:hover) and (pointer:fine)`, so a touch device never gets a stuck
+ * hover state, and the global reduced-motion net in index.css strips them all.
+ * Nothing loops, nothing animates on mount, and the graph is entirely static.
+ *
+ * FOCUS: intentionally absent. Every control here is a real <button> or <input>
+ * outside .helm-root and picks up the ONE global ring from index.css
+ * (:focus-visible). A second ring would be a regression, not a feature.
+ */
+
+/* ── venture switcher (the B0 pill, now real) ────────────────────────────── */
+[data-skin="helm"] .bos-venture-wrap {
+  position: relative;
+  margin-top: auto;
+}
+[data-skin="helm"] .bos-venture-wrap .bos-venture {
+  margin-top: 0;
+}
+[data-skin="helm"] .bos-venture-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+}
+[data-skin="helm"] .bos-venture-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  text-align: left;
+  border-radius: var(--helm-r-ctl);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--helm-paper-dim);
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+}
+[data-skin="helm"] .bos-venture-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-venture-row-note {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--helm-paper-faint);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-venture-row[data-current="true"] {
+  color: var(--helm-paper);
+  border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  background: color-mix(in srgb, var(--helm-brass) 8%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-venture-row {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-venture-row:hover {
+    color: var(--helm-paper);
+    background: var(--helm-deck-raised-2);
+  }
+}
+
+/* ── vault page shell (reuses .bos-deck for the scroll container) ─────────── */
+[data-skin="helm"] .bos-vault-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-vault-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+[data-skin="helm"] .bos-vault-note {
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-retry {
+  margin-left: 4px;
+  padding: 1px 7px;
+  font-family: var(--helm-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--helm-paper-dim);
+  background: transparent;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-chip);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-vault-retry {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-vault-retry:hover {
+    color: var(--helm-brass-bright);
+    border-color: var(--helm-brass);
+  }
+}
+
+/* Graph left / detail right; stacks below 900px so the graph never squeezes the
+   record list into a column of ellipses. */
+[data-skin="helm"] .bos-vault-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  [data-skin="helm"] .bos-vault-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+[data-skin="helm"] .bos-vault-graph-pane {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: linear-gradient(180deg, var(--helm-deck-raised), var(--helm-deck));
+}
+
+/* ── memory graph (static SVG, fluid width) ───────────────────────────────── */
+[data-skin="helm"] .bos-vault-graph {
+  width: 100%;
+  height: auto;
+  max-width: 640px;
+}
+[data-skin="helm"] .bos-vault-spoke {
+  stroke: var(--helm-line-soft);
+  stroke-width: 1.2;
+}
+[data-skin="helm"] .bos-vault-orbit {
+  fill: none;
+  stroke: var(--helm-line-soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+}
+[data-skin="helm"] .bos-vault-node {
+  cursor: pointer;
+}
+[data-skin="helm"] .bos-vault-node-disc {
+  fill: var(--helm-deck-raised-2);
+  stroke: var(--helm-line);
+  stroke-width: 1.4;
+}
+[data-skin="helm"] .bos-vault-node-count {
+  fill: var(--helm-paper);
+  font-family: var(--helm-font-mono);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-vault-node-label {
+  fill: var(--helm-paper-faint);
+  font-family: var(--helm-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+[data-skin="helm"] .bos-vault-node[data-empty="true"] .bos-vault-node-count {
+  fill: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-node--center .bos-vault-node-disc {
+  stroke: var(--helm-brass);
+  stroke-width: 1.8;
+  fill: color-mix(in srgb, var(--helm-brass) 8%, var(--helm-deck-raised-2));
+}
+[data-skin="helm"] .bos-vault-node--center .bos-vault-node-count {
+  fill: var(--helm-brass-bright);
+  font-size: 24px;
+}
+[data-skin="helm"] .bos-vault-node[data-selected="true"] .bos-vault-node-disc {
+  stroke: var(--helm-brass);
+  fill: color-mix(in srgb, var(--helm-brass) 14%, var(--helm-deck-raised-2));
+}
+[data-skin="helm"] .bos-vault-node[data-selected="true"] .bos-vault-node-label {
+  fill: var(--helm-brass-bright);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-vault-node-disc,
+  [data-skin="helm"] .bos-vault-node-label {
+    transition:
+      fill var(--helm-dur-press) var(--helm-ease-out),
+      stroke var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-vault-node:hover .bos-vault-node-disc {
+    stroke: var(--helm-brass);
+  }
+  [data-skin="helm"] .bos-vault-node:hover .bos-vault-node-label {
+    fill: var(--helm-paper-dim);
+  }
+}
+
+/* ── detail column ───────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-vault-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: var(--helm-deck);
+}
+[data-skin="helm"] .bos-vault-crumb {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-crumb-node {
+  color: var(--helm-brass-bright);
+}
+[data-skin="helm"] .bos-vault-blurb {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-vault-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+[data-skin="helm"] .bos-vault-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+  text-align: left;
+}
+[data-skin="helm"] .bos-vault-tile-value {
+  font-size: 16px;
+  color: var(--helm-paper);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-vault-tile-label {
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-tile[data-selected="true"] {
+  border-color: var(--helm-brass);
+  background: color-mix(in srgb, var(--helm-brass) 7%, var(--helm-well));
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-vault-tile {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-vault-tile:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 50%, transparent);
+  }
+}
+
+/* ── the FILES list ──────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-vault-files {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-vault-files-head {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--helm-paper-faint);
+  padding-top: 4px;
+  border-top: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-skin="helm"] .bos-vault-file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-vault-file-title {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--helm-paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-vault-file-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--helm-paper-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-vault-file {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-vault-file:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+    background: var(--helm-deck-raised);
+    transform: translateX(2px);
+  }
+}
+
+/* ── record viewer ───────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-vault-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-vault-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 3px 9px;
+  font-family: var(--helm-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+  background: transparent;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-chip);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-vault-back {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-vault-back:hover {
+    color: var(--helm-brass-bright);
+    border-color: var(--helm-brass);
+  }
+}
+[data-skin="helm"] .bos-vault-record-title {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-vault-prov {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-vault-prov-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 12px;
+}
+[data-skin="helm"] .bos-vault-prov-grid dt {
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-prov-grid dd {
+  font-size: 11px;
+  color: var(--helm-paper-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-vault-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-skin="helm"] .bos-vault-md-h1 {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--helm-paper);
+  margin-top: 4px;
+}
+[data-skin="helm"] .bos-vault-md-h2 {
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--helm-paper-dim);
+  margin-top: 4px;
+}
+[data-skin="helm"] .bos-vault-md-p {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--helm-paper-dim);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-vault-md-li {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--helm-paper-dim);
+  padding-left: 14px;
+  position: relative;
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-vault-md-li::before {
+  content: "·";
+  position: absolute;
+  left: 4px;
+  color: var(--helm-brass);
+}
+[data-skin="helm"] .bos-vault-md-code {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+  background: var(--helm-well);
+  border-left: 2px solid var(--helm-line);
+  padding: 2px 9px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── CC-Primitives P6 — station memory panel (reuses the .bos-vault-detail shell
+   and the .bos-editor-* field tokens; no new focus rule — .bos-editor-*:focus-visible
+   already covers the textarea/select here). ─────────────────────────────────── */
+[data-skin="helm"] .bos-vault-memory {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: var(--helm-deck);
+}
+[data-skin="helm"] .bos-vault-memory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-vault-memory-counter {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-vault-memory-counter[data-over="true"] {
+  color: var(--helm-red);
+}
+
+/* ══ B3 — CEO brief (Captain's console + agent log) ══════════════════════════
+ * Same rules as everything above: every value is a var() off the helm palette
+ * (src/theme/helm.css) — no raw hex, no mockup literals.
+ *
+ * MOTION (emil-design-eng): exactly TWO moving things.
+ *   1. the dial's inner ring, which animates OPACITY ONLY — no transform, no
+ *      layout-bound property, no colour change — on a slow 2.4s breathe. It is
+ *      frozen by BOTH `@media (prefers-reduced-motion: reduce)` AND the explicit
+ *      `[data-reduce-motion="on"]` toggle (ADR-040), each with an opacity floor so
+ *      the ring is never left mid-fade.
+ *   2. one hover-gated 240ms transform on a log row — the phase ceiling, never
+ *      exceeded — inside `@media (hover:hover) and (pointer:fine)` so a touch
+ *      device never gets a stuck hover state.
+ * Everything else that transitions does so on colour / background / border at
+ * 140ms. Nothing animates on mount.
+ *
+ * FOCUS: intentionally absent. Every control here is a real <button> or <input>
+ * outside .helm-root and picks up the ONE global ring from index.css
+ * (:focus-visible). A second ring would be a regression, not a feature.
+ */
+
+[data-skin="helm"] .bos-brief-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-content: start;
+}
+
+/* ── the Captain's console ────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-brief-console {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding: 20px;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+}
+@media (max-width: 900px) {
+  [data-skin="helm"] .bos-brief-console {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+}
+[data-skin="helm"] .bos-brief-dial {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-brief-dial-pulse {
+  animation: bos-brief-breathe 2.4s var(--helm-ease-out) infinite;
+}
+/* OPACITY ONLY — nothing else in this keyframe, by design. */
+@keyframes bos-brief-breathe {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-brief-dial-pulse {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+[data-reduce-motion="on"] [data-skin="helm"] .bos-brief-dial-pulse,
+[data-skin="helm"][data-reduce-motion="on"] .bos-brief-dial-pulse {
+  animation: none;
+  opacity: 0.7;
+}
+
+[data-skin="helm"] .bos-brief-console-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+[data-skin="helm"] .bos-brief-h3 {
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-brief-help {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--helm-paper-dim);
+  max-width: 62ch;
+}
+[data-skin="helm"] .bos-brief-form {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+[data-skin="helm"] .bos-brief-input {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-brief-send {
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-brief-error {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--helm-red);
+}
+[data-skin="helm"] .bos-brief-ack {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--helm-green);
+}
+
+/* ── the agent log ────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-brief-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+}
+[data-skin="helm"] .bos-brief-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .bos-brief-rows {
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="helm"] .bos-brief-row {
+  display: grid;
+  grid-template-columns: minmax(88px, max-content) minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-top: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-brief-row:first-child {
+  border-top: 0;
+}
+@media (max-width: 720px) {
+  [data-skin="helm"] .bos-brief-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    row-gap: 5px;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-brief-row {
+    transition:
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-brief-row:hover {
+    background: var(--helm-deck-raised-2);
+    transform: translateX(2px);
+  }
+}
+[data-skin="helm"] .bos-brief-agent {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--helm-brass);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-brief-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+[data-skin="helm"] .bos-brief-row-title {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--helm-paper);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-brief-row-meta {
+  font-size: 10.5px;
+  color: var(--helm-paper-faint);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-brief-row-age {
+  font-size: 10.5px;
+  color: var(--helm-paper-faint);
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-brief-pill-cta {
+  cursor: pointer;
+  border-style: solid;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-brief-pill-cta {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-brief-pill-cta:hover {
+    color: var(--helm-ink);
+    background: var(--helm-amber);
+    border-color: var(--helm-amber);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * B4 — WORKFLOWS + SCHEDULE (cadence autonomy)
+ *
+ * MOTION BUDGET (identical discipline to the rest of this file): the ONLY moving
+ * properties are transform + opacity, each ≤240ms (--helm-dur-move), each frozen by
+ * BOTH `@media (prefers-reduced-motion: reduce)` AND the explicit
+ * `[data-reduce-motion="on"]` toggle. Row hover-raise lives inside
+ * `@media (hover:hover) and (pointer:fine)` so a touch device never gets a stuck state.
+ * Everything else that changes does so on colour / background / border at --helm-dur-press.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Workflows table ─────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-wf-table {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-wf-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 14px;
+  text-align: left;
+}
+[data-skin="helm"] .bos-wf-row--head {
+  padding: 4px 14px 6px;
+  border-bottom: 1px solid var(--helm-line-soft);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-wf-row--data {
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-wf-cell-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--helm-paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-wf-cell-station,
+[data-skin="helm"] .bos-wf-cell-cadence,
+[data-skin="helm"] .bos-wf-cell-last {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--helm-paper-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-wf-cell-cadence {
+  color: var(--helm-brass);
+}
+[data-skin="helm"] .bos-wf-cell-status {
+  justify-self: end;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-wf-row--data {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-wf-row--data:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+    background: var(--helm-deck-raised);
+    transform: translateX(2px);
+  }
+}
+[data-skin="helm"] .bos-wf-note {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper-faint);
+  padding: 10px 2px;
+}
+
+/* ── Workflow drawer (right-side dialog) ─────────────────────────────────── */
+[data-skin="helm"] .bos-wf-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--helm-ink) 66%, transparent);
+  animation: bos-wf-fade var(--helm-dur-press) var(--helm-ease-out);
+}
+[data-skin="helm"] .bos-wf-drawer {
+  width: min(420px, 92vw);
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  background: linear-gradient(180deg, var(--helm-deck-raised-2), var(--helm-deck-raised));
+  border-left: 1px solid var(--helm-line);
+  animation: bos-wf-slide var(--helm-dur-move) var(--helm-ease-out);
+}
+[data-skin="helm"] .bos-wf-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-wf-drawer-title {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.2;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-wf-drawer-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-wf-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--helm-line-soft);
+  border-bottom: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-wf-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+[data-skin="helm"] .bos-wf-fact dt {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-wf-fact dd {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-wf-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-skin="helm"] .bos-wf-history-head {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-wf-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-skin="helm"] .bos-wf-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 9px;
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-wf-history-time {
+  font-size: 10.5px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-wf-history-status {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--helm-brass);
+}
+[data-skin="helm"] .bos-wf-history-status[data-status="error"] {
+  color: var(--helm-red);
+}
+[data-skin="helm"] .bos-wf-drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+[data-skin="helm"] .bos-wf-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-skin="helm"] .bos-wf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--helm-paper-dim);
+  background: transparent;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+}
+/* ui-audit HIGH-1: a disabled Save (initial load or over-cap) must read as inert —
+   dimmed + not-allowed — never indistinguishable from an armed button. */
+[data-skin="helm"] .bos-wf-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+[data-skin="helm"] .bos-wf-run[data-busy],
+[data-skin="helm"] .bos-wf-toggle[data-busy] {
+  opacity: 0.6;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-wf-toggle {
+    transition:
+      color var(--helm-dur-press) var(--helm-ease-out),
+      border-color var(--helm-dur-press) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-wf-toggle:hover:not(:disabled) {
+    color: var(--helm-brass-bright);
+    border-color: var(--helm-brass);
+  }
+}
+[data-skin="helm"] .bos-wf-error {
+  font-size: 11px;
+  color: var(--helm-red);
+}
+[data-skin="helm"] .bos-wf-ack {
+  font-size: 11px;
+  color: var(--helm-brass);
+}
+
+/* ── Schedule timeline ───────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-sched-day {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-sched-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-sched-bucket {
+  position: relative;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-sched-time {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--helm-brass);
+  padding-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-sched-time--faint {
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-sched-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-sched-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-sched-item-title {
+  font-size: 13px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-sched-item-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--helm-paper-faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-sched-item {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-sched-item:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+    background: var(--helm-deck-raised);
+    transform: translateX(2px);
+  }
+}
+[data-skin="helm"] .bos-sched-now {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+[data-skin="helm"] .bos-sched-now-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--helm-r-chip);
+  background: var(--helm-brass-bright);
+}
+[data-skin="helm"] .bos-sched-now-line {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--helm-brass) 40%, transparent);
+}
+
+/* ── entrance keyframes (transform + opacity only, ≤240ms) ────────────────── */
+@keyframes bos-wf-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bos-wf-slide {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-wf-drawer-overlay,
+  [data-skin="helm"] .bos-wf-drawer { animation: none; }
+}
+[data-reduce-motion="on"] [data-skin="helm"] .bos-wf-drawer-overlay,
+[data-reduce-motion="on"] [data-skin="helm"] .bos-wf-drawer,
+[data-skin="helm"][data-reduce-motion="on"] .bos-wf-drawer-overlay,
+[data-skin="helm"][data-reduce-motion="on"] .bos-wf-drawer { animation: none; }
+
+/* ══ B5 · COMMAND CENTER (cross-venture home) ═══════════════════════════════
+ * Reuses the deck's topbar + chip vocabulary. The only NEW motion is a hover-gated
+ * translate on the venture / needs rows (transform, --helm-dur-move 240ms) plus the
+ * shared color/border presses — both inside @media (hover:hover) and (pointer:fine),
+ * so a touch device gets no motion. No innerHTML, var() tokens only. */
+[data-skin="helm"] .bos-center {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px clamp(16px, 3vw, 40px) 56px;
+  background: var(--helm-ink);
+  font-family: var(--helm-font-body);
+  color: var(--helm-paper);
+}
+
+/* ── stat tiles (calm, no gridlines, one number per tile) ─────────────────── */
+[data-skin="helm"] .bos-center-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 14px;
+}
+[data-skin="helm"] .bos-center-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: linear-gradient(180deg, var(--helm-deck-raised-2), var(--helm-deck-raised));
+}
+[data-skin="helm"] .bos-center-tile-value {
+  font-size: 30px;
+  line-height: 1.05;
+  color: var(--helm-paper);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-center-tile-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-center-tile-note {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-center-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-center-retry {
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--helm-paper-dim);
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-chip);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-center-retry:hover {
+    color: var(--helm-paper);
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  }
+}
+
+/* ── two-column body (ventures 1.4fr / needs-you 1fr, stacks < 900px) ─────── */
+[data-skin="helm"] .bos-center-cols {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  [data-skin="helm"] .bos-center-cols { grid-template-columns: 1fr; }
+}
+
+[data-skin="helm"] .bos-center-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  background: var(--helm-deck);
+}
+[data-skin="helm"] .bos-center-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+[data-skin="helm"] .bos-center-panel-title {
+  font-family: var(--helm-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-center-panel-sub {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-center-empty {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--helm-paper-faint);
+}
+
+/* ── ventures list ────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-center-vlist,
+[data-skin="helm"] .bos-center-needs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-skin="helm"] .bos-center-vrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-move) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-center-vrow:hover {
+    border-color: var(--helm-brass);
+    background: var(--helm-deck-raised-2);
+    transform: translateX(2px);
+  }
+}
+[data-skin="helm"] .bos-center-vrow[data-current="true"] {
+  border-color: var(--helm-brass);
+  background: color-mix(in srgb, var(--helm-brass) 10%, var(--helm-deck-raised));
+}
+[data-skin="helm"] .bos-center-vname {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--helm-paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-center-vmeta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-center-vrecords { color: var(--helm-paper-dim); }
+[data-skin="helm"] .bos-center-vpending {
+  color: color-mix(in srgb, var(--helm-amber) 78%, var(--helm-paper-dim));
+}
+[data-skin="helm"] .bos-center-vdot { color: var(--helm-line); }
+
+/* ── needs-you list ───────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-center-needs-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  transition:
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-move) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-center-needs-row:hover {
+    border-color: var(--helm-brass);
+    background: var(--helm-deck-raised-2);
+    transform: translateX(2px);
+  }
+}
+[data-skin="helm"] .bos-center-needs-avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+  color: var(--helm-brass-bright);
+  background: color-mix(in srgb, var(--helm-brass) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--helm-brass) 40%, transparent);
+  border-radius: var(--helm-r-chip);
+}
+[data-skin="helm"] .bos-center-needs-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+[data-skin="helm"] .bos-center-needs-title {
+  font-size: 12.5px;
+  color: var(--helm-paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-center-needs-meta {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-center-needs-cue {
+  flex-shrink: 0;
+  color: var(--helm-paper-faint);
+  font-size: 13px;
+}
+[data-skin="helm"] .bos-center-needs-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ══ B6 · PIPELINE (CRM-lite kanban) ════════════════════════════════════════
+ * Reuses the deck shell + topbar + chip vocabulary. The ONLY new motion is a
+ * hover-gated transform on a lead card and a color-only drop-target highlight —
+ * both inside @media (hover:hover) and (pointer:fine), and the transform is
+ * stripped under reduced-motion (then a drop is a plain instant reorder). No
+ * innerHTML anywhere, var() tokens only. */
+[data-skin="helm"] .bos-pipe { }
+[data-skin="helm"] .bos-pipe-error {
+  font-size: 11px;
+  color: var(--helm-red);
+}
+[data-skin="helm"] .bos-pipe-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 4px;
+}
+[data-skin="helm"] .bos-pipe-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-pipe-col[data-over] {
+  border-color: color-mix(in srgb, var(--helm-brass) 55%, transparent);
+  background: var(--helm-deck-raised);
+}
+[data-skin="helm"] .bos-pipe-col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--helm-line-soft);
+}
+[data-skin="helm"] .bos-pipe-col-title {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-pipe-col-count {
+  font-size: 11px;
+  color: var(--helm-brass);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-pipe-col-empty {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--helm-paper-faint);
+  padding: 8px 2px;
+}
+[data-skin="helm"] .bos-pipe-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  cursor: grab;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-deck-raised);
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-pipe-card:focus-visible {
+  outline: 2px solid var(--helm-brass);
+  outline-offset: 1px;
+}
+[data-skin="helm"] .bos-pipe-card[data-dragging] {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+[data-skin="helm"] .bos-pipe-card-name {
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-pipe-card-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--helm-paper-faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-pipe-card {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-pipe-card:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+    transform: translateY(-2px);
+  }
+}
+/* reduced-motion — no transform, a drop is a plain instant reorder */
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-pipe-card { transition: none; }
+  [data-skin="helm"] .bos-pipe-card:hover { transform: none; }
+}
+[data-reduce-motion="on"] [data-skin="helm"] .bos-pipe-card,
+[data-skin="helm"][data-reduce-motion="on"] .bos-pipe-card { transition: none; }
+[data-reduce-motion="on"] [data-skin="helm"] .bos-pipe-card:hover,
+[data-skin="helm"][data-reduce-motion="on"] .bos-pipe-card:hover { transform: none; }
+
+/* ── lead drawer: notes + note-add (reuses the wf-drawer shell) ─────────────── */
+[data-skin="helm"] .bos-lead-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-skin="helm"] .bos-lead-note-line {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+  padding: 6px 9px;
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+[data-skin="helm"] .bos-lead-note-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+[data-skin="helm"] .bos-lead-note-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  color: var(--helm-paper);
+  padding: 8px 10px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-lead-note-input:focus-visible {
+  outline: none;
+  border-color: var(--helm-brass);
+}
+
+/* ══ B6 · CONTENT (content engine grid) ═════════════════════════════════════ */
+[data-skin="helm"] .bos-content { }
+[data-skin="helm"] .bos-content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-content-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-deck-raised);
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-content-card:focus-visible {
+  outline: 2px solid var(--helm-brass);
+  outline-offset: 1px;
+}
+[data-skin="helm"] .bos-content-card-pill {
+  align-self: flex-start;
+}
+[data-skin="helm"] .bos-content-card-title {
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--helm-paper);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+[data-skin="helm"] .bos-content-card-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--helm-paper-faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-content-card {
+    transition:
+      border-color var(--helm-dur-press) var(--helm-ease-out),
+      background-color var(--helm-dur-press) var(--helm-ease-out),
+      transform var(--helm-dur-move) var(--helm-ease-out);
+  }
+  [data-skin="helm"] .bos-content-card:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-content-card { transition: none; }
+  [data-skin="helm"] .bos-content-card:hover { transform: none; }
+}
+
+/* ── brief editor (reuses the wf-drawer shell, a touch wider for authoring) ─── */
+[data-skin="helm"] .bos-editor {
+  width: min(560px, 94vw);
+}
+[data-skin="helm"] .bos-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+[data-skin="helm"] .bos-editor-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-editor-input,
+[data-skin="helm"] .bos-editor-textarea,
+[data-skin="helm"] .bos-editor-select {
+  width: 100%;
+  font-family: var(--helm-font-body);
+  font-size: 13px;
+  color: var(--helm-paper);
+  padding: 8px 10px;
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  background: var(--helm-well);
+}
+[data-skin="helm"] .bos-editor-textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+[data-skin="helm"] .bos-editor-body {
+  min-height: 160px;
+  font-family: var(--helm-font-mono);
+  font-size: 12px;
+}
+[data-skin="helm"] .bos-editor-input:focus-visible,
+[data-skin="helm"] .bos-editor-textarea:focus-visible,
+[data-skin="helm"] .bos-editor-select:focus-visible {
+  /* ui-audit LOW-5: match the surface's one global brass ring in strength, not a
+     border-color swap alone — the field must be as clearly focused as every other
+     control here. */
+  outline: 2px solid var(--helm-brass);
+  outline-offset: 1px;
+  border-color: var(--helm-brass);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   B7 — Outputs registry + Roadmap. Additive, all under [data-skin="helm"] .bos-*,
+   helm var() tokens only, hover-gated, ≤240ms, no new focus rule (global ring). */
+
+[data-skin="helm"] .bos-out-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+[data-skin="helm"] .bos-out-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  padding: 12px 14px;
+  transition: border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-out-row:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 40%, transparent);
+  }
+}
+[data-skin="helm"] .bos-out-row[data-gen="true"] {
+  background: color-mix(in srgb, var(--helm-brass) 5%, var(--helm-deck));
+}
+[data-skin="helm"] .bos-out-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--helm-deck-raised);
+  border: 1px solid var(--helm-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--helm-brass);
+}
+[data-skin="helm"] .bos-out-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+[data-skin="helm"] .bos-out-name {
+  font-family: var(--helm-font-display);
+  font-size: 13.5px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-out-meta {
+  font-size: 11px;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-out-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-out-dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--helm-font-mono);
+  font-size: 11px;
+  color: var(--helm-paper-dim);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-ctl);
+  padding: 5px 11px;
+  cursor: pointer;
+  background: transparent;
+  transition:
+    color var(--helm-dur-press) var(--helm-ease-out),
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-out-dl:hover:not(:disabled) {
+    color: var(--helm-brass);
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  }
+}
+[data-skin="helm"] .bos-out-dl:active:not(:disabled) { transform: scale(0.97); }
+[data-skin="helm"] .bos-out-dl:disabled { opacity: 0.5; cursor: progress; }
+
+/* ── Roadmap ─────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-road-note {
+  margin: 8px 0 18px;
+  font-size: 11.5px;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-road-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+[data-skin="helm"] .bos-road-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-card);
+  padding: 13px 16px;
+}
+[data-skin="helm"] .bos-road-row[data-status="active"] {
+  border-color: color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  background: color-mix(in srgb, var(--helm-brass) 5%, var(--helm-deck));
+}
+[data-skin="helm"] .bos-road-mark {
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+  font-family: var(--helm-font-mono);
+  font-size: 14px;
+  color: var(--helm-paper-faint);
+  margin-top: 1px;
+}
+[data-skin="helm"] .bos-road-row[data-status="done"] .bos-road-mark { color: var(--helm-green); }
+[data-skin="helm"] .bos-road-row[data-status="active"] .bos-road-mark { color: var(--helm-brass-bright); }
+[data-skin="helm"] .bos-road-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+[data-skin="helm"] .bos-road-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+[data-skin="helm"] .bos-road-id { font-size: 11px; color: var(--helm-brass); }
+[data-skin="helm"] .bos-road-title { font-family: var(--helm-font-display); font-size: 14px; color: var(--helm-paper); }
+[data-skin="helm"] .bos-road-status {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-road-row[data-status="done"] .bos-road-status { color: var(--helm-green); }
+[data-skin="helm"] .bos-road-row[data-status="active"] .bos-road-status { color: var(--helm-brass-bright); }
+[data-skin="helm"] .bos-road-blurb { font-size: 12px; color: var(--helm-paper-dim); line-height: 1.5; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Story-Pipeline S6 — Stories board + detail. Reuses the existing dark-cockpit
+   ("helm") token system with ZERO new colour: every value below is a --helm-*
+   token or a color-mix over one. Scoped to [data-skin="helm"] like every rule in
+   this file. Motion is transform/opacity only, <=240ms, ease-out; the one looping
+   pulse (a gate awaiting you) is disabled under reduced-motion.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+/* ── the New-story control in the topbar ─────────────────────────────────────── */
+[data-skin="helm"] .bos-story-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--helm-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: var(--helm-r-chip);
+  border: 1px solid color-mix(in srgb, var(--helm-brass) 45%, transparent);
+  color: var(--helm-brass-bright);
+  background: color-mix(in srgb, var(--helm-brass) 10%, transparent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    background-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-story-new:hover {
+    border-color: var(--helm-brass);
+    background: color-mix(in srgb, var(--helm-brass) 16%, transparent);
+  }
+}
+[data-skin="helm"] .bos-story-new:active { transform: scale(0.97); }
+
+/* ── the new-story form ──────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-newform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-pane);
+}
+
+/* ── notes (loading / empty / error) ─────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-note {
+  padding: 14px 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-story-note[data-tone="red"] { color: var(--helm-red); }
+[data-skin="helm"] .bos-story-note b { color: var(--helm-paper); font-weight: 600; }
+
+/* ── the kanban board ────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scrollbar-width: thin;
+}
+[data-skin="helm"] .bos-story-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 232px;
+  min-width: 232px;
+  background: color-mix(in srgb, var(--helm-deck) 55%, transparent);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-card);
+  overflow: hidden;
+}
+/* a human-gate column (Design / Ship) wears an amber top-rail so a gate reads at a glance. */
+[data-skin="helm"] .bos-story-col[data-gate="true"] {
+  border-color: color-mix(in srgb, var(--helm-amber) 34%, var(--helm-line));
+}
+[data-skin="helm"] .bos-story-col[data-gate="true"]::before {
+  content: "";
+  display: block;
+  height: 2px;
+  background: color-mix(in srgb, var(--helm-amber) 65%, transparent);
+}
+[data-skin="helm"] .bos-story-col-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px 8px;
+}
+[data-skin="helm"] .bos-story-col-label {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-story-col-gate {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--helm-amber);
+  padding: 1px 6px;
+  border-radius: var(--helm-r-chip);
+  border: 1px solid color-mix(in srgb, var(--helm-amber) 40%, transparent);
+}
+[data-skin="helm"] .bos-story-col-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-story-col-well {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px 10px;
+  min-height: 56px;
+}
+[data-skin="helm"] .bos-story-col-empty {
+  align-self: center;
+  padding: 12px 0;
+  color: var(--helm-line);
+  font-family: var(--helm-font-mono);
+}
+
+/* ── a story card ────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color var(--helm-dur-press) var(--helm-ease-out),
+    transform var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-skin="helm"] .bos-story-card:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 50%, transparent);
+    transform: translateY(-1px);
+  }
+}
+[data-skin="helm"] .bos-story-card:active { transform: scale(0.99); }
+[data-skin="helm"] .bos-story-card[data-status="waiting-you"] {
+  border-color: color-mix(in srgb, var(--helm-amber) 42%, transparent);
+}
+[data-skin="helm"] .bos-story-card[data-status="blocked"],
+[data-skin="helm"] .bos-story-card[data-status="rejected"] {
+  border-color: color-mix(in srgb, var(--helm-red) 38%, transparent);
+}
+[data-skin="helm"] .bos-story-card[data-status="shipped"] { opacity: 0.72; }
+[data-skin="helm"] .bos-story-card-title {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-story-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .bos-story-card-when {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--helm-paper-faint);
+}
+
+/* ── detail overlay ──────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: clamp(10px, 3vw, 36px) clamp(8px, 3vw, 28px);
+  background: color-mix(in srgb, var(--helm-ink) 78%, transparent);
+}
+[data-skin="helm"] .bos-story-detail {
+  width: 100%;
+  max-width: 760px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line);
+  border-radius: var(--helm-r-pane);
+  padding: clamp(16px, 3vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: bos-story-rise var(--helm-dur-enter) var(--helm-ease-out) both;
+}
+@keyframes bos-story-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+[data-skin="helm"] .bos-story-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+[data-skin="helm"] .bos-story-detail-title {
+  font-size: clamp(17px, 2.4vw, 21px);
+  line-height: 1.25;
+  color: var(--helm-paper);
+  margin-top: 3px;
+}
+[data-skin="helm"] .bos-story-detail-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+[data-skin="helm"] .bos-story-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── spine tracker ───────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-spine {
+  display: flex;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+[data-skin="helm"] .bos-story-spine-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 0;
+  min-width: 78px;
+  padding: 0 4px;
+  text-align: center;
+}
+/* the connecting rail runs behind the dots, from each node to the next. */
+[data-skin="helm"] .bos-story-spine-node::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: calc(-50% + 13px);
+  width: calc(100% - 26px);
+  height: 2px;
+  background: var(--helm-line);
+}
+[data-skin="helm"] .bos-story-spine-node:first-child::before { display: none; }
+[data-skin="helm"] .bos-story-spine-node[data-state="done"]::before,
+[data-skin="helm"] .bos-story-spine-node[data-state="current"]::before {
+  background: color-mix(in srgb, var(--helm-brass) 60%, transparent);
+}
+[data-skin="helm"] .bos-story-spine-dot {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--helm-well);
+  border: 2px solid var(--helm-line);
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-story-spine-num {
+  font-family: var(--helm-font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+[data-skin="helm"] .bos-story-spine-node[data-state="done"] .bos-story-spine-dot {
+  background: color-mix(in srgb, var(--helm-green) 20%, var(--helm-well));
+  border-color: var(--helm-green);
+  color: var(--helm-green);
+}
+[data-skin="helm"] .bos-story-spine-node[data-state="current"] .bos-story-spine-dot {
+  border-color: var(--helm-brass);
+  color: var(--helm-brass-bright);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--helm-brass) 16%, transparent);
+}
+/* a human-gate node reads amber (design / ship), distinct from the auto stages. */
+[data-skin="helm"] .bos-story-spine-node[data-tone="gate"][data-state="current"] .bos-story-spine-dot,
+[data-skin="helm"] .bos-story-spine-node[data-tone="gate"][data-awaiting="true"] .bos-story-spine-dot {
+  border-color: var(--helm-amber);
+  color: var(--helm-amber);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--helm-amber) 18%, transparent);
+}
+[data-skin="helm"] .bos-story-spine-node[data-tone="rejected"] .bos-story-spine-dot {
+  border-color: var(--helm-red);
+  color: var(--helm-red);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--helm-red) 16%, transparent);
+}
+/* the current gate node pulses gently while it waits on you — opacity only. */
+[data-skin="helm"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot {
+  animation: bos-story-breathe 1.8s var(--helm-ease-out) infinite;
+}
+@keyframes bos-story-breathe {
+  0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--helm-amber) 22%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--helm-amber) 8%, transparent); }
+}
+[data-skin="helm"] .bos-story-spine-label {
+  font-family: var(--helm-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  color: var(--helm-paper-faint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+[data-skin="helm"] .bos-story-spine-node[data-state="current"] .bos-story-spine-label { color: var(--helm-paper); }
+[data-skin="helm"] .bos-story-spine-gate {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--helm-amber);
+}
+
+/* ── detail sections ─────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-skin="helm"] .bos-story-section-h { margin: 0; }
+[data-skin="helm"] .bos-story-idea {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--helm-paper-dim);
+  white-space: pre-wrap;
+}
+[data-skin="helm"] .bos-story-refs { display: flex; flex-wrap: wrap; gap: 7px; }
+[data-skin="helm"] .bos-story-ref {
+  font-size: 10.5px;
+  color: var(--helm-paper-faint);
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ── clarify Q&A thread ──────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="helm"] .bos-story-qa {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 13px;
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: 10px;
+}
+[data-skin="helm"] .bos-story-q,
+[data-skin="helm"] .bos-story-a {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-story-a { color: var(--helm-paper-dim); }
+[data-skin="helm"] .bos-story-qa-tag {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  border: 1px solid var(--helm-line);
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-story-qa-tag[data-role="q"] { color: var(--helm-brass); border-color: color-mix(in srgb, var(--helm-brass) 40%, transparent); }
+[data-skin="helm"] .bos-story-qa-tag[data-role="a"] { color: var(--helm-green); border-color: color-mix(in srgb, var(--helm-green) 40%, transparent); }
+[data-skin="helm"] .bos-story-qa-tag[data-role="open"] { color: var(--helm-amber); border-color: color-mix(in srgb, var(--helm-amber) 40%, transparent); }
+
+/* ── inline gates ────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-gates { display: flex; flex-direction: column; gap: 12px; }
+[data-skin="helm"] .bos-story-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px 15px;
+  background: var(--helm-deck-raised);
+  border: 1px solid color-mix(in srgb, var(--helm-amber) 36%, var(--helm-line));
+  border-radius: var(--helm-r-card);
+}
+[data-skin="helm"] .bos-story-gate-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+[data-skin="helm"] .bos-story-gate-title { font-size: 14px; line-height: 1.3; color: var(--helm-paper); }
+[data-skin="helm"] .bos-story-gate-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--helm-paper-dim);
+  white-space: pre-wrap;
+}
+[data-skin="helm"] .bos-story-gate-field { display: flex; flex-direction: column; gap: 6px; }
+[data-skin="helm"] .bos-story-gate-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── build panel ─────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-build { display: flex; flex-direction: column; gap: 10px; }
+[data-skin="helm"] .bos-story-build-counts { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+[data-skin="helm"] .bos-story-goal {
+  border: 1px solid var(--helm-line);
+  border-radius: 10px;
+  background: var(--helm-well);
+  overflow: hidden;
+}
+[data-skin="helm"] .bos-story-goal[data-state="failed"] { border-color: color-mix(in srgb, var(--helm-red) 34%, var(--helm-line)); }
+[data-skin="helm"] .bos-story-goal[data-state="done"] { border-color: color-mix(in srgb, var(--helm-green) 30%, var(--helm-line)); }
+[data-skin="helm"] .bos-story-goal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--helm-deck);
+  border: none;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .bos-story-caret {
+  flex-shrink: 0;
+  color: var(--helm-paper-faint);
+  transition: transform var(--helm-dur-press) var(--helm-ease-out);
+}
+[data-skin="helm"] .bos-story-caret[data-open="true"] { transform: rotate(90deg); }
+[data-skin="helm"] .bos-story-goal-seat { font-size: 12.5px; color: var(--helm-paper); }
+[data-skin="helm"] .bos-story-goal-meta { margin-left: auto; font-size: 10px; color: var(--helm-paper-faint); }
+[data-skin="helm"] .bos-story-goal-body { display: flex; flex-direction: column; gap: 9px; padding: 10px 12px; }
+[data-skin="helm"] .bos-story-goal-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+[data-skin="helm"] .bos-story-goal-step { font-size: 11px; color: var(--helm-paper-dim); line-height: 1.5; }
+[data-skin="helm"] .bos-story-task {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px;
+  background: var(--helm-deck);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: 8px;
+}
+[data-skin="helm"] .bos-story-task-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+[data-skin="helm"] .bos-story-task-meta { font-size: 10px; color: var(--helm-paper-faint); overflow-wrap: anywhere; }
+
+/* ── loop steps ──────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--helm-line);
+  padding-left: 10px;
+}
+[data-skin="helm"] .bos-story-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+[data-skin="helm"] .bos-story-step-kind {
+  flex-shrink: 0;
+  min-width: 54px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .bos-story-step[data-kind="tool"] .bos-story-step-kind,
+[data-skin="helm"] .bos-story-step[data-kind="subagent"] .bos-story-step-kind { color: var(--helm-brass); }
+[data-skin="helm"] .bos-story-step[data-kind="observe"] .bos-story-step-kind { color: var(--helm-green); }
+[data-skin="helm"] .bos-story-step[data-kind="result"] .bos-story-step-kind { color: var(--helm-brass-bright); }
+[data-skin="helm"] .bos-story-step-tool { flex-shrink: 0; font-size: 10px; color: var(--helm-paper-dim); }
+[data-skin="helm"] .bos-story-step-summary {
+  min-width: 0;
+  color: var(--helm-paper-dim);
+  overflow-wrap: anywhere;
+}
+
+/* ── timeline ────────────────────────────────────────────────────────────────── */
+[data-skin="helm"] .bos-story-log {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="helm"] .bos-story-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: 7px;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .bos-story-log-event { font-size: 11px; color: var(--helm-paper); }
+[data-skin="helm"] .bos-story-log-ref { font-size: 10px; color: var(--helm-paper-faint); overflow-wrap: anywhere; }
+[data-skin="helm"] .bos-story-log-ts { margin-left: auto; font-size: 9.5px; color: var(--helm-paper-faint); }
+
+/* ── reduced motion — freeze the pulse + spatial transforms (emil rule) ──────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot { animation: none; }
+  [data-skin="helm"] .bos-story-detail { animation: none; }
+  [data-skin="helm"] .bos-story-card:hover,
+  [data-skin="helm"] .bos-story-card:active,
+  [data-skin="helm"] .bos-story-new:active { transform: none; }
+  [data-skin="helm"] .bos-story-caret { transition: none; }
+}
+[data-reduce-motion="on"] [data-skin="helm"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot,
+[data-skin="helm"][data-reduce-motion="on"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot { animation: none; }

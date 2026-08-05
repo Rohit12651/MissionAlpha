@@ -7,9 +7,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { allowedToolsForAgent } from "../agent-tools.mjs";
-import { createAgent, deleteAgent, loadRegistry, validateSpec } from "../factory.mjs";
+import { createAgent, deleteAgent, loadRegistry } from "../factory.mjs";
 import { tmpdir } from "node:os";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 // Isolate: redirect the factory's repo-bound writes (TRACKED factory/registry.json +
@@ -45,13 +45,13 @@ test("G5: allowedToolsForAgent — built-in agent returns null", () => {
 });
 
 // ── G5: factory agent with read-only skill → only Read ────────────────────────
-test("G5: factory agent with content-writing skill (Read-only) → [Read] only", () => {
-  const id = "spawn-tools-content-" + Date.now().toString(36);
+test("G5: factory agent with a read-only skill → [Read] only", () => {
+  const id = "spawn-tools-readonly-" + Date.now().toString(36);
   createdIds.push(id);
   const result = createAgent({
-    id, role: "Content writer", title: "Content Writer",
-    persona: "You write content. Bus comms in /caveman full.",
-    skills: ["content-writing"], tools: ["Read"], integrations: [],
+    id, role: "Repo analyst", title: "Repo Analyst",
+    persona: "You read the repository and report. Bus comms in /caveman full.",
+    skills: ["repo-read"], tools: ["Read"], integrations: [],
   });
   assert.ok(!result.error, `createAgent failed: ${result.error}`);
 
@@ -109,7 +109,7 @@ test("G5: allowedToolsForAgent is synchronous — args computable before stdin w
   createAgent({
     id, role: "Sync test", title: "Sync Test",
     persona: "You are a sync test agent. Bus comms in /caveman full.",
-    skills: ["content-writing"], tools: ["Read"], integrations: [],
+    skills: ["repo-read"], tools: ["Read"], integrations: [],
   });
 
   // Simulate the spawn-frame order

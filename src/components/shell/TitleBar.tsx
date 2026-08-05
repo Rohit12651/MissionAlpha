@@ -133,6 +133,14 @@ export interface TitleBarProps {
   onOpenSettings: () => void;
   onOpenHero: () => void;
   onOpenSkills: () => void;
+  /**
+   * P3: the shell surface switch (Inbox ⇄ Board). Rendered ONLY when the
+   * VITE_INBOX flag is on — when it is off this is undefined and the bar is
+   * byte-identical to the pre-P3 cockpit.
+   */
+  shellToggle?: React.ReactNode;
+  /** Deliveries awaiting a decision. Driven by SSE, not by polling. */
+  pendingDeliveries?: number;
 }
 
 export function TitleBar({
@@ -145,6 +153,8 @@ export function TitleBar({
   onOpenSettings,
   onOpenHero,
   onOpenSkills,
+  shellToggle,
+  pendingDeliveries = 0,
 }: TitleBarProps) {
   const statusTone = needYou ? "blocked-amber" : "done-green";
   return (
@@ -166,6 +176,18 @@ export function TitleBar({
         />
         <span className="text-sm font-semibold tracking-tight">MissionAlpha</span>
       </span>
+      {shellToggle && <span className="ml-1">{shellToggle}</span>}
+      {pendingDeliveries > 0 && (
+        <span
+          className="hidden items-center gap-1.5 text-[12px] md:inline-flex"
+          role="status"
+          aria-live="polite"
+          style={{ color: tok("muted") }}
+        >
+          <span className="helm-badge">{pendingDeliveries}</span>
+          {pendingDeliveries === 1 ? "delivery awaits you" : "deliveries await you"}
+        </span>
+      )}
       {counts && (
         <span className="hidden text-[12px] text-muted lg:inline">{reassurance}</span>
       )}

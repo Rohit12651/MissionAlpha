@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { X, AlertTriangle, Link2, Inbox, Radio, HeartPulse } from "lucide-react";
+import { X, AlertTriangle, Link2, Inbox, Radio, HeartPulse, Activity, Shield, Sparkles, Lock } from "lucide-react";
 import type { AgentState, FeedEvent, Heartbeat, CommandRequest, CommandResult } from "../data/types";
 import {
   agentAccent,
@@ -21,6 +21,11 @@ import { AgentManage } from "./factory/AgentManage";
 import { ModelTierPicker } from "./workspace/ModelTierPicker";
 import { loadAgentModel, saveAgentModel } from "../lib/agentModel";
 import { type ModelTier } from "../lib/modelTiers";
+import type { RuntimeEvent } from "../lib/useRuntimeEvents";
+import { LoopStream } from "./station/LoopStream";
+import { PermModeToggle } from "./station/PermModeToggle";
+import { SkillsChips } from "./station/SkillsChips";
+import { HooksCard } from "./station/HooksCard";
 
 // A1 — Agent Drill-Down Drawer + A2 Why-Stuck. Right-side slide-in, spring/ease-out,
 // reduced-motion → instant. a11y: role=dialog, aria-modal, focus trap, Esc, focus
@@ -207,6 +212,30 @@ function MessageRow({ ev, nowMs }: { ev: FeedEvent; nowMs: number }) {
   );
 }
 
+// ── CC-Primitives P5 — the station block ───────────────────────────────────
+// Four ADDITIVE sections over the P1–P4 backend, in the order an operator reads
+// them: what it is doing (Loop) → what it may do (Permissions) → what it knows
+// (Skills) → what it cannot do (Guards). Each child owns its own gated read; the
+// drawer only forwards the agent id and the last SSE frame.
+function StationSections({ agentId, lastEvent }: { agentId: string; lastEvent?: RuntimeEvent | null }) {
+  return (
+    <>
+      <Section icon={<Activity size={13} />} title="Loop">
+        <LoopStream agentId={agentId} lastEvent={lastEvent} />
+      </Section>
+      <Section icon={<Shield size={13} />} title="Permissions">
+        <PermModeToggle agentId={agentId} />
+      </Section>
+      <Section icon={<Sparkles size={13} />} title="Skills">
+        <SkillsChips agentId={agentId} lastEvent={lastEvent} />
+      </Section>
+      <Section icon={<Lock size={13} />} title="Guards">
+        <HooksCard agentId={agentId} lastEvent={lastEvent} />
+      </Section>
+    </>
+  );
+}
+
 // ── Drawer ─────────────────────────────────────────────────────────────────
 export function AgentDrawer({
   agent,
@@ -215,6 +244,7 @@ export function AgentDrawer({
   heartbeats,
   onClose,
   onCommand,
+  lastEvent,
 }: {
   agent: AgentState | null;
   agents: AgentState[];
@@ -223,6 +253,12 @@ export function AgentDrawer({
   onClose: () => void;
   /** WRITE arrow — passed to the action panel so the operator can ACT. */
   onCommand?: (cmd: CommandRequest) => Promise<CommandResult>;
+  /**
+   * P5 — the app's last SSE frame (App.tsx already holds it for the BOS pages).
+   * The station sections use it to RE-READ authoritative state; identity-only
+   * frames are never reconstructed into rows client-side.
+   */
+  lastEvent?: RuntimeEvent | null;
 }) {
   const reduce = useReducedMotion();
   const nowMs = useTick();
@@ -279,7 +315,6 @@ export function AgentDrawer({
     };
     // Re-run only on the open transition (per agent id), not on every poll.
     // onClose is read via onCloseRef so it must NOT be a dep — see BUG 2/3 above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, agent?.id]);
 
   return (
@@ -315,13 +350,16 @@ export function AgentDrawer({
           >
             <DrawerHeader agent={agent} nowMs={nowMs} titleId={titleId} onClose={onClose} />
 
-            {/* Item 4 — manage created agents (edit skills + delete) at the TOP so it's
-                immediately visible. Self-hides for built-ins (not in the factory
-                registry), so it's always safe to render and never shows a dead button. */}
-            <AgentManage agentId={agent.id} />
+            {/* Item 4 / P1-F4 — manage this agent (edit skills, F3-gated delete/un-pin) at
+                the TOP so it's immediately visible. Self-hides for board seeds with nothing
+                to manage, and refuses a destructive control for the CEO + built-ins. */}
+            <AgentManage agentId={agent.id} agent={agent} onRemoved={onClose} />
 
             {/* A5 — operator action: the first thing you can DO on drill-in. */}
             <AgentAction agent={agent} agents={agents} onCommand={onCommand} />
+
+            {/* P5 — the station block (loop · permissions · skills · guards). */}
+            <StationSections agentId={agent.id} lastEvent={lastEvent} />
 
             <WhyStuck
               agent={agent}

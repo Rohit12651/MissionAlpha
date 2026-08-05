@@ -1,0 +1,6 @@
+{
+  "testCmd": ["node", "--test"],
+  "e2eCmd": null,
+  "timeoutMs": 120000,
+  "workdir": null
+}

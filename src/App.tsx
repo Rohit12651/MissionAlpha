@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
 import { Users, LayoutDashboard, MessageSquare, PanelRightOpen, GripVertical, Maximize2, X } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
 import type { Counts } from "./data/types";
@@ -7,12 +7,11 @@ import { AgentRoster } from "./components/cockpit/AgentRoster";
 import { RightPanel } from "./components/cockpit/RightPanel";
 import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDrawer";
 import { KanbanBoard } from "./components/KanbanBoard";
-import { ViewToggle, type BoardView } from "./components/ViewToggle";
-import { PulseGlobe } from "./components/PulseGlobe";
+import { ViewToggle, ShellToggle, type BoardView, type ShellView } from "./components/ViewToggle";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
 import { SkillPalette } from "./components/skills/SkillPalette";
-import { MISSION_SKILLS, type MissionSkill } from "./lib/missionSkills";
+import { loadCatalog, type MissionSkill } from "./lib/skillsCatalog";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { Onboarding, hasOnboarded } from "./components/onboarding/Onboarding";
 import { TitleBar } from "./components/shell/TitleBar";
@@ -26,6 +25,114 @@ import { runtimeUrl, type PreflightResult } from "./lib/runtimeBase";
 import { clampDockPos } from "./lib/swarmGraph";
 import { tok, TIER_ACCENT, TIER_LABEL } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
+import { useRuntimeEvents, applyBadge, applyUsageTick, type RuntimeEvent, type UsageByKey } from "./lib/useRuntimeEvents";
+import { listInbox, type InboxCounts } from "./lib/inboxClient";
+// B2 — only the PURE helpers + the stats fetcher are imported here. VaultPage (the
+// graph, the viewer, the markdown parser) stays behind React.lazy so the main index
+// never carries the vault UI.
+import { getVaultStats, ventureOptions, type VentureRef } from "./lib/vaultClient";
+// B5 — the app-wide venture scope. One module store read through useVenture(); the
+// sidebar switcher and the Command Center's ventures panel write it, every BOS surface
+// re-renders scoped (src/lib/ventureScope.ts).
+import { useVenture } from "./lib/ventureScope";
+import { emitDeliveryNotification, emitSlaNotification, syncTitleBadge } from "./lib/deliveryNotify";
+// CC-Primitives P5 — the shared per-station perm store. ONE line in the SSE reducer
+// below keeps the card chip and the drawer toggle reconciled; no Context provider.
+import { applyPermFrame } from "./components/station/permStore";
+import { AuthProvider, useAuth } from "./lib/useAuth";
+import { LoginGate } from "./components/auth/LoginGate";
+import { BosSidebar } from "./components/bos/BosSidebar";
+import { BOS_NAV, type BosNavEntry, type BosPage } from "./components/bos/bosNav";
+
+// P3 feature flag (program plan §5.1). ON by default; VITE_INBOX=0 restores the
+// pre-P3 cockpit EXACTLY — no toggle, no skin attribute, no SSE subscription, and
+// the Inbox chunk is never fetched (it is a lazy import below).
+const INBOX_ENABLED =
+  import.meta.env.VITE_INBOX !== "0" && import.meta.env.VITE_INBOX !== "false";
+
+// B0 — Business-OS shell flag. Nested under INBOX_ENABLED on purpose: the sidebar's
+// primary destination IS the P3 Inbox, so with the Inbox off there is nothing to
+// navigate to. VITE_BOS=0 restores the shipped P3 shell EXACTLY — the ShellToggle
+// returns to the title bar, the sidebar never mounts, and the layout wrapper element
+// does not exist in the tree at all (see BosFrame below).
+const BOS_ENABLED =
+  INBOX_ENABLED && import.meta.env.VITE_BOS !== "0" && import.meta.env.VITE_BOS !== "false";
+
+// Stable empty roster so the memoised sidebar does not re-render on every poll tick
+// during the pre-load window where `state` is still null.
+const NO_AGENTS = [] as const;
+// B2 — same reason: a stable empty roster so the memoised sidebar does not re-render
+// while the vault stats are still in flight.
+const NO_VENTURES = [] as const;
+
+const InboxPanel = lazy(() =>
+  import("./components/inbox").then((m) => ({ default: m.InboxPanel })),
+);
+
+// B1 — the Command deck is its OWN chunk. B0 left 1.7KB of gzip headroom on the main
+// index; a lazy import keeps the deck (and its modal + icons) out of it entirely, so
+// the deck is downloaded the first time the BOSS actually opens it.
+const CommandDeck = lazy(() =>
+  import("./components/bos/CommandDeck").then((m) => ({ default: m.CommandDeck })),
+);
+
+// B5 — the Command Center is its OWN chunk too: the page, the four StatTiles, the
+// ventures + needs-you panels, and the kpiClient all ride here, NOT the main index
+// (which sits under a hard gzip ceiling). Downloaded the first time the BOSS opens it.
+const CommandCenter = lazy(() =>
+  import("./components/bos/CommandCenter").then((m) => ({ default: m.CommandCenter })),
+);
+
+// B2 — the Knowledge Vault is its OWN chunk too. It pulls the graph, the record viewer
+// and the markdown line parser; none of that belongs in the main index, which sits
+// under a hard gzip ceiling. Downloaded the first time the BOSS opens the vault.
+const VaultPage = lazy(() =>
+  import("./components/bos/VaultPage").then((m) => ({ default: m.VaultPage })),
+);
+
+// B3 — the CEO brief is its OWN chunk too. It pulls the Captain console, the dial and
+// the agent log; none of that belongs in the main index, which sits under a hard gzip
+// ceiling. Downloaded the first time the BOSS opens the brief.
+const BriefPage = lazy(() =>
+  import("./components/bos/BriefPage").then((m) => ({ default: m.BriefPage })),
+);
+
+// B4 — Automation is its OWN pair of chunks. Each pulls the cadence client, the drawer
+// and the reused confirm gate; none of that belongs in the main index, which sits under
+// a hard gzip ceiling. Downloaded the first time the BOSS opens Workflows / Schedule.
+const WorkflowsPage = lazy(() =>
+  import("./components/bos/WorkflowsPage").then((m) => ({ default: m.WorkflowsPage })),
+);
+const SchedulePage = lazy(() =>
+  import("./components/bos/SchedulePage").then((m) => ({ default: m.SchedulePage })),
+);
+
+// S0 (story pipeline) — B6's Pipeline/Content surfaces are DELETED, not merely unwired:
+// their pages, drawers and client libs are gone from the tree, so there is no lazy
+// chunk to declare here.
+// B7 — the artifact registry + the read-only roadmap, both their own chunks (thin bundle).
+const OutputsPage = lazy(() =>
+  import("./components/bos/OutputsPage").then((m) => ({ default: m.OutputsPage })),
+);
+const RoadmapPage = lazy(() =>
+  import("./components/bos/RoadmapPage").then((m) => ({ default: m.RoadmapPage })),
+);
+
+// S6 (story pipeline) — the Stories board + detail are their OWN chunk. It pulls the stories
+// client, the spine tracker, the Build panel and the inline gate actions; none of that belongs
+// in the main index, which sits under a hard gzip ceiling. Downloaded the first time the BOSS
+// opens Stories.
+const StoriesPage = lazy(() =>
+  import("./components/bos/StoriesPage").then((m) => ({ default: m.StoriesPage })),
+);
+
+// The ambient globe is a faint (0.1-opacity) decorative backdrop. It pulls in three.js
+// (~226KB gz). Lazy + idle-gated so that heavy chunk is NEVER fetched on the initial
+// paint — it streams in after first paint when the browser is idle. Behavior is
+// unchanged (the globe still renders); it just no longer competes with first paint.
+const PulseGlobe = lazy(() =>
+  import("./components/PulseGlobe").then((m) => ({ default: m.PulseGlobe })),
+);
 
 // Mission-control shell (ADR-048 rev2): clean 3-zone cockpit — agent roster (left,
 // status only) · kanban board (center, primary) · Chat|Feed panel (right). Globe is
@@ -53,9 +160,45 @@ function LoadingShell() {
   );
 }
 
+/**
+ * B0 — the BOS layout frame. Flag ON: the shell body becomes a flex row — the
+ * sidebar rail first, then the EXISTING content in its own `min-w-0` column, so
+ * nothing inside had to move. Flag OFF: this renders its children and nothing
+ * else, so the shipped tree is unchanged — the wrapper element is not merely
+ * hidden, it is never created.
+ */
+function BosFrame({ enabled, sidebar, children }: { enabled: boolean; sidebar: ReactNode; children: ReactNode }) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <div className="relative z-10 flex min-h-0 flex-1">
+      {sidebar}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
 type MobilePane = "agents" | "board" | "chat";
 
+// P9 — second seat. When auth is active (≥2 accounts) and there is no valid session,
+// the whole app is replaced by the LoginGate; while /auth/me is in flight we show the
+// existing LoadingShell to avoid a flash. Solo (0/1 account) never gates → the app
+// renders exactly as it always has. The provider wraps everything so InboxPanel's
+// role/assignment reads the same context.
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { loading, authActive, user } = useAuth();
+  if (authActive && !user) return loading ? <LoadingShell /> : <LoginGate />;
+  return <AppInner />;
+}
+
+function AppInner() {
   const { state, error, sendCommand, getAudit, getCommandStatus, listSessions } = useAgentState();
 
   // Host-dependency preflight pushed from the electron bridge (claude/docker/auth).
@@ -64,6 +207,21 @@ export default function App() {
   const [preflight, setPreflight] = useState<PreflightResult | undefined>(undefined);
   useEffect(() => {
     window.missionAlpha?.onPreflight?.((result) => setPreflight(result));
+  }, []);
+
+  // Defer the ambient 3D globe until the browser is idle after first paint, so its
+  // three.js chunk never competes with the initial render. Falls back to a short timer
+  // where requestIdleCallback is absent (Safari). One-shot.
+  const [globeReady, setGlobeReady] = useState(false);
+  useEffect(() => {
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (typeof ric === "function") {
+      const id = ric(() => setGlobeReady(true), { timeout: 1500 });
+      const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+      return () => { if (typeof cic === "function") cic(id); };
+    }
+    const t = setTimeout(() => setGlobeReady(true), 200);
+    return () => clearTimeout(t);
   }, []);
 
   // Boss command thread (the ONE chat).
@@ -183,6 +341,7 @@ export default function App() {
 
   const enterReplay = useCallback((ms: number) => { setReplayMs(ms); setSelectedAgentId(null); }, []);
   const goLive = useCallback(() => { setReplayMs(null); setPlaying(false); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on state?.generatedAt only; depending on `state` would recompute on every poll tick.
   const globeNowMs = useMemo(() => (state ? Date.parse(state.generatedAt) || Date.now() : Date.now()), [state?.generatedAt]);
 
   const [mobilePane, setMobilePane] = useState<MobilePane>("board");
@@ -195,9 +354,22 @@ export default function App() {
   const [onboardingOpen, setOnboardingOpen] = useState(() => !hasOnboarded());
   const [utilOpen, setUtilOpen] = useState(false);
   const [utilTab, setUtilTab] = useState<UtilityTab>("audit");
+  // F5 — bumping this opens the Agent Factory (inside the Tools utility drawer) on Create.
+  const [factoryOpenSignal, setFactoryOpenSignal] = useState(0);
   const [prefill, setPrefill] = useState<{ text: string; nonce: number }>({ text: "", nonce: 0 });
   const [skillsOpen, setSkillsOpen] = useState(false);
+  // The ~3,100-entry catalog is a lazily-loaded chunk (see lib/skillsCatalog) — it is
+  // fetched the first time the palette opens, never on first paint.
+  const [skills, setSkills] = useState<readonly MissionSkill[]>([]);
   const [tierReloadKey, setTierReloadKey] = useState(0);
+
+  // Fetch the catalog chunk the first time the palette is opened; cached thereafter.
+  useEffect(() => {
+    if (!skillsOpen || skills.length) return;
+    let live = true;
+    void loadCatalog().then((c) => { if (live) setSkills(c.MISSION_SKILLS); });
+    return () => { live = false; };
+  }, [skillsOpen, skills.length]);
 
   // Resizable + collapsible chat dock (desktop only; mobile keeps the pane tabs).
   // Width persists; clamped so it can never push content off-screen.
@@ -244,6 +416,13 @@ export default function App() {
   useEffect(() => () => { chatDragCleanupRef.current?.(); }, []);
 
   const openUtil = useCallback((t: UtilityTab) => { setUtilTab(t); setUtilOpen(true); }, []);
+  // F5 — the roster's "+ Add" no longer opens a picker itself; it routes to the Factory,
+  // which is the single home for putting an agent on the board.
+  const openFactory = useCallback(() => {
+    setUtilTab("tools");
+    setUtilOpen(true);
+    setFactoryOpenSignal((n) => n + 1);
+  }, []);
 
   const skillsOpenRef = useRef(skillsOpen);
   useEffect(() => { skillsOpenRef.current = skillsOpen; }, [skillsOpen]);
@@ -292,16 +471,191 @@ export default function App() {
     return cmds;
   }, [state?.agents, dispatchGoal, openUtil, openAgent]);
 
+  // ── P3: the ONE SSE subscription (ADR-052) ────────────────────────────────
+  // Lives here, not inside InboxPanel, so switching to the Board never tears the
+  // stream down — the badge has to keep counting while the Inbox is off-screen.
+  // The existing 2s state.json poll (useAgentState) is untouched and is NOT gated
+  // on this: when the bus is down the board stays live and the Inbox shows a banner.
+  const [shellView, setShellView] = useState<ShellView>(INBOX_ENABLED ? "inbox" : "board");
+  // B1 — which BOS page owns the main slot, or null when a shellView does. Exactly one
+  // of the two renders, so there is still exactly one <main id="ma-main"> in the tree.
+  const [bosPage, setBosPage] = useState<BosPage | null>(null);
+  // Leaving a BOS page is the same act as choosing a view — the toggle below lg is the
+  // only nav a narrow window has, so it must be able to get out of the deck.
+  const goShellView = useCallback((v: ShellView) => { setBosPage(null); setShellView(v); }, []);
+  // B3 — the CEO brief's needs-review deep-link: leave the brief, land on the Inbox with
+  // that delivery already selected. `initialSelectedId` on InboxPanel is ADDITIVE and
+  // optional, so every other path into the Inbox behaves exactly as it did before.
+  const [inboxSelectId, setInboxSelectId] = useState<string | null>(null);
+  const openDelivery = useCallback((id: string) => {
+    setInboxSelectId(id);
+    setBosPage(null);
+    setShellView("inbox");
+  }, []);
+  // B5 — the venture scope is now a SINGLE app-wide source (src/lib/ventureScope.ts).
+  // B2 held it in local state and threaded it to the Vault page + the deck's records
+  // read ("app-wide scoping lands in B5"); B5 promotes it to a module store read through
+  // useVenture(), so the sidebar switcher AND the Command Center's ventures panel write
+  // ONE value and every open BOS surface re-renders scoped. `chooseVenture` keeps its
+  // name — it is the store's setter, wired unchanged into the sidebar + palette.
+  const { venture, setVenture: chooseVenture } = useVenture();
+  // The venture roster for the switcher, read once per resync (not on a timer).
+  const [ventures, setVentures] = useState<readonly VentureRef[]>(NO_VENTURES);
+  // Bumped on every `vault.written` frame — the Vault page re-reads authoritative
+  // state instead of polling, so a record another station wrote appears with no refresh.
+  const [vaultNonce, setVaultNonce] = useState(0);
+  // CC-Primitives P6 — bumped on every `memory.changed` frame, mirroring vaultNonce
+  // above: the Vault's station memory panel re-reads rather than polling or trying to
+  // reconstruct the new text from the (identity-only) frame.
+  const [memoryNonce, setMemoryNonce] = useState(0);
+  // B4 — bumped on every `workflow.run` frame so the Workflows/Schedule pages re-read
+  // authoritative next_run/last_run (a fired slot advances the schedule) without polling.
+  const [workflowNonce, setWorkflowNonce] = useState(0);
+  // S6 — bumped on every `story.changed` frame so the Stories board + open detail re-read
+  // authoritative story/stage/build state (the frame is identity-only {id, stage}) without polling.
+  const [storyNonce, setStoryNonce] = useState(0);
+  const [pendingDeliveries, setPendingDeliveries] = useState(0);
+  const [lastEvent, setLastEvent] = useState<RuntimeEvent | null>(null);
+  const [resyncNonce, setResyncNonce] = useState(0);
+  // P8 (ADR-030) — live usage from the bus (usage.tick), keyed thread×tier. Feeds the
+  // UsageOverview panel. Tokens + context% only — never $.
+  const [usageByThread, setUsageByThread] = useState<UsageByKey>({});
+  const notifiedRef = useRef<Set<string>>(new Set());
+  const slaNotifiedRef = useRef<Set<string>>(new Set());
+  const pendingRef = useRef(0);
+  useEffect(() => { pendingRef.current = pendingDeliveries; }, [pendingDeliveries]);
+
+  const onRuntimeEvent = useCallback((e: RuntimeEvent) => {
+    setLastEvent(e);
+    setPendingDeliveries((p) => applyBadge(p, e));
+    if (e.name === "usage.tick") setUsageByThread((m) => applyUsageTick(m, e));
+    // B2 — a record landed somewhere in the vault. The frame is identity-only, so the
+    // page re-READS rather than trying to reconstruct a record from the payload.
+    if (e.name === "vault.written") setVaultNonce((n) => n + 1);
+    // CC-Primitives P6 — a station's memory changed. Identity-only frame; the panel
+    // re-READS rather than trying to reconstruct memory text from the payload.
+    if (e.name === "memory.changed") setMemoryNonce((n) => n + 1);
+    if (e.name === "workflow.run") setWorkflowNonce((n) => n + 1);
+    // S6 — a story was created or changed stage. Identity-only frame ({id, stage}); the board
+    // and any open detail re-READ authoritative state rather than reconstructing from the frame.
+    if (e.name === "story.changed") setStoryNonce((n) => n + 1);
+    // P5 — a station's interactive permission override moved. Identity + mode only;
+    // the store reconciles the card chip and the drawer toggle from the same frame.
+    if (e.name === "station.perm.changed") applyPermFrame(e.data);
+    if (e.name === "delivery.created") {
+      emitDeliveryNotification(e.data, pendingRef.current + 1, notifiedRef.current);
+    }
+    // P6 (§5.10) — the ONE permitted re-notification: a delivery reached its SLA
+    // half-life and is still undecided. Deduped on its own seen-set (replay-safe).
+    if (e.name === "delivery.sla_halflife") {
+      emitSlaNotification(e.data, slaNotifiedRef.current);
+    }
+  }, []);
+  const onResync = useCallback(() => setResyncNonce((n) => n + 1), []);
+
+  const { connected: liveConnected, retryAt, reconnectNow } = useRuntimeEvents({
+    enabled: INBOX_ENABLED,
+    onEvent: onRuntimeEvent,
+    onResync,
+  });
+
+  // Authoritative badge baseline. The SSE deltas are exact between reads; this
+  // corrects for anything that happened before the tab existed, and re-corrects on
+  // every reconnect (an events_log prune can outlive a long disconnect).
+  const applyCounts = useCallback((c: InboxCounts) => {
+    setPendingDeliveries(Number(c.pending) || 0);
+  }, []);
+  useEffect(() => {
+    if (!INBOX_ENABLED) return;
+    let live = true;
+    listInbox({ limit: 1 })
+      .then((r) => { if (live && r.counts) applyCounts(r.counts); })
+      .catch(() => { /* the strip degrades to the SSE delta; no crash path */ });
+    return () => { live = false; };
+  }, [resyncNonce, applyCounts]);
+
+  // B2 — the venture roster behind the sidebar switcher. Read on mount, on every SSE
+  // resync, and whenever a record is written (a new venture can only appear that way).
+  // A failure leaves the roster empty, which renders "All ventures" alone — never a
+  // fabricated list.
+  useEffect(() => {
+    if (!BOS_ENABLED) return;
+    let live = true;
+    getVaultStats()
+      .then((s) => { if (live) setVentures(ventureOptions(s)); })
+      .catch(() => { if (live) setVentures(NO_VENTURES); });
+    return () => { live = false; };
+  }, [resyncNonce, vaultNonce]);
+
+  // Web badge (tab title). Electron gets the real dock badge over the bridge.
+  useEffect(() => { if (INBOX_ENABLED) syncTitleBadge(pendingDeliveries); }, [pendingDeliveries]);
+
+  // The Helm skin is an ADDITIVE attribute, separate from data-theme, applied only
+  // while the Inbox is on screen. Removing it restores the cockpit exactly.
+  // B0: with the BOS shell on, the sidebar is helm-styled on BOTH views, so the
+  // attribute stays put across the Inbox ⇄ Board switch.
+  useEffect(() => {
+    if (!INBOX_ENABLED) return;
+    const el = document.documentElement;
+    if (BOS_ENABLED || shellView === "inbox") el.setAttribute("data-skin", "helm");
+    else el.removeAttribute("data-skin");
+    return () => el.removeAttribute("data-skin");
+  }, [shellView]);
+
+  // B0 — the ONE dispatch for every sidebar / palette BOS entry. Each arm calls a
+  // setter that already ships; nothing here creates a new surface, which is why an
+  // entry can never point at a page that does not exist.
+  const onBosNav = useCallback((e: BosNavEntry) => {
+    // B1 — a page entry takes the main slot; every entry that flips shellView gives it
+    // back. `settings` is deliberately absent from that list: it is an overlay, so the
+    // page underneath must survive it.
+    if (e.kind === "page") { setBosPage(e.page); return; }
+    if (e.kind === "view") { goShellView(e.view); return; }
+    switch (e.action) {
+      case "settings": setSettingsOpen(true); break;
+      case "factory": goShellView("board"); openFactory(); break;
+      case "chat": goShellView("board"); if (!isLg) setMobilePane("chat"); break;
+      // SessionsBrowser lives inside the utility drawer; "replay" is the exact
+      // UtilityTab id (UtilityDrawer.tsx:23 — "audit" | "tools" | "replay").
+      case "sessions": goShellView("board"); setUtilOpen(true); setUtilTab("tools"); break; // SessionsBrowser lives in the tools tab (UtilityDrawer:113); replay scrubber is its sibling tab
+    }
+  }, [isLg, openFactory, goShellView]);
+
+  // BOS palette entries ride the SAME dispatch as the sidebar. Flag off, this
+  // returns the shipped list by reference — the palette cannot show them.
+  const bosPaletteCommands = useMemo<PaletteCommand[]>(() => {
+    if (!BOS_ENABLED) return paletteCommands;
+    return [
+      ...paletteCommands,
+      ...BOS_NAV.map((e) => ({
+        id: `bos-${e.id}`,
+        title: e.kind === "view" ? `Go to ${e.label}` : `Open ${e.label}`,
+        group: "Business OS",
+        keywords: `bos sidebar ${e.id} ${e.label}`,
+        run: () => onBosNav(e),
+      })),
+    ];
+  }, [paletteCommands, onBosNav]);
+
   const counts = viewCounts ?? state?.counts ?? null;
   const needYou = counts ? counts.blocked + counts.stale : 0;
   const reassurance = counts == null ? "" : needYou === 0 ? "All agents working · nothing needs you" : `${needYou} need${needYou === 1 ? "s" : ""} you`;
 
   return (
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden" style={{ backgroundColor: tok("bg") }}>
-      {/* faint ambient globe backdrop */}
-      {state && (
+      {/* Skip link (WCAG 2.4.1 bypass-blocks) — first focusable element; hidden until
+          keyboard focus, then jumps past the title-bar controls to #ma-main. */}
+      <a href="#ma-main" className="ma-skip-link">
+        Skip to main content
+      </a>
+      {/* faint ambient globe backdrop — idle-deferred so three.js stays off first paint */}
+      {state && globeReady && (
         <div aria-hidden className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden" style={{ opacity: 0.1 }}>
-          <div className="w-[min(78vh,78vw)]"><PulseGlobe agents={state.agents} feed={state.feed} scheduler={state.scheduler} nowMs={globeNowMs} /></div>
+          <div className="w-[min(78vh,78vw)]">
+            <Suspense fallback={null}>
+              <PulseGlobe agents={state.agents} feed={state.feed} scheduler={state.scheduler} nowMs={globeNowMs} />
+            </Suspense>
+          </div>
         </div>
       )}
 
@@ -316,10 +670,195 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHero={() => setHeroOpen(true)}
         onOpenSkills={() => setSkillsOpen(true)}
+        pendingDeliveries={INBOX_ENABLED ? pendingDeliveries : 0}
+        shellToggle={
+          // B0 — the sidebar owns surface switching when BOS is on, so the title-bar
+          // toggle stands down rather than offering a second control for one job.
+          // EXCEPT below lg: the sidebar is CSS-hidden there, so the toggle must
+          // return or a narrow window has no Inbox↔Board nav at all (verify-lane catch).
+          INBOX_ENABLED && (!BOS_ENABLED || !isLg) ? (
+            <ShellToggle view={shellView} onChange={goShellView} pending={pendingDeliveries} />
+          ) : undefined
+        }
       />
 
       {/* preflight gate — blocking setup screen / docker banner / cockpit */}
       <PreflightGate preflight={preflight}>
+      {/* B0 — sidebar + shell body. The rail is a <nav>, never a <main>, so exactly
+          one <main id="ma-main"> still renders per view and the skip link keeps its
+          single target. It also sits AFTER the skip link in DOM order. */}
+      <BosFrame
+        enabled={BOS_ENABLED}
+        sidebar={
+          <BosSidebar
+            shellView={shellView}
+            bosPage={bosPage}
+            pending={pendingDeliveries}
+            agents={state?.agents ?? NO_AGENTS}
+            onNav={onBosNav}
+            onAgent={openAgent}
+            venture={venture}
+            ventures={ventures}
+            onVenture={chooseVenture}
+          />
+        }
+      >
+      {/* B5 — the Command Center is the cross-venture home; it takes the main slot first.
+          Exactly one <main id="ma-main"> still renders, so the skip link keeps its one
+          target. venture scope comes from useVenture() inside the page (app-wide). */}
+      {BOS_ENABLED && bosPage === "center" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the command center…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Command center" className="relative z-10 flex min-h-0 flex-1">
+            <CommandCenter
+              pending={pendingDeliveries}
+              vaultNonce={vaultNonce}
+              workflowNonce={workflowNonce}
+              resyncNonce={resyncNonce}
+              onOpenDelivery={openDelivery}
+            />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "stories" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the pipeline…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Stories" className="relative z-10 flex min-h-0 flex-1">
+            <StoriesPage venture={venture} liveNonce={storyNonce + resyncNonce} />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "deck" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the deck…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Command deck" className="relative z-10 flex min-h-0 flex-1">
+            <CommandDeck
+              agents={state?.agents ?? NO_AGENTS}
+              pending={pendingDeliveries}
+              venture={venture}
+              vaultNonce={vaultNonce}
+              onOpenFactory={openFactory}
+              onAgent={openAgent}
+              onOpenBrief={() => setBosPage("brief")}
+            />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "brief" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the brief…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Daily brief" className="relative z-10 flex min-h-0 flex-1">
+            <BriefPage
+              venture={venture}
+              lastEvent={lastEvent}
+              liveNonce={resyncNonce}
+              onOpenDelivery={openDelivery}
+            />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "vault" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the log…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Knowledge vault" className="relative z-10 flex min-h-0 flex-1">
+            <VaultPage
+              venture={venture}
+              liveNonce={vaultNonce + resyncNonce}
+              memoryLiveNonce={memoryNonce + resyncNonce}
+            />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "workflows" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening workflows…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Workflows" className="relative z-10 flex min-h-0 flex-1">
+            <WorkflowsPage venture={venture} lastEvent={lastEvent} liveNonce={workflowNonce + resyncNonce} />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "schedule" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the schedule…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Schedule" className="relative z-10 flex min-h-0 flex-1">
+            <SchedulePage venture={venture} lastEvent={lastEvent} liveNonce={workflowNonce + resyncNonce} />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "outputs" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening outputs…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Outputs" className="relative z-10 flex min-h-0 flex-1">
+            <OutputsPage venture={venture} lastEvent={lastEvent} liveNonce={resyncNonce} />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "roadmap" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening roadmap…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Roadmap" className="relative z-10 flex min-h-0 flex-1">
+            <RoadmapPage />
+          </main>
+        </Suspense>
+      ) : INBOX_ENABLED && shellView === "inbox" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening the inbox…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Inbox" className="relative z-10 flex min-h-0 flex-1">
+            <InboxPanel
+              lastEvent={lastEvent}
+              resyncNonce={resyncNonce}
+              connected={liveConnected}
+              retryAt={retryAt}
+              onReconnectNow={reconnectNow}
+              onCounts={applyCounts}
+              initialSelectedId={inboxSelectId ?? undefined}
+            />
+          </main>
+        </Suspense>
+      ) : (
+      <>
       {/* mobile pane toggle */}
       <div className="relative z-10 flex gap-1 border-b border-border px-3 py-1.5 lg:hidden" role="tablist" aria-label="Pane">
         {([["agents", "Agents", Users], ["board", "Board", LayoutDashboard], ["chat", "Chat", MessageSquare]] as const).map(([id, label, Icon]) => (
@@ -337,11 +876,11 @@ export default function App() {
       <div className="relative z-10 flex min-h-0 flex-1">
         {/* roster */}
         <aside className={`w-[180px] shrink-0 border-r border-border ${mobilePane === "agents" ? "block w-full" : "hidden"} lg:block lg:w-[180px]`}>
-          {state ? <AgentRoster agents={state.agents} selectedId={selectedAgentId} onSelect={openAgent} /> : <LoadingShell />}
+          {state ? <AgentRoster agents={state.agents} selectedId={selectedAgentId} onSelect={openAgent} onAddAgents={openFactory} /> : <LoadingShell />}
         </aside>
 
         {/* board (primary) */}
-        <main className={`min-w-0 flex-1 flex-col ${mobilePane === "board" ? "flex" : "hidden"} lg:flex`}>
+        <main id="ma-main" aria-label="Squad missions" className={`min-w-0 flex-1 flex-col ${mobilePane === "board" ? "flex" : "hidden"} lg:flex`}>
           {state ? (
             <>
               <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
@@ -404,14 +943,21 @@ export default function App() {
           </div>
         )}
       </div>
+      </>
+      )}
+      </BosFrame>
       </PreflightGate>
 
-      {/* bottom status strip — runtime up? · Docker? · quota */}
-      <StatusStrip preflight={preflight} />
+      {/* bottom status strip — runtime up? · Docker? · quota · (P3) inbox + bus */}
+      <StatusStrip
+        preflight={preflight}
+        pendingDeliveries={INBOX_ENABLED ? pendingDeliveries : undefined}
+        liveConnected={INBOX_ENABLED ? liveConnected : undefined}
+      />
 
       {/* overlays */}
       {state && (
-        <AgentDrawer agent={selectedAgent} agents={state.agents} feed={state.feed} heartbeats={state.heartbeats} onClose={() => setSelectedAgentId(null)} onCommand={sendCommand} />
+        <AgentDrawer agent={selectedAgent} agents={state.agents} feed={state.feed} heartbeats={state.heartbeats} onClose={() => setSelectedAgentId(null)} onCommand={sendCommand} lastEvent={lastEvent} />
       )}
       {state && (
         <UtilityDrawer
@@ -420,6 +966,8 @@ export default function App() {
           onScrub={enterReplay} onLive={goLive} onTogglePlay={() => setPlaying((p) => !p)}
           sendCommand={sendCommand} getAudit={getAudit} getCommandStatus={getCommandStatus} listSessions={listSessions}
           feedForReplay={state.feed}
+          factoryOpenSignal={factoryOpenSignal}
+          usageTicks={Object.values(usageByThread)}
         />
       )}
       {state && (
@@ -468,8 +1016,8 @@ export default function App() {
           </div>
         </div>
       )}
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={paletteCommands} />
-      <SkillPalette open={skillsOpen} onClose={() => setSkillsOpen(false)} skills={MISSION_SKILLS} onPick={pickSkillIntoComposer} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={bosPaletteCommands} />
+      <SkillPalette open={skillsOpen} onClose={() => setSkillsOpen(false)} skills={skills} onPick={pickSkillIntoComposer} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Onboarding open={onboardingOpen} onClose={() => setOnboardingOpen(false)} onTryGoal={(goal) => dispatchGoal(goal)} />
     </div>

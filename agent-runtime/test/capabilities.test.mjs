@@ -73,8 +73,8 @@ test("capsForSpec — code-implement-angular skill yields typescript + angular",
   assert.ok(caps.frameworks.includes("angular"), "must have angular");
 });
 
-test("capsForSpec — content-only skill yields empty caps (no stack)", () => {
-  const spec = { skills: ["content-writing"] };
+test("capsForSpec — a non-dev skill yields empty caps (no stack)", () => {
+  const spec = { skills: ["repo-read"] };
   const caps = capsForSpec(spec);
   assert.deepEqual(caps.langs, []);
   assert.deepEqual(caps.frameworks, []);

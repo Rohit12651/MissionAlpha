@@ -83,6 +83,35 @@ export const getRuntimeAudit = (limit = 200) =>
   authedJson<{ entries: RuntimeAuditEntry[] }>(`/factory/audit?limit=${encodeURIComponent(String(limit))}`)
     .catch(() => ({ entries: [] as RuntimeAuditEntry[] }));
 
+// P8 (ADR-055) — download the audit export bundle (deliveries + decisions + risk reasons
+// + AUDIT.log lines + usage totals), date-ranged + scrubbed, as JSON or CSV. Auth fetch →
+// blob → `<a download>` (works in web AND packaged Electron via Chromium's download
+// manager). Tokens + context% only — NEVER a dollar figure.
+export async function exportAudit(opts: { from?: string; to?: string; format: "json" | "csv" }): Promise<{ ok: boolean; error?: string }> {
+  if (typeof document === "undefined") return { ok: false, error: "no document" };
+  const params = new URLSearchParams({ format: opts.format });
+  if (opts.from) params.set("from", opts.from);
+  if (opts.to) params.set("to", opts.to);
+  try {
+    const res = await authed(runtimeUrl(`/runtime/audit/export?${params.toString()}`), { method: "GET" });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") || "";
+    const name = /filename="?([^"]+)"?/.exec(cd)?.[1] || `mission-audit.${opts.format}`;
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 4000);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 export const getSkills = () =>
   fetch("/factory/skills").then((r) => r.json()) as Promise<{ skills: Skill[]; platforms: Platform[] }>;
 export const getFactoryHealth = () =>

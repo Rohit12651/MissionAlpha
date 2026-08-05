@@ -10,9 +10,9 @@ const ITEM_H = 46;
 const OVERSCAN = 4;
 
 /**
- * Persistent, dockable LEFT Skills palette (C3). Lists the full vendored catalog grouped by family
+ * Persistent, dockable LEFT Skills palette (C3). Lists the full catalog grouped by SOURCE
  * (collapsible + counts), live search, ↑↓/Enter/Esc keyboard nav, VIRTUALIZED (only visible rows
- * mount → 60fps at ~1,870 entries). Pick drops the skill's prompt into the chat composer via the
+ * mount → 60fps at ~3,300 entries). `skills` arrives from the lazily-loaded catalog chunk. Pick drops the skill's prompt into the chat composer via the
  * caller's onPick (App's existing prefill flow) — no new execution path. Stays open until Esc/✕/toggle.
  */
 export function SkillPalette({
@@ -42,7 +42,9 @@ export function SkillPalette({
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  const groups = useMemo(() => groupSkills(skills, query), [skills, query]);
+  // BOSS ask F3 — the palette groups by SOURCE (where the skill came from), not by the
+  // curated family taxonomy. Same virtualized machinery; only the group key changes.
+  const groups = useMemo(() => groupSkills(skills, query, (s) => s.source), [skills, query]);
   const rows = useMemo(() => flattenRows(groups, collapsed), [groups, collapsed]);
   const { tops, total } = useMemo(() => rowOffsets(rows, HEADER_H, ITEM_H), [rows]);
   const itemIdx = useMemo(
@@ -155,7 +157,7 @@ export function SkillPalette({
                 role="status"
                 aria-live="polite"
               >
-                {resultCount} {resultCount === 1 ? "skill" : "skills"}
+                {resultCount} {resultCount === 1 ? "skill" : "skills"} · {groups.length} src
               </span>
               <button
                 type="button"
@@ -194,7 +196,7 @@ export function SkillPalette({
 
             {resultCount === 0 ? (
               <p className="px-4 py-8 text-center text-[13px]" style={{ color: tok("muted") }} role="status" aria-live="polite">
-                No skills match “{query}”.
+                {skills.length === 0 ? "Loading the skill catalog…" : `No skills match “${query}”.`}
               </p>
             ) : (
               <div
@@ -224,7 +226,7 @@ export function SkillPalette({
                           style={style}
                           onClick={() => toggle(r.family)}
                           aria-expanded={!isCollapsed}
-                          aria-label={`${r.family}, ${r.count} skills`}
+                          aria-label={`${r.family} source, ${r.count} skills`}
                           className="flex w-full items-center gap-1.5 px-3 text-left outline-none focus-visible:ring-2"
                         >
                           {isCollapsed ? (

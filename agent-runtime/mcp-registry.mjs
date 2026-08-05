@@ -12,7 +12,7 @@
 //  - composeConfig fails closed: a granted connector with a missing cred is OMITTED.
 //  - listConnectors NEVER exposes a cred value.
 
-import { mkdirSync, writeFileSync, readFileSync, existsSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 

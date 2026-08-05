@@ -11,6 +11,8 @@ import {
   TIER_LABEL,
 } from "../lib/agentMeta";
 import { useTick } from "../lib/ticker";
+import { permChipFor } from "../lib/stationClient";
+import { useStationPerm } from "./station/permStore";
 import { TtlRing } from "./TtlRing";
 import { StateBadge } from "./StateBadge";
 
@@ -37,6 +39,10 @@ export const AgentCard = memo(function AgentCard({
   const overdue = !agent.dead && age !== null && age > agent.ttlSec;
   const active = !agent.dead && !agent.stale && agent.column === "in_progress";
   const tierAccent = TIER_ACCENT[agent.tier];
+  // CC-Primitives P5 — the station's interactive permission OVERRIDE, live off the
+  // shared store (lazy gated read + `station.perm.changed` reconcile). Null unless a
+  // real non-default override exists, so inheriting the global renders no chip at all.
+  const permChip = permChipFor(useStationPerm(agent.id)?.permMode);
 
   // Active = breathing cyan glow. Stale = breathing red. Else static hairline.
   const glow =
@@ -71,7 +77,11 @@ export const AgentCard = memo(function AgentCard({
       id={`agent-${agent.id}`}
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      aria-label={onSelect ? `Open details for ${agent.id}` : undefined}
+      aria-label={
+        onSelect
+          ? `Open details for ${agent.id}${permChip ? ` — permission override: ${permChip}` : ""}`
+          : undefined
+      }
       onClick={onSelect ? () => onSelect(agent.id) : undefined}
       onKeyDown={
         onSelect
@@ -115,6 +125,20 @@ export const AgentCard = memo(function AgentCard({
                 title="Created by BOSS via Agent Factory"
               >
                 BOSS
+              </span>
+            )}
+            {permChip && (
+              <span
+                className="shrink-0 rounded font-mono text-[9px] tracking-wide"
+                style={{
+                  padding: "1px 4px",
+                  color: tok(permChip.tone),
+                  backgroundColor: `color-mix(in oklch, ${tok(permChip.tone)} 12%, transparent)`,
+                  border: `1px solid color-mix(in oklch, ${tok(permChip.tone)} 30%, transparent)`,
+                }}
+                title={`Interactive permission override: ${permChip.label}`}
+              >
+                {permChip.label}
               </span>
             )}
           </div>

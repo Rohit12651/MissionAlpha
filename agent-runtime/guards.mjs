@@ -17,13 +17,28 @@
 import { dirname, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, statSync } from "node:fs";
+// P5 — the persisted workspace (POST /runtime/workspace). Validation + perms live
+// in workspace.mjs; this module only consumes the already-validated result.
+import { readWorkspace } from "./workspace.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-// F5 — configurable target repo. Default (env unset) = MissionAlpha, byte-identical
-// to before. resolve(env) takes an absolute path verbatim. Fail CLOSED if set-but-invalid.
+// F5 — configurable target repo. resolve(env) takes an absolute path verbatim.
+// Fail CLOSED if set-but-invalid.
+//
+// P5 inserts the PERSISTED workspace between the env var and the built-in default,
+// so the UI's choice survives a restart without the operator managing an env var.
+// Precedence, highest first:
+//   1. RUNTIME_REPO_ROOT — explicit env (CI, tests, Electron's hot-swap)
+//   2. the persisted workspace config (POST /runtime/workspace)
+//   3. MissionAlpha itself — byte-identical to pre-P5 behavior
+// The value resolves ONCE at module load and is IMMUTABLE for the process lifetime.
+// That immutability is what makes applyAllowed's containment check trustworthy: a
+// mutable root would open a validate-then-apply TOCTOU window. Changing the
+// workspace therefore requires a runtime restart, which POST /runtime/workspace
+// reports back as `restartRequired`.
 export const REPO_ROOT = process.env.RUNTIME_REPO_ROOT
   ? resolve(process.env.RUNTIME_REPO_ROOT)
-  : resolve(__dir, "..");
+  : (readWorkspace() || resolve(__dir, ".."));
 if (process.env.RUNTIME_REPO_ROOT) {
   if (!existsSync(REPO_ROOT) || !statSync(REPO_ROOT).isDirectory()) {
     throw new Error(`RUNTIME_REPO_ROOT does not exist or is not a directory: ${REPO_ROOT}`);
@@ -69,6 +84,7 @@ export const CONFIG_GUARD = {
 export function applyAllowed(relPath) {
   if (!relPath || typeof relPath !== "string") return false;
   if (isAbsolute(relPath)) return false;
+  // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1f]/.test(relPath)) return false; // control chars / NUL
   if (/["'`|$=]/.test(relPath)) return false; // bus-format metachars — no legit use in src/
   const dest = resolve(REPO_ROOT, relPath);

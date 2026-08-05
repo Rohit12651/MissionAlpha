@@ -58,14 +58,14 @@ function createDev(id, extra = {}) {
   });
 }
 
-/** Create a real content-only agent (idempotent — pre-cleaned in before()). */
+/** Create a real read-only (non-dev) agent (idempotent — pre-cleaned in before()). */
 function createContent(id) {
   return factory.createAgent({
     id,
-    role: "Social content writer",
-    title: "Social Writer",
-    persona: "You draft social posts for BOSS approval. Bus comms in /caveman full.",
-    skills: ["content-writing"],
+    role: "Repo analyst",
+    title: "Repo Analyst",
+    persona: "You read the repository and report what you can source. Bus comms in /caveman full.",
+    skills: ["repo-read"],
     tools: ["Read"],
     integrations: [],
   });
@@ -113,21 +113,23 @@ test("B1: content agent system prompt DOES contain 'Never claim you posted, ran 
   );
 });
 
-test("B1: content agent system prompt does NOT contain SPECIALIST REDIRECT", () => {
+test("B1: non-dev agent system prompt does NOT contain SPECIALIST REDIRECT", () => {
   const sys = buildSystemFor("sf-content-1", "none");
-  assert.ok(!sys.includes("SPECIALIST REDIRECT"), "content agent must not have SPECIALIST REDIRECT");
-  assert.ok(!sys.includes("golang-pro"), "content agent must not mention golang-pro");
+  assert.ok(!sys.includes("SPECIALIST REDIRECT"), "non-dev agent must not have SPECIALIST REDIRECT");
+  assert.ok(!sys.includes("golang-pro"), "non-dev agent must not mention golang-pro");
 });
 
-test("B1: boss system prompt is unchanged (uses CEO_BOSS_SYSTEM, no SPECIALIST REDIRECT)", () => {
+test("S0: boss system prompt is the Tech Lead seat (dispatch protocol kept, no SPECIALIST REDIRECT)", () => {
   const sys = buildSystemFor("boss", "none");
-  assert.ok(sys.includes("BOSS") || sys.includes("dispatch"), "boss must use the CEO system");
+  assert.ok(sys.includes("Tech Lead"), "boss must use the Tech Lead system");
+  assert.ok(sys.includes("DISPATCH PROTOCOL"), "the dispatch protocol must survive the re-persona");
   assert.ok(!sys.includes("SPECIALIST REDIRECT"), "boss must not have SPECIALIST REDIRECT");
 });
 
 test("B1: builtin agent returns CAVEMAN_SYSTEM (no factory persona)", () => {
-  // architect is a builtin — no factory persona, uses CAVEMAN_SYSTEM
-  const sys = buildSystemFor("architect", "none");
+  // senior-lead-dev is a builtin — no factory persona, uses CAVEMAN_SYSTEM.
+  // (`architect` is NOT one any more: S0 made it a seeded SE seat.)
+  const sys = buildSystemFor("senior-lead-dev", "none");
   assert.ok(!sys.includes("SPECIALIST REDIRECT"), "builtin must not have SPECIALIST REDIRECT");
   assert.ok(sys.length > 10, "must return non-empty system for builtin");
 });
@@ -148,4 +150,15 @@ test("B1: angular dev agent gets angular-architect redirect", () => {
   const sys = buildSystemFor("sf-dev-angular-1", "none");
   assert.ok(sys.includes("angular-architect"), "angular dev agent must name angular-architect");
   assert.ok(!sys.toLowerCase().includes("never claim you ran code"), "angular dev agent must not have no-code clause");
+});
+
+// P1-F6 — the boss prompt must document the ```team block so the proposal card has a source.
+test("boss system prompt documents the TEAM PROTOCOL block", () => {
+  const s = buildSystemFor("boss", "none");
+  assert.match(s, /TEAM PROTOCOL/);
+  assert.match(s, /```team/);
+  assert.match(s, /<agent-id> <role title> \| <skill,skill>/);
+  // The governed catalog ids must be named so the seat can only propose real skills.
+  assert.match(s, /repo-health-check/);
+  assert.match(s, /repo-read/);
 });

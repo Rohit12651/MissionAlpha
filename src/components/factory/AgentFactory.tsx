@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Factory, ChevronDown, Send, Trash2, Plug, KeyRound,
-  Loader2, Check, AlertTriangle, ShieldCheck, Link2, Sparkles,
+  Loader2, Check, AlertTriangle, ShieldCheck, Link2, Sparkles, UserPlus,
 } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import {
@@ -13,6 +13,7 @@ import {
 import { CreateAgentFlow } from "./CreateAgentFlow";
 import { SkillCatalog } from "./SkillCatalog";
 import { PostApprovalGate } from "./PostApprovalGate";
+import { PoolPicker } from "../cockpit/PoolPicker";
 
 // Agent Factory panel — a CREATE WIZARD. Collapsible like SessionsBrowser. Tabs:
 //   Create (describe → author → confirm) · Skills (catalog) · Accounts (broker)
@@ -23,7 +24,7 @@ import { PostApprovalGate } from "./PostApprovalGate";
 
 type Tab = "create" | "skills" | "accounts" | "post";
 
-export function AgentFactory() {
+export function AgentFactory({ openSignal = 0 }: { openSignal?: number }) {
   const reduce = useReducedMotion();
   const violet = tok("factory-violet");
 
@@ -36,6 +37,17 @@ export function AgentFactory() {
   const [composio, setComposio] = useState(false);
   const [createKey, setCreateKey] = useState(0); // bump to reset the create flow
   const [toast, setToast] = useState("");
+  const [poolOpen, setPoolOpen] = useState(false); // "Add agents" (pool) modal
+  const sectionRef = useRef<HTMLElement | null>(null);
+
+  // F5 — the Factory is the single creation home. Other surfaces (the roster's "+ Add")
+  // bump `openSignal` to expand this panel on the Create tab and scroll it into view.
+  useEffect(() => {
+    if (openSignal <= 0) return;
+    setOpen(true);
+    setTab("create");
+    requestAnimationFrame(() => sectionRef.current?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" }));
+  }, [openSignal, reduce]);
 
   const refresh = useCallback(async () => {
     const [a, c] = await Promise.all([listAgents().catch(() => ({ agents: [] })), listConnections().catch(() => ({ connections: [] }))]);
@@ -67,6 +79,7 @@ export function AgentFactory() {
 
   return (
     <section
+      ref={sectionRef}
       aria-label="Agent Factory"
       className="rounded-panel border bg-panel/70 backdrop-blur-sm"
       style={{ borderColor: open ? `color-mix(in oklch, ${violet} 34%, var(--c-border))` : "var(--c-border)" }}
@@ -133,8 +146,27 @@ export function AgentFactory() {
                     <Sparkles size={12} aria-hidden style={{ color: violet }} />
                     Describe a need — Claude authors the agent. Once you confirm, it goes
                     <span className="font-semibold text-text"> live on the board</span> with a
-                    <span className="font-mono" style={{ color: violet }}> BOSS</span> badge. Manage it (edit skills / delete) from its board drawer.
+                    <span className="font-mono" style={{ color: violet }}> BOSS</span> badge. Manage it (edit skills / remove) from its board drawer.
                   </p>
+                  {/* F5 — the two ways to put an agent on the board sit side by side, so the
+                      Factory is the single creation home. "Add agents" pulls ready-made agents
+                      from the .claude/agents pool; CREATE authors a brand-new one below. */}
+                  <div
+                    className="mb-3 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2"
+                    style={{ borderColor: `color-mix(in oklch, ${violet} 24%, var(--c-border))` }}
+                  >
+                    <span className="text-[11px] text-muted">Already have someone in mind?</span>
+                    <button
+                      type="button"
+                      onClick={() => setPoolOpen(true)}
+                      aria-haspopup="dialog"
+                      className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[12px] font-semibold outline-none transition-colors duration-150 hover:brightness-110 focus-visible:ring-2 disabled:cursor-default disabled:opacity-40 motion-reduce:transition-none"
+                      style={{ color: violet, backgroundColor: `color-mix(in oklch, ${violet} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${violet} 34%, transparent)` }}
+                    >
+                      <UserPlus size={13} aria-hidden /> Add agents
+                    </button>
+                    <span className="text-[10px] text-muted">from the pool — each gets its own chat thread</span>
+                  </div>
                   <CreateAgentFlow key={createKey} skills={skills} onCreated={onCreated} onClose={() => setCreateKey((k) => k + 1)} />
                 </div>
               )}
@@ -147,6 +179,7 @@ export function AgentFactory() {
           </motion.div>
         )}
       </AnimatePresence>
+      <PoolPicker open={poolOpen} onClose={() => setPoolOpen(false)} onImported={() => { flash("agents imported — live on the board"); void refresh(); }} />
     </section>
   );
 }

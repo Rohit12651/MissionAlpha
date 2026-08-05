@@ -136,3 +136,148 @@ export function createPolicy(opts = {}) {
     reload: load,
   };
 }
+
+// ── ADR-053 — PER-BAND policy (P6) ───────────────────────────────────────────
+// A SEPARATE axis from the per-agent trust above. This one reads factory/policy.json
+// (plain JSON — BOSS edits it in Settings, so NO HMAC) and decides, per risk band,
+// what friction a Delivery needs: auto_approve / notify / human / typed_confirm.
+//
+// SECURITY (ADR-053, BLOCKING per program plan): this is deny-by-default.
+//   • DEFAULTS (no file): auto-approve OFF everywhere — low=notify, medium=human,
+//     high=typed_confirm.
+//   • Parse error or ANY schema violation → the SAFEST policy (all-human) + logged.
+//     A corrupt file can never RELAX the gate, only tighten it.
+//   • An always-human DENY-LIST (path globs) forces human regardless of band. It can
+//     only ever REMOVE auto-approval, never relax existing friction (a high-risk
+//     typed_confirm stays typed_confirm even if it also hits a deny glob).
+//   • routeFor() returning 'auto_approve' is the ONLY thing upstream reads as
+//     auto-apply-eligible; the server still runs isAutoSafe + the broker after it.
+
+const LOW_BEHAVIORS = new Set(["auto_approve", "notify", "human"]);
+const MED_BEHAVIORS = new Set(["human", "notify"]);
+const HIGH_BEHAVIORS = new Set(["human", "typed_confirm"]);
+
+// The pristine no-file default: conservative, auto OFF.
+const DEFAULT_BANDS = Object.freeze({ low: "notify", medium: "human", high: "typed_confirm" });
+// The fail-closed default when a file is present but bad: everything human.
+const SAFE_BANDS = Object.freeze({ low: "human", medium: "human", high: "typed_confirm" });
+// Built-in deny-list — always-human paths even before the operator edits one.
+export const DEFAULT_DENYLIST = Object.freeze([
+  "**/.env", "**/.env.*", "**/secrets/**", "**/credentials/**",
+  ".github/**", "**/*.pem", "**/*.key", "**/Dockerfile", "**/migrations/**",
+]);
+// Default SLA windows (ms), overridable by policy.sla and by env in the server.
+export const DEFAULT_SLA_MS = Object.freeze({ low: 86_400_000, medium: 28_800_000, high: 3_600_000 });
+
+// Minimal, safe glob → RegExp. Supports **, **/ (cross-segment), * (within a segment).
+// Every other char is matched literally. Anchored full-match.
+function globToRe(glob) {
+  const g = String(glob || "").replace(/\\/g, "/");
+  let re = "";
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i];
+    if (c === "*") {
+      if (g[i + 1] === "*") {
+        if (g[i + 2] === "/") { re += "(?:.*/)?"; i += 2; continue; } // **/ → optional dirs
+        re += ".*"; i += 1; continue;                                  // ** → anything
+      }
+      re += "[^/]*"; continue;                                          // * → within a segment
+    }
+    re += /[\\^$.|?+()[\]{}]/.test(c) ? `\\${c}` : c;
+  }
+  // Case-INSENSITIVE: the classifier (risk.mjs, all /i) and the target FS (APFS/NTFS)
+  // are case-insensitive, so a case-sensitive deny glob would let `src/Secret/x` slip a
+  // deny for `src/secret/**`. Case-insensitive only ever OVER-blocks on a case-sensitive
+  // FS — the safe direction. (sr-security P6 blocker.)
+  try { return new RegExp(`^${re}$`, "i"); } catch { return /$.^/; } // unusable glob matches nothing
+}
+
+export function createBandPolicy(opts = {}) {
+  const file = opts.file;
+  const log = opts.log || ((m) => console.warn(m));
+  let bands = { ...DEFAULT_BANDS };
+  let denyGlobs = [...DEFAULT_DENYLIST];
+  let denyRes = denyGlobs.map(globToRe);
+  let sla = { ...DEFAULT_SLA_MS };
+  let ok = true; // false ⇒ we fell back to SAFE_BANDS after a bad file
+
+  const validBands = (b) =>
+    b && typeof b === "object"
+    && LOW_BEHAVIORS.has(b.low) && MED_BEHAVIORS.has(b.medium) && HIGH_BEHAVIORS.has(b.high);
+
+  function load() {
+    if (!file || !existsSync(file)) { bands = { ...DEFAULT_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; sla = { ...DEFAULT_SLA_MS }; ok = true; denyRes = denyGlobs.map(globToRe); return; }
+    let raw;
+    try { raw = JSON.parse(readFileSync(file, "utf-8")); }
+    catch (e) { log(`[policy] ${file} unparseable → all-human (fail closed): ${e?.message}`); return failClosed(); }
+    if (!validBands(raw.bands)) { log(`[policy] ${file} bands invalid → all-human (fail closed)`); return failClosed(); }
+    bands = { low: raw.bands.low, medium: raw.bands.medium, high: raw.bands.high };
+    // deny-list: operator globs are ADDED to the built-in floor, never replace it. The
+    // classifier already keeps .env/secrets/.github/keys at HIGH (unauto-appliable), but
+    // the deny-list is defense-in-depth and its built-in entries must be un-removable —
+    // an explicit `denyList:[]` (or a malformed one) must NOT be able to clear the floor.
+    const extra = Array.isArray(raw.denyList) && raw.denyList.every((s) => typeof s === "string")
+      ? raw.denyList.slice(0, 200) : [];
+    denyGlobs = [...new Set([...DEFAULT_DENYLIST, ...extra])];
+    denyRes = denyGlobs.map(globToRe);
+    // sla: optional per-band positive integers; invalid entries fall back per band.
+    sla = { ...DEFAULT_SLA_MS };
+    if (raw.sla && typeof raw.sla === "object") {
+      for (const k of ["low", "medium", "high"]) {
+        const v = Number(raw.sla[k]);
+        if (Number.isFinite(v) && v > 0) sla[k] = Math.floor(v);
+      }
+    }
+    ok = true;
+  }
+  function failClosed() { bands = { ...SAFE_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; denyRes = denyGlobs.map(globToRe); sla = { ...DEFAULT_SLA_MS }; ok = false; }
+  load();
+
+  const denyHit = (paths) => (Array.isArray(paths) ? paths : []).some((p) => denyRes.some((re) => re.test(String(p || ""))));
+  const behaviorFor = (bandName) => bands[bandName] ?? SAFE_BANDS[bandName] ?? "human";
+
+  // The routing decision. Deny-list forces human, but only ever tightens: it turns
+  // auto_approve into human and never relaxes typed_confirm/human.
+  function routeFor({ band, changedPaths }) {
+    let route = behaviorFor(band);
+    if (route === "auto_approve" && denyHit(changedPaths)) route = "human";
+    return route;
+  }
+
+  const slaFor = (bandName) => sla[bandName] ?? DEFAULT_SLA_MS[bandName] ?? DEFAULT_SLA_MS.high;
+
+  function raw() { return { bands: { ...bands }, denyList: [...denyGlobs], sla: { ...sla } }; }
+
+  // Persist a BOSS edit. Validate FIRST — a rejected write never touches disk, so the
+  // in-memory (and file) policy can only move between valid states. Plain JSON, 0600.
+  function save(next) {
+    if (!next || typeof next !== "object") throw new Error("policy: object required");
+    if (!validBands(next.bands)) throw new Error("policy: invalid bands (low∈auto_approve|notify|human, medium∈human|notify, high∈human|typed_confirm)");
+    if (next.denyList !== undefined && !(Array.isArray(next.denyList) && next.denyList.every((s) => typeof s === "string"))) {
+      throw new Error("policy: denyList must be an array of strings");
+    }
+    if (next.sla !== undefined) {
+      if (typeof next.sla !== "object" || next.sla === null) throw new Error("policy: sla must be an object");
+      for (const k of ["low", "medium", "high"]) {
+        if (next.sla[k] !== undefined && !(Number.isFinite(Number(next.sla[k])) && Number(next.sla[k]) > 0)) {
+          throw new Error(`policy: sla.${k} must be a positive number of ms`);
+        }
+      }
+    }
+    if (!file) throw new Error("policy: no file configured");
+    const rec = {
+      bands: { low: next.bands.low, medium: next.bands.medium, high: next.bands.high },
+      denyList: Array.isArray(next.denyList) ? next.denyList.slice(0, 200) : [...DEFAULT_DENYLIST],
+      sla: (() => { const s = { ...DEFAULT_SLA_MS }; if (next.sla) for (const k of ["low", "medium", "high"]) if (next.sla[k] !== undefined) s[k] = Math.floor(Number(next.sla[k])); return s; })(),
+      updatedAt: new Date().toISOString(),
+    };
+    const tmp = `${file}.tmp`;
+    const fd = openSync(tmp, "w", 0o600);
+    try { writeFileSync(fd, JSON.stringify(rec, null, 2)); fsyncSync(fd); } finally { closeSync(fd); }
+    renameSync(tmp, file);
+    load();
+    return raw();
+  }
+
+  return { routeFor, behaviorFor, denyHit, slaFor, raw, save, reload: load, valid: () => ok };
+}

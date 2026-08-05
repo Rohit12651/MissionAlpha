@@ -18,7 +18,8 @@ export interface FlatRow {
 // Preferred family order: prompts + workflow + the dev families first, the long tail mid,
 // misc last. Families not listed fall just before misc, alpha-ordered.
 export const FAMILY_ORDER: string[] = [
-  "prompts", "sp · workflow", "engineering", "ui/ux", "data", "product", "commands",
+  "prompts", "commands", "curated", "user",
+  "sp · workflow", "engineering", "ui/ux", "data", "product",
   "mcp", "plugin-dev", "documents", "claude-mem", "caveman", "headroom", "graphify",
   "hyperframes", "gstack",
   "marketing", "sales", "hr", "operations", "support", "finance", "legal",
@@ -33,18 +34,26 @@ function rank(family: string): number {
 function matches(s: MissionSkill, q: string): boolean {
   if (!q) return true;
   const n = q.toLowerCase();
-  return s.id.toLowerCase().includes(n) || s.hint.toLowerCase().includes(n) || s.title.toLowerCase().includes(n);
+  return s.id.toLowerCase().includes(n) || s.hint.toLowerCase().includes(n) ||
+    s.title.toLowerCase().includes(n) || s.source.toLowerCase().includes(n);
 }
 
-/** Pure: group skills by family (FAMILY_ORDER), filter by query, sort items by id, drop empties. */
-export function groupSkills(skills: readonly MissionSkill[], query: string): SkillGroup[] {
+/** Pure: group skills by a key (default: family), filter by query, sort items by id, drop
+ *  empties. `keyOf` lets a surface group by a different dimension (the palette groups by
+ *  `source`) without duplicating the grouping/virtualization machinery. */
+export function groupSkills(
+  skills: readonly MissionSkill[],
+  query: string,
+  keyOf: (s: MissionSkill) => string = (s) => s.family,
+): SkillGroup[] {
   const q = query.trim();
   const byFam = new Map<string, MissionSkill[]>();
   for (const s of skills) {
     if (!matches(s, q)) continue;
-    const arr = byFam.get(s.family);
+    const k = keyOf(s) || s.family;
+    const arr = byFam.get(k);
     if (arr) arr.push(s);
-    else byFam.set(s.family, [s]);
+    else byFam.set(k, [s]);
   }
   const groups: SkillGroup[] = [];
   for (const [family, items] of byFam) {

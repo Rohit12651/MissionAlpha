@@ -33,6 +33,139 @@ export function estimateUsage(promptChars, replyChars, tier, contextWindow) {
   };
 }
 
+// UTC calendar day ('YYYY-MM-DD') for an epoch-ms instant — the accumulation bucket.
+export function utcDay(ms) {
+  return new Date(Number.isFinite(ms) ? ms : Date.now()).toISOString().slice(0, 10);
+}
+// The UTC day-portion of an ISO/epoch value, or null when it doesn't parse — used to
+// clamp an export range onto the per-day `usage` rows without throwing on junk input.
+function dayOf(v) {
+  if (v == null || v === "") return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+const int = (x) => (Number.isFinite(x) ? Math.max(0, Math.round(x)) : 0);
+const safeStr = (s, cap = 80) => String(s ?? "").slice(0, cap);
+
+// ADR-030 — persisted usage accumulation + emit-on-persist `usage.tick`. Tokens +
+// context% ONLY, NEVER a dollar figure. Takes the SHARED better-sqlite3 handle (the
+// same DB the deliveries/events tables live in) + the event bus's emit + a clock.
+//
+// `record()` is the ONE write point: it folds a turn into the (agentId,threadId,tier,
+// UTC-day) row and, in the SAME call, emits `usage.tick` on the bus (emit-on-persist —
+// no dual path, no watcher). It runs OFF the token hot-path (callers invoke it after a
+// turn settles), so it never slows the streaming SSE.
+export function createUsageStore(deps = {}) {
+  const db = deps.db;
+  if (!db || typeof db.prepare !== "function") throw new Error("createUsageStore: db handle required");
+  const emit = typeof deps.emit === "function" ? deps.emit : () => {};
+  const now = typeof deps.now === "function" ? deps.now : () => Date.now();
+
+  // UPSERT — first turn of the bucket inserts (turns=1); every later turn adds the token
+  // counters, bumps turns, and overwrites the last-context snapshot + estimated flag
+  // (last-turn-wins, so the meter shows the CURRENT window fill).
+  const upsert = db.prepare(`
+    INSERT INTO usage(agentId, threadId, tier, day, inputTokens, outputTokens, cacheReadTokens,
+                      cacheCreationTokens, thinkingTokens, turns, lastContextTokens, lastContextPct,
+                      lastContextWindow, estimated, updatedAt)
+    VALUES(@agentId, @threadId, @tier, @day, @inputTokens, @outputTokens, @cacheReadTokens,
+           @cacheCreationTokens, @thinkingTokens, 1, @lastContextTokens, @lastContextPct,
+           @lastContextWindow, @estimated, @updatedAt)
+    ON CONFLICT(agentId, threadId, tier, day) DO UPDATE SET
+      inputTokens         = inputTokens         + excluded.inputTokens,
+      outputTokens        = outputTokens        + excluded.outputTokens,
+      cacheReadTokens     = cacheReadTokens     + excluded.cacheReadTokens,
+      cacheCreationTokens = cacheCreationTokens + excluded.cacheCreationTokens,
+      thinkingTokens      = thinkingTokens      + excluded.thinkingTokens,
+      turns               = turns + 1,
+      lastContextTokens   = excluded.lastContextTokens,
+      lastContextPct      = excluded.lastContextPct,
+      lastContextWindow   = excluded.lastContextWindow,
+      estimated           = excluded.estimated,
+      updatedAt           = excluded.updatedAt
+  `);
+  const selRow = db.prepare("SELECT * FROM usage WHERE agentId=? AND threadId=? AND tier=? AND day=?");
+
+  // Fold one turn (the output of usageFromResult / estimateUsage) into its day bucket,
+  // then emit. `threadId` defaults to agentId (a chat thread is its agent); an autonomous
+  // engine run passes the taskId so the per-agent view aggregates across its tasks.
+  function record({ agentId, threadId, tier, turn } = {}) {
+    if (!turn) return null;
+    const aid = safeStr(agentId) || "unknown";
+    const tid = safeStr(threadId ?? agentId) || aid;
+    const t = safeStr(turn.tier || tier || "sonnet", 24);
+    const day = utcDay(now());
+    const row = {
+      agentId: aid, threadId: tid, tier: t, day,
+      inputTokens: int(turn.inputTokens), outputTokens: int(turn.outputTokens),
+      cacheReadTokens: int(turn.cacheReadTokens), cacheCreationTokens: int(turn.cacheCreationTokens),
+      thinkingTokens: int(turn.thinkingTokens), lastContextTokens: int(turn.contextTokens),
+      lastContextPct: Math.min(1, Math.max(0, Number(turn.contextPct) || 0)),
+      lastContextWindow: int(turn.contextWindow), estimated: turn.estimated ? 1 : 0,
+      updatedAt: new Date(now()).toISOString(),
+    };
+    upsert.run(row);
+    const acc = selRow.get(aid, tid, t, day) || row;
+    // usage.tick — tokens + context% ONLY. Day-cumulative in/out (total spend) + the
+    // latest window fill (contextPct). NO cost/USD/$ field, ever.
+    const tick = {
+      agentId: aid, threadId: tid, tier: t, day,
+      inputTokens: acc.inputTokens, outputTokens: acc.outputTokens, turns: acc.turns,
+      contextTokens: acc.lastContextTokens, contextWindow: acc.lastContextWindow,
+      contextPct: acc.lastContextPct, estimated: !!acc.estimated,
+    };
+    try { emit("usage.tick", tick); } catch { /* bus is observational — never break a turn */ }
+    return acc;
+  }
+
+  // Per-thread latest + per-agent aggregate for TODAY (UTC) — a boot/refresh hydrate for
+  // the meter; the live path is the bus. Returns { threads:[...], agents:[...] }.
+  function snapshot() {
+    const day = utcDay(now());
+    const threads = db.prepare(
+      "SELECT agentId, threadId, tier, inputTokens, outputTokens, turns, lastContextTokens AS contextTokens, " +
+      "lastContextWindow AS contextWindow, lastContextPct AS contextPct, estimated FROM usage WHERE day=? ORDER BY updatedAt DESC",
+    ).all(day).map((r) => ({ ...r, estimated: !!r.estimated }));
+    const byAgent = new Map();
+    for (const r of threads) {
+      const a = byAgent.get(r.agentId) || { agentId: r.agentId, inputTokens: 0, outputTokens: 0, turns: 0, contextPct: 0, estimated: false };
+      a.inputTokens += r.inputTokens; a.outputTokens += r.outputTokens; a.turns += r.turns;
+      a.contextPct = Math.max(a.contextPct, r.contextPct); a.estimated = a.estimated || r.estimated;
+      byAgent.set(r.agentId, a);
+    }
+    return { day, threads, agents: [...byAgent.values()] };
+  }
+
+  // Stream every usage row whose day falls in [from,to] (inclusive), oldest first — for
+  // the audit export. better-sqlite3 `.iterate()` yields row-by-row (never buffers the
+  // whole set). Junk/absent bounds fall back to open ranges (never a SQL error).
+  function iterateRange({ from, to } = {}) {
+    const lo = dayOf(from);
+    const hi = dayOf(to);
+    const where = [];
+    const args = [];
+    if (lo) { where.push("day >= ?"); args.push(lo); }
+    if (hi) { where.push("day <= ?"); args.push(hi); }
+    const sql = `SELECT * FROM usage ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY day ASC, agentId ASC, threadId ASC`;
+    return db.prepare(sql).iterate(...args);
+  }
+
+  // Aggregate totals across [from,to] for the export summary — swarm-wide + per tier.
+  function totalsRange({ from, to } = {}) {
+    let totalIn = 0, totalOut = 0, totalTurns = 0;
+    const byTier = {};
+    for (const r of iterateRange({ from, to })) {
+      totalIn += r.inputTokens; totalOut += r.outputTokens; totalTurns += r.turns;
+      const t = byTier[r.tier] || { inputTokens: 0, outputTokens: 0, turns: 0 };
+      t.inputTokens += r.inputTokens; t.outputTokens += r.outputTokens; t.turns += r.turns;
+      byTier[r.tier] = t;
+    }
+    return { inputTokens: totalIn, outputTokens: totalOut, turns: totalTurns, byTier };
+  }
+
+  return { record, snapshot, iterateRange, totalsRange };
+}
+
 // Accumulate a turn into a lifetime-of-thread rollup (survives message trimming).
 // Pure: returns the next rollup; the caller owns storage.
 export function rollupUsage(prev, turn) {

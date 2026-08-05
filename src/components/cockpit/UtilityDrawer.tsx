@@ -11,6 +11,8 @@ import type { CommandRequest, CommandResult, AuditEntry, CommandStatusSnapshot, 
 import { tok } from "../../lib/agentMeta";
 import { ControlPlanePanel } from "../ControlPlanePanel";
 import { AuditTrailPanel } from "../audit/AuditTrailPanel";
+import { UsageOverview } from "../workspace/UsageMeter";
+import type { UsageTick } from "../../lib/useRuntimeEvents";
 import { BulkActionBar } from "../BulkActionBar";
 import { ConnectorPanel } from "../factory/ConnectorPanel";
 import { ExecConsole } from "../factory/ExecConsole";
@@ -42,6 +44,10 @@ export interface UtilityDrawerProps {
   getCommandStatus: () => Promise<CommandStatusSnapshot>;
   listSessions: () => Promise<SessionSummary[]>;
   feedForReplay: FeedEvent[];
+  /** F5 — bumped by the roster's "+ Add" so the Factory panel opens on Create. */
+  factoryOpenSignal?: number;
+  /** P8 — live usage from the bus (usage.tick), for the UsageOverview panel. */
+  usageTicks?: UsageTick[];
 }
 
 export function UtilityDrawer(props: UtilityDrawerProps) {
@@ -93,6 +99,7 @@ export function UtilityDrawer(props: UtilityDrawerProps) {
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {tab === "audit" && (
                 <div className="flex flex-col gap-4">
+                  <UsageOverview ticks={props.usageTicks ?? []} />
                   <ControlPlanePanel getAudit={getAudit} getCommandStatus={getCommandStatus} />
                   <AuditTrailPanel getAudit={getAudit} heartbeats={state.heartbeats} />
                 </div>
@@ -102,7 +109,7 @@ export function UtilityDrawer(props: UtilityDrawerProps) {
                   {!replaying && <BulkActionBar agents={viewAgents} onCommand={sendCommand} />}
                   <ConnectorPanel agentIds={["boss", ...state.agents.map((a) => a.id)]} />
                   <ExecConsole agentIds={["builder", ...state.agents.map((a) => a.id)]} />
-                  <AgentFactory />
+                  <AgentFactory openSignal={props.factoryOpenSignal ?? 0} />
                   <SessionsBrowser listSessions={listSessions} />
                 </div>
               )}

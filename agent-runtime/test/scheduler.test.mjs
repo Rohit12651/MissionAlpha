@@ -21,8 +21,8 @@ test("drain dispatches up to capacity and no further", async () => {
   let i = 0;
   const claimNext = () => queued[i++] || null;
   const started = [];
-  let resolveRun;
-  const runStep = (t) => { started.push(t.taskId); return new Promise((r) => { resolveRun = r; }); };
+  let _resolveRun;
+  const runStep = (t) => { started.push(t.taskId); return new Promise((r) => { _resolveRun = r; }); };
   const sch = createScheduler({ ...slots, claimNext });
   const n = sch.drain(runStep);
   assert.equal(n, 2, "only 2 dispatched (cap)");

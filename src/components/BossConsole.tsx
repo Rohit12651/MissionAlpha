@@ -6,7 +6,7 @@ import { PermissionGate } from "./PermissionGate";
 import type { CommandRequest, CommandResult, CommandType } from "../data/types";
 import { runtimeToken, runtimeUrl } from "../lib/runtimeBase";
 
-// A single CEO-proposed dispatch directive parsed from a ```dispatch``` block.
+// A single Tech-Lead-proposed dispatch directive parsed from a ```dispatch``` block.
 interface Directive {
   type: CommandType;
   target: string;
@@ -14,7 +14,7 @@ interface Directive {
 }
 const VALID_VERBS = new Set<CommandType>(["task", "ack", "respawn"]);
 
-// Pull the ```dispatch``` block out of a CEO reply. Returns the prose (block
+// Pull the ```dispatch``` block out of a Tech Lead reply. Returns the prose (block
 // stripped) + the parsed directives. Lines: "<verb> <agent-id> <rest...>".
 function parseDispatch(content: string): { clean: string; directives: Directive[] } {
   const m = /```dispatch\s*\n([\s\S]*?)```/.exec(content);
@@ -35,11 +35,11 @@ function parseDispatch(content: string): { clean: string; directives: Directive[
   return { clean, directives };
 }
 
-// Boss Console — the GLOBAL chat. Rohit (BOSS) sits ABOVE the CEO. A persistent,
-// top-level slide-over you reach from anywhere in the app: BOSS talks → CEO (the
+// Boss Console — the GLOBAL chat. Rohit (BOSS) sits ABOVE the Tech Lead. A persistent,
+// top-level slide-over you reach from anywhere in the app: BOSS talks → Tech Lead (the
 // supreme agent) answers in strategic prose, streaming live. Talks to the SEPARATE
-// agent-runtime over /runtime/boss/chat (CEO persona). Mock now, real Claude w/ key.
-// Distinct CEO-gold identity. OKLCH tokens; reduced-motion; per-session thread.
+// agent-runtime over /runtime/boss/chat (Tech Lead persona). Mock now, real Claude w/ key.
+// Distinct console-gold identity. OKLCH tokens; reduced-motion; per-session thread.
 // Phase 1 = conversation. Dispatch-to-agents bridge = follow-up.
 
 interface Msg {
@@ -152,7 +152,7 @@ export function BossConsole({
           type: d.type,
           target: d.target,
           issuedBy: "BOSS",
-          body: d.type === "task" ? d.body || "see CEO directive" : undefined,
+          body: d.type === "task" ? d.body || "see tech-lead directive" : undefined,
         }).catch((e): CommandResult => ({ ok: false, error: (e as Error).message })),
       ),
     );
@@ -168,7 +168,7 @@ export function BossConsole({
         fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
-          body: JSON.stringify({ task: d.body || "see CEO directive" }),
+          body: JSON.stringify({ task: d.body || "see tech-lead directive" }),
         }).catch(() => {}),
       ),
     );
@@ -207,7 +207,7 @@ export function BossConsole({
             {/* persistent LEFT dock — like the chat pane in Claude. No backdrop;
                 the board reserves left space (App adds left padding when open). */}
             <motion.aside
-              aria-label="Boss console — chat with the CEO"
+              aria-label="Boss console — chat with the Tech Lead"
               className="fixed inset-y-0 left-0 z-40 flex w-full max-w-[380px] flex-col border-r border-border bg-panel/95 backdrop-blur-md"
               style={{ boxShadow: `8px 0 40px -12px ${gold}` }}
               initial={{ x: reduce ? 0 : "-100%", opacity: reduce ? 0 : 1 }}
@@ -223,7 +223,7 @@ export function BossConsole({
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-semibold text-text">Boss Console</div>
                   <div className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                    you (BOSS) → CEO · supreme over swarm
+                    you (BOSS) → TECH LEAD · runs the story pipeline
                   </div>
                 </div>
                 {mode && (
@@ -252,9 +252,9 @@ export function BossConsole({
               <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                 {msgs.length === 0 && (
                   <div className="rounded-lg border border-border/50 bg-bg/30 p-4 text-[12px] leading-relaxed text-muted">
-                    <span className="font-semibold text-text">Talk to your CEO.</span> Give a goal,
-                    ask for strategy, or direct the swarm. The CEO thinks first-principles, brings
-                    options + a recommendation, and reports to you.
+                    <span className="font-semibold text-text">Talk to your Tech Lead.</span> Give a goal,
+                    ask how to build it, or direct the seats. The Tech Lead thinks first-principles,
+                    brings options + a recommendation, and reports to you.
                   </div>
                 )}
                 {msgs.map((m, i) => {
@@ -269,14 +269,14 @@ export function BossConsole({
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="font-mono text-[9px] uppercase tracking-wide text-muted">
-                          {m.role === "user" ? "BOSS (you)" : "CEO"}
+                          {m.role === "user" ? "BOSS (you)" : "TECH LEAD"}
                         </div>
                         <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text/90">
                           {live ? m.content : parsed.clean}
                           {live && <span className="ml-0.5 inline-block animate-pulse">▍</span>}
                         </div>
 
-                        {/* dispatch bridge — CEO proposed commands; BOSS confirms (F3 gate). */}
+                        {/* dispatch bridge — Tech Lead proposed commands; BOSS confirms (F3 gate). */}
                         {showDispatch && (
                           <div
                             className="mt-2 rounded-md p-2.5"
@@ -286,7 +286,7 @@ export function BossConsole({
                             }}
                           >
                             <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: gold }}>
-                              <Zap size={12} aria-hidden /> CEO proposes {parsed.directives.length} dispatch{parsed.directives.length === 1 ? "" : "es"}
+                              <Zap size={12} aria-hidden /> Tech Lead proposes {parsed.directives.length} dispatch{parsed.directives.length === 1 ? "" : "es"}
                             </div>
                             <ul className="mb-2 space-y-1">
                               {parsed.directives.map((d, k) => (
@@ -345,17 +345,17 @@ export function BossConsole({
                         void send();
                       }
                     }}
-                    placeholder="Message your CEO… (Enter to send, Shift+Enter newline)"
+                    placeholder="Message your Tech Lead… (Enter to send, Shift+Enter newline)"
                     rows={2}
                     disabled={streaming}
-                    aria-label="Message the CEO"
+                    aria-label="Message the Tech Lead"
                     className="w-full resize-y rounded-md border border-border/60 bg-bg/60 px-3 py-2 text-[12px] text-text/90 outline-none placeholder:text-muted/50 focus-visible:ring-2 disabled:opacity-60"
                   />
                   <button
                     type="button"
                     onClick={() => void send()}
                     disabled={streaming || !input.trim()}
-                    aria-label="Send to CEO"
+                    aria-label="Send to the Tech Lead"
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
                     style={{
                       color: gold,
@@ -373,11 +373,11 @@ export function BossConsole({
         )}
       </AnimatePresence>
 
-      {/* F3 gate — BOSS confirms the CEO-proposed dispatch before anything fires. */}
+      {/* F3 gate — BOSS confirms the Tech-Lead-proposed dispatch before anything fires. */}
       <PermissionGate
         open={gateForMsg !== null}
-        title="Confirm CEO dispatch"
-        summary={`Fire ${gateDirectives.length} command${gateDirectives.length === 1 ? "" : "s"} to the swarm, as directed by the CEO. Each is recorded in the audit log.`}
+        title="Confirm Tech Lead dispatch"
+        summary={`Fire ${gateDirectives.length} command${gateDirectives.length === 1 ? "" : "s"} to the swarm, as directed by the Tech Lead. Each is recorded in the audit log.`}
         affected={gateDirectives.map((d) => `${d.type}→${d.target}`)}
         confirmLabel={`Dispatch ${gateDirectives.length}`}
         accent="ceo-gold"

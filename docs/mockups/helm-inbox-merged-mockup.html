@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm — MissionAlpha · The Agent Inbox (merged)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B1220; --deck:#121B2E; --deck-raised:#182338; --deck-raised-2:#1E2B45;
+    --line:#26324A; --line-soft:#1D2A40;
+    --brass:#C89B3C; --brass-bright:#E0B759;
+    --green:#4F9D69; --amber:#D9A441; --red:#C1554A;
+    --paper:#EDE6D6; --paper-dim:#9BA3B4; --paper-faint:#5D6579;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--ink); color:var(--paper); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+  .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--paper-faint); }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; font-weight:600; color:var(--paper); }
+
+  .app-shell{ display:flex; min-height:100vh; }
+  .sidebar{ width:225px; flex-shrink:0; background:var(--deck); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:22px 14px; }
+  .brand{ display:flex; align-items:center; gap:10px; padding:4px 8px 20px; }
+  .brand-name{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; }
+  .brand-sub{ font-size:10px; color:var(--paper-faint); letter-spacing:0.08em; text-transform:uppercase; margin-top:-2px; }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:6px; font-size:13.5px; color:var(--paper-dim); cursor:pointer; }
+  .nav-item svg{ width:16px; height:16px; flex-shrink:0; }
+  .nav-item:hover{ background:var(--deck-raised); color:var(--paper); }
+  .nav-item.active{ background:var(--deck-raised-2); color:var(--brass-bright); border:1px solid var(--line); }
+  .inbox-item{ border:1px solid var(--brass); background:rgba(200,155,60,0.08); color:var(--paper); }
+  .nav-badge{ margin-left:auto; background:var(--brass); color:#221803; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; padding:1px 7px; border-radius:20px; }
+  .nav-label{ padding:14px 8px 8px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--paper-faint); }
+  .agent-list{ overflow-y:auto; flex:1; min-height:0; }
+  .agent-quick{ display:flex; align-items:center; gap:9px; padding:5px 10px; border-radius:6px; font-size:12px; color:var(--paper-dim); cursor:pointer; }
+  .agent-quick:hover{ background:var(--deck-raised); color:var(--paper); }
+  .aq-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .aq-role{ margin-left:auto; font-size:9px; color:var(--paper-faint); }
+  .venture-switcher{ border-top:1px solid var(--line); padding-top:12px; margin-top:10px; }
+  .venture-pill{ display:flex; align-items:center; justify-content:space-between; background:var(--deck-raised); border:1px solid var(--line); border-radius:8px; padding:9px 12px; }
+  .venture-pill-label{ font-size:11px; color:var(--paper-faint); }
+  .venture-pill-name{ font-size:13px; font-weight:500; }
+
+  .main{ flex:1; min-width:0; padding:26px 32px 60px; }
+  .page{ display:none; } .page.active{ display:block; }
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:22px; }
+  .topbar h1{ font-size:25px; }
+  .topbar .eyebrow{ margin-bottom:6px; }
+  .topbar-status{ display:flex; align-items:center; gap:10px; }
+  .status-chip{ display:flex; align-items:center; gap:6px; background:var(--deck-raised); border:1px solid var(--line); padding:6px 12px; border-radius:20px; font-size:12px; color:var(--paper-dim); }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--green); } .dot.amber{ background:var(--amber); }
+  .clock{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-faint); border:1px solid var(--line); padding:6px 12px; border-radius:20px; }
+
+  /* ---------- INBOX (merged engine) ---------- */
+  .inbox-grid{ display:grid; grid-template-columns:minmax(380px,1fr) 460px; gap:20px; align-items:start; }
+  .filters{ display:flex; gap:6px; margin-bottom:14px; }
+  .fpill{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; border:1px solid var(--line); color:var(--paper-dim); border-radius:20px; padding:4px 12px; cursor:pointer; }
+  .fpill.sel{ border-color:var(--brass); color:var(--brass-bright); background:rgba(200,155,60,0.08); }
+  .dcard{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s; }
+  .dcard:hover{ border-color:rgba(200,155,60,0.5); }
+  .dcard.sel{ border-color:var(--brass); background:rgba(200,155,60,0.05); }
+  .dcard.decided{ opacity:.55; }
+  .drow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .davatar{ width:26px; height:26px; border-radius:7px; background:var(--deck-raised); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); flex-shrink:0; }
+  .dtitle{ font-size:13.5px; font-weight:600; color:var(--paper); }
+  .dmeta{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-faint); }
+  .diffstat{ font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .plus{ color:var(--green); } .minus{ color:var(--red); }
+  .chip{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; padding:3px 9px; border-radius:20px; }
+  .r-high{ background:rgba(193,85,74,0.14); color:var(--red); border:1px solid rgba(193,85,74,0.4); }
+  .r-med{ background:rgba(217,164,65,0.13); color:var(--amber); border:1px solid rgba(217,164,65,0.38); }
+  .r-low{ background:rgba(79,157,105,0.13); color:var(--green); border:1px solid rgba(79,157,105,0.38); }
+  .r-fail{ background:rgba(193,85,74,0.1); color:var(--red); border:1px dashed rgba(193,85,74,0.5); }
+  .src{ background:var(--deck-raised); color:var(--paper-faint); border:1px solid var(--line); }
+  .sla{ margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--amber); }
+  .sla.hot{ color:var(--red); font-weight:600; }
+  .statepill{ margin-left:auto; }
+  .auto-sec{ border:1px dashed var(--line); border-radius:12px; padding:11px 16px; color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  .auto-sec b{ color:var(--green); font-weight:600; }
+
+  .review{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:20px 22px; position:sticky; top:20px; display:flex; flex-direction:column; gap:14px; min-height:520px; }
+  .review h2{ font-size:17px; line-height:1.35; }
+  .rmeta{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .reasons{ display:flex; flex-direction:column; gap:5px; }
+  .reasons span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--paper-dim); }
+  .reasons span::before{ content:'▸ '; color:var(--red); }
+  .reasons.ok span::before{ color:var(--green); }
+  .diff{ background:#0A0F1A; border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; line-height:1.7; overflow-x:auto; white-space:pre; }
+  .diff .f{ color:var(--brass); } .diff .p{ color:var(--green); } .diff .m{ color:var(--red); } .diff .c{ color:var(--paper-faint); }
+  .confirm{ border:1px solid rgba(193,85,74,0.4); border-radius:10px; padding:10px 12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--paper-dim); }
+  .confirm b{ color:var(--red); }
+  .confirm input{ width:100%; margin-top:8px; background:#0A0F1A; border:1px solid var(--line); border-radius:7px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:7px 10px; outline:none; }
+  .confirm input:focus{ border-color:var(--brass); }
+  .actions{ display:flex; gap:8px; margin-top:auto; }
+  .btn{ flex:1; border-radius:9px; padding:11px 0; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px; cursor:pointer; border:none; }
+  .b-approve{ background:var(--green); color:#0d1f14; }
+  .b-approve:disabled{ background:rgba(79,157,105,0.25); color:rgba(237,230,214,0.35); cursor:not-allowed; }
+  .b-changes{ background:rgba(217,164,65,0.13); color:var(--amber); border:1px solid rgba(217,164,65,0.4); }
+  .b-reject{ background:rgba(193,85,74,0.12); color:var(--red); border:1px solid rgba(193,85,74,0.4); }
+  .decided-note{ text-align:center; padding:20px 10px; border:1px solid var(--line); border-radius:10px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim); }
+  .decided-note.good{ border-color:rgba(79,157,105,0.45); color:var(--green); }
+  .decided-note.bad{ border-color:rgba(193,85,74,0.45); color:var(--red); }
+  .fb-input{ width:100%; background:#0A0F1A; border:1px solid var(--line); border-radius:8px; color:var(--paper); font-size:12.5px; font-family:'Inter',sans-serif; padding:9px 11px; outline:none; }
+
+  /* ---------- COMMAND DECK ---------- */
+  .captain-card{ background:linear-gradient(180deg, var(--deck-raised-2), var(--deck-raised)); border:1px solid var(--line); border-radius:14px; padding:26px 28px; display:flex; align-items:center; gap:24px; margin-bottom:30px; position:relative; overflow:hidden; }
+  .captain-card::before{ content:''; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%; border:1px solid var(--line-soft); }
+  .compass{ width:60px; height:60px; border-radius:50%; border:1.5px solid var(--brass); flex-shrink:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 35% 30%, rgba(200,155,60,0.22), transparent 70%); }
+  .compass svg{ width:28px; height:28px; }
+  .captain-body{ flex:1; }
+  .captain-title-row{ display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  .captain-title-row h2{ font-size:21px; }
+  .badge{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.06em; padding:3px 9px; border-radius:20px; text-transform:uppercase; }
+  .badge.working{ background:rgba(79,157,105,0.15); color:var(--green); border:1px solid rgba(79,157,105,0.4); }
+  .badge.standby{ background:rgba(217,164,65,0.14); color:var(--amber); border:1px solid rgba(217,164,65,0.4); }
+  .badge.off{ background:rgba(155,163,180,0.1); color:var(--paper-faint); border:1px solid var(--line); }
+  .captain-desc{ color:var(--paper-dim); font-size:13px; max-width:520px; line-height:1.5; }
+  .stations-label{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .stations-label .line{ flex:1; height:1px; background:var(--line); }
+  .stations{ display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; }
+  .station{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:16px; cursor:pointer; transition:border-color .15s, transform .15s; }
+  .station:hover{ border-color:var(--brass); transform:translateY(-2px); }
+  .station-top{ display:flex; justify-content:space-between; margin-bottom:12px; }
+  .station h3{ font-size:14px; margin:10px 0 3px; }
+  .station-role{ font-size:10px; color:var(--paper-faint); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
+  .station-note{ font-size:11.5px; color:var(--paper-dim); line-height:1.5; min-height:32px; }
+
+  /* ---------- ROADMAP: flow + timeline ---------- */
+  .flow{ display:flex; align-items:stretch; overflow-x:auto; padding:6px 2px; margin-bottom:34px; }
+  .fnode{ border:1px solid var(--line); border-radius:12px; background:var(--deck); padding:14px 16px; min-width:150px; flex:1; }
+  .fnode h5{ font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; margin-bottom:5px; color:var(--paper); }
+  .fnode p{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--paper-dim); line-height:1.65; }
+  .fnode.human{ border-color:rgba(200,155,60,0.55); background:rgba(200,155,60,0.06); }
+  .fnode.human h5{ color:var(--brass-bright); }
+  .farrow{ display:grid; place-items:center; color:var(--brass); font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:17px; padding:0 8px; flex:none; }
+  .senders{ display:flex; flex-direction:column; gap:5px; }
+  .senders span{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; border:1px solid var(--line); border-radius:7px; padding:3px 9px; color:var(--paper-dim); }
+  .senders span.mine{ color:var(--brass-bright); border-color:rgba(200,155,60,0.45); }
+  .loopnote{ margin-top:9px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--amber); }
+  .timeline{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .stage{ border:1px solid var(--line); border-radius:12px; background:var(--deck); padding:15px 16px; }
+  .stage .id{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:11.5px; color:var(--paper-dim); }
+  .stage.core .id{ color:var(--brass-bright); }
+  .stage h5{ font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; margin:6px 0 4px; color:var(--paper); }
+  .stage p{ font-size:12px; color:var(--paper-dim); line-height:1.55; }
+  .stage .eff{ float:right; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--paper-faint); border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
+  .repo-chip{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--brass-bright); border:1px solid rgba(200,155,60,0.35); border-radius:20px; padding:6px 12px; }
+  .stub{ border:1px dashed var(--line); border-radius:14px; padding:70px 30px; text-align:center; color:var(--paper-dim); }
+  .stub h2{ font-size:19px; margin-bottom:8px; }
+  .stub p{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-faint); }
+
+  /* modal */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(6,10,18,0.6); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:50; }
+  .modal-overlay.active{ display:flex; }
+  .modal-panel{ width:540px; max-height:80vh; overflow-y:auto; background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:24px 24px 8px; }
+  .modal-head{ display:flex; justify-content:space-between; margin-bottom:6px; }
+  .modal-head h2{ font-size:21px; margin-top:8px; }
+  .modal-close{ background:none; border:1px solid var(--line); color:var(--paper-dim); width:28px; height:28px; border-radius:6px; cursor:pointer; }
+  .modal-desc{ color:var(--paper-dim); font-size:13px; margin:6px 0 18px; line-height:1.5; }
+  .skill-row{ border-top:1px solid var(--line-soft); padding:12px 0; }
+  .skill-name{ font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:13.5px; }
+  .tag{ font-family:'IBM Plex Mono',monospace; font-size:9px; text-transform:uppercase; color:var(--paper-faint); border:1px solid var(--line); padding:2px 7px; border-radius:20px; margin-left:6px; }
+  .tag.cadence{ color:var(--brass); border-color:rgba(200,155,60,0.4); }
+  .skill-desc{ font-size:12px; color:var(--paper-dim); margin-top:4px; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <div class="sidebar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#C89B3C" stroke-width="1.4"/><path d="M12 6v6l4 2" stroke="#C89B3C" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <div><div class="brand-name">Helm</div><div class="brand-sub">MissionAlpha</div></div>
+    </div>
+
+    <div class="nav-item inbox-item active" data-page="inbox" onclick="showPage('inbox', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+      Inbox <span class="nav-badge" id="badge">0</span>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="nav-item" data-page="chat" onclick="showStub('Chat','Talk to the Captain and every station — ChatPane wires here in M1.', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4H12l-5 3 1-4.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+        Chat
+      </div>
+      <div class="nav-item" data-page="deck" onclick="showPage('deck', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Agents
+      </div>
+      <div class="nav-item" data-page="board" onclick="showStub('Board','Kanban + heartbeat + globe — the existing MissionAlpha board mounts here.', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/></svg>
+        Board
+      </div>
+      <div class="nav-item" data-page="factory" onclick="showStub('Agent Factory','BOSS describes a need → Claude authors the spec → you confirm → new station on deck.', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21V8l6 4V8l6 4V8l6 4v9H3Z"/></svg>
+        Agent Factory
+      </div>
+      <div class="nav-item" data-page="sessions" onclick="showStub('Sessions','History browser + replay scrubber — fork/resume lands in M2.', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        Sessions
+      </div>
+      <div class="nav-item" data-page="roadmap" onclick="showPage('roadmap', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V5M4 17l6-3 6 3 4-2V7l-4 2-6-3-6 3"/></svg>
+        Roadmap
+      </div>
+      <div class="nav-item" data-page="settings" onclick="showStub('Settings','Risk policy editor, model tiers, repo picker, theme — M3/M4 surface.', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4L9.8 5.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg>
+        Settings
+      </div>
+    </div>
+
+    <div class="nav-label">Agents</div>
+    <div class="agent-list" id="agent-list"></div>
+
+    <div class="venture-switcher">
+      <div class="venture-pill">
+        <div><div class="venture-pill-label">Venture</div><div class="venture-pill-name">WAAHYU</div></div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- INBOX -->
+    <div class="page active" id="page-inbox">
+      <div class="topbar">
+        <div><div class="eyebrow">Deliveries awaiting your decision · WAAHYU</div><h1>Inbox</h1></div>
+        <div class="topbar-status">
+          <span class="repo-chip">repo: WaahyuPython · feat/vendor-spice-port</span>
+          <div class="status-chip"><span class="dot amber"></span> <span id="pending-chip"></span></div>
+          <div class="clock" id="clock">00:00:00</div>
+        </div>
+      </div>
+
+      <div class="filters" id="filters"></div>
+
+      <div class="inbox-grid">
+        <div>
+          <div id="dlist"></div>
+          <div class="auto-sec" id="auto-sec"></div>
+        </div>
+        <div class="review" id="review"></div>
+      </div>
+    </div>
+
+    <!-- COMMAND DECK -->
+    <div class="page" id="page-deck">
+      <div class="topbar">
+        <div><div class="eyebrow">Agent network · WAAHYU</div><h1>Command deck</h1></div>
+        <div class="topbar-status"><div class="status-chip"><span class="dot"></span> <span id="watch-count"></span></div></div>
+      </div>
+      <div class="captain-card">
+        <div class="compass"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg></div>
+        <div class="captain-body">
+          <div class="captain-title-row"><h2>Captain / CEO</h2><span class="badge working">On watch</span></div>
+          <div class="captain-desc">Receives every BOSS requirement first, proposes strategy, dispatches the stations. Every station's finished work lands in your Inbox — nothing ships without your decision.</div>
+        </div>
+      </div>
+      <div class="stations-label"><span class="eyebrow">Fifteen stations, one memory, one inbox</span><span class="line"></span></div>
+      <div class="stations" id="stations"></div>
+    </div>
+
+    <!-- ROADMAP -->
+    <div class="page" id="page-roadmap">
+      <div class="topbar">
+        <div><div class="eyebrow">How work flows · what gets built</div><h1>Roadmap</h1></div>
+      </div>
+
+      <div class="stations-label"><span class="eyebrow">The delivery pipeline</span><span class="line"></span></div>
+      <div class="flow">
+        <div class="fnode"><h5>Any agent</h5>
+          <div class="senders"><span class="mine">MissionAlpha swarm</span><span>Claude Code</span><span>Cursor agents</span><span>Codex / Devin (PRs)</span></div>
+        </div>
+        <div class="farrow">→</div>
+        <div class="fnode"><h5>Isolated work</h5><p>git worktree<br>branch ma/&lt;agent&gt;/&lt;task&gt;<br>Bash OFF · guards ON</p></div>
+        <div class="farrow">→</div>
+        <div class="fnode"><h5>Delivery</h5><p>diffstat · summary<br>source · audit ref</p></div>
+        <div class="farrow">→</div>
+        <div class="fnode"><h5>Risk router</h5><p>low → policy/auto<br>med → human<br>high → typed confirm<br>SLA timers</p></div>
+        <div class="farrow">→</div>
+        <div class="fnode human"><h5>INBOX · you decide</h5><p>Approve → commit + PR<br>Request changes → agent runs again<br>Reject → discard</p>
+          <div class="loopnote">↺ feedback loops back to the agent</div>
+        </div>
+        <div class="farrow">→</div>
+        <div class="fnode"><h5>Audit</h5><p>who · what · why<br>risk reasons<br>export JSON/CSV</p></div>
+      </div>
+
+      <div class="stations-label"><span class="eyebrow">End-to-end build order — each stage ships alone</span><span class="line"></span></div>
+      <div class="timeline">
+        <div class="stage"><span class="eff">S</span><div class="id">M0</div><h5>Debt burn-down</h5><p>STOP button · send-loading · 1800+ skills · delete-agent · factory add · CEO team-assembly.</p></div>
+        <div class="stage core"><span class="eff">M</span><div class="id">M1 ★</div><h5>THE INBOX</h5><p>Delivery object + endpoints + badge + notifications + this review UI, live.</p></div>
+        <div class="stage"><span class="eff">M</span><div class="id">M2</div><h5>Never lose work</h5><p>Task queue · retry/self-heal · auto-chain · failure Deliveries.</p></div>
+        <div class="stage"><span class="eff">M</span><div class="id">M3</div><h5>Any repo → real PRs</h5><p>Repo picker · git worktree isolation · approve ⇒ branch ⇒ GitHub PR.</p></div>
+        <div class="stage"><span class="eff">S–M</span><div class="id">M4</div><h5>Risk router</h5><p>Heuristic risk bands · BOSS policy file · SLA timers · typed confirm on high.</p></div>
+        <div class="stage core"><span class="eff">M–L</span><div class="id">M5 ★</div><h5>Universal ingestion</h5><p>GitHub adapter (Cursor/Codex/Devin PRs) + Claude Code sessions → one inbox, every vendor.</p></div>
+        <div class="stage"><span class="eff">S</span><div class="id">M6</div><h5>Usage + audit export</h5><p>Tokens &amp; context% per agent · one-click audit bundle.</p></div>
+        <div class="stage"><span class="eff">M</span><div class="id">M7</div><h5>Second seat</h5><p>Two users · roles · assignment · decidedBy in audit.</p></div>
+        <div class="stage"><span class="eff">S–M</span><div class="id">M8</div><h5>Dogfood scoreboard</h5><p>MissionAlpha ships MissionAlpha weekly through its own Inbox — recorded proof.</p></div>
+      </div>
+    </div>
+
+    <!-- STUB (future surfaces) -->
+    <div class="page" id="page-stub">
+      <div class="topbar">
+        <div><div class="eyebrow">Coming surface</div><h1 id="stub-title">—</h1></div>
+      </div>
+      <div class="stub"><h2 id="stub-h">—</h2><p id="stub-p">—</p></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target.id==='modal-overlay')closeModal()">
+  <div class="modal-panel" id="modal-panel"></div>
+</div>
+
+<script>
+function showPage(id, el){
+  const page=document.getElementById('page-'+id);
+  if(!page) return;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  page.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+function showStub(title, note, el){
+  document.getElementById('stub-title').textContent=title;
+  document.getElementById('stub-h').textContent=title;
+  document.getElementById('stub-p').textContent=note;
+  showPage('stub', el);
+}
+setInterval(()=>{ const n=new Date();
+  document.getElementById('clock').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+},1000);
+
+/* ---- agents (same roster as helm clone, trimmed fields) ---- */
+const AGENTS = [
+  ['Architect','System design','#5DCAA5','working','Drafting ADR for the Inbox delivery pipeline.'],
+  ['Lead Dev','Orchestration','#C89B3C','working','Sequencing vendor-spice stories S3b → S4.'],
+  ['Web Dev 1','React web','#378ADD','working','Porting OrderDetailPage to spice system.'],
+  ['Web Dev 2','React web','#378ADD','standby','Driver earnings shipped; awaiting dispatch.'],
+  ['Backend 1','Python services','#D4537E','working','Hardening order-service stock checks.'],
+  ['Backend 2','Python services','#D4537E','standby','Closed webhook retries last cycle.'],
+  ['DB Engineer','MongoDB schema','#EF9F27','working','Reviewing order-history index plan.'],
+  ['UX Lead','Design system','#B07CE8','working','Spice tokens locked; auditing adoption.'],
+  ['Mobile 1','React Native','#5DCAA5','off','Off watch — mobile resumes next sprint.'],
+  ['Mobile 2','React Native','#5DCAA5','off','Off watch — mobile resumes next sprint.'],
+  ['QA','All testing','#D9A441','working','Checkout e2e flaked twice — investigating.'],
+  ['Security','AppSec','#C1554A','working','2 findings open on Inbox apply path.'],
+  ['Code Reviewer','Merge gate','#9BA3B4','working','3 PRs queued behind TESTS_GREEN.'],
+  ['CI/CD','Platform','#639922','standby','Pipeline green; watching flaky cache step.'],
+  ['Memory','Recall layer','#B07CE8','working','Persisting spice-port decisions.'],
+];
+const BADGE_TXT={working:['working','On watch'],standby:['standby','Standing by'],off:['off','Off watch']};
+const ICON='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C89B3C" stroke-width="1.6"><path d="M8 4L2 12l6 8M16 4l6 8-6 8"/></svg>';
+document.getElementById('agent-list').innerHTML = AGENTS.map((a,i)=>
+  `<div class="agent-quick" onclick="openModal(${i})"><span class="aq-dot" style="background:${a[2]}"></span>${a[0]}<span class="aq-role">${a[1]}</span></div>`).join('');
+document.getElementById('stations').innerHTML = AGENTS.map((a,i)=>`
+  <div class="station" onclick="openModal(${i})">
+    <div class="station-top">${ICON}<span class="badge ${BADGE_TXT[a[3]][0]}">${BADGE_TXT[a[3]][1]}</span></div>
+    <div class="eyebrow" style="font-size:9px;">Station ${String(i+1).padStart(2,'0')}</div>
+    <h3>${a[0]}</h3><div class="station-role">${a[1]}</div><div class="station-note">${a[4]}</div>
+  </div>`).join('');
+document.getElementById('watch-count').textContent = AGENTS.filter(a=>a[3]==='working').length + ' of 16 on watch';
+function openModal(i){
+  const a=AGENTS[i];
+  document.getElementById('modal-panel').innerHTML=`
+    <div class="modal-head"><div><span class="eyebrow">${a[1]} · ${BADGE_TXT[a[3]][1]}</span><h2>${a[0]}</h2></div>
+    <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-desc">${a[4]} Every finished task this station produces becomes a Delivery in your Inbox.</div>
+    <div class="skill-row"><span class="skill-name">deliver-to-inbox</span><span class="tag">skill</span><span class="tag cadence">per task</span>
+    <div class="skill-desc">Finished work is minted as a Delivery — diff, risk band, and summary — and waits for your decision.</div></div>`;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('active'); }
+
+/* ---- THE MERGED ENGINE: deliveries ---- */
+const D = [
+  { id:'d1', ag:'Web Dev 1', av:'W1', title:'Add JWT refresh to auth middleware', src:'swarm', kind:'high',
+    sla:41*60, files:'3 files', add:184, del:22, branch:'ma/senior-web-1/jwt-refresh', status:'pending',
+    reasons:['touches auth path: src/middleware/auth.ts','new dependency: jose@5','modifies token expiry logic'],
+    diff:`<span class="f">src/middleware/auth.ts</span>
+<span class="c">@@ -41,7 +41,19 @@</span>
+<span class="m">- if (token.exp < now) throw new AuthError("expired");</span>
+<span class="p">+ if (token.exp <= now) {</span>
+<span class="p">+   const fresh = await refreshToken(token, { leeway: 30 });</span>
+<span class="p">+   if (!fresh) throw new AuthError("expired");</span>
+<span class="p">+   return attach(req, fresh);</span>
+<span class="p">+ }</span>` },
+  { id:'d2', ag:'cursor-agent', av:'CU', title:'PR #482 — Migrate cart store to Zustand', src:'github', kind:'med',
+    sla:6*3600+12*60, files:'9 files', add:412, del:388, branch:'cursor/cart-zustand → PR #482', status:'pending',
+    reasons:['external agent PR — authored by cursor-agent[bot]','large surface: 9 files across cart flow','no new dependencies'],
+    diff:`<span class="f">apps/customer-web/src/store/cart.ts</span>
+<span class="c">@@ -1,9 +1,7 @@</span>
+<span class="m">- import { createContext, useReducer } from "react";</span>
+<span class="p">+ import { create } from "zustand";</span>
+<span class="p">+ export const useCart = create((set) => ({</span>
+<span class="p">+   items: [], add: (i) => set(s => ({ items: [...s.items, i] })),</span>
+<span class="p">+ }));</span>` },
+  { id:'d3', ag:'Backend 1', av:'B1', title:'Harden order-service stock checks', src:'swarm', kind:'med',
+    sla:9*3600, files:'2 files', add:96, del:14, branch:'ma/senior-backend-1/stock-guard', status:'pending',
+    reasons:['service logic change: order placement path','covered by new contract tests'],
+    diff:`<span class="f">services/order/handlers.py</span>
+<span class="c">@@ -88,6 +88,12 @@</span>
+<span class="p">+ stock = await reserve_stock(db, items, session=s)</span>
+<span class="p">+ if not stock.ok:</span>
+<span class="p">+     raise StockConflict(stock.missing)</span>` },
+  { id:'d4', ag:'QA', av:'QA', title:'⚠ Agent stuck — checkout e2e flaked twice', src:'swarm', kind:'fail',
+    sla:2*3600, files:'—', add:0, del:0, branch:'run #218 · retry 1/1 failed', status:'pending',
+    reasons:['e2e journey failed 2 of 3 runs','auto-retry exhausted — needs your call','options: quarantine test or dispatch fix'],
+    diff:`<span class="c">✖ checkout.spec.ts › pays with saved card</span>
+<span class="c">  TimeoutError: waiting for [data-testid=pay-btn]</span>
+<span class="c">  2 failures · 1 pass · flake pattern: race after cart update</span>` },
+  { id:'d5', ag:'Lead Dev', av:'LD', title:'S4 plan ready for GO', src:'swarm', kind:'low',
+    sla:22*3600, files:'1 file', add:64, del:0, branch:'docs/plans/S4-vendor-spice.md', status:'pending',
+    reasons:['docs-only: plan file','no code paths touched'],
+    diff:`<span class="f">docs/plans/S4-vendor-spice.md</span>
+<span class="p">+ ## S4 — vendor dashboard final story</span>
+<span class="p">+ 1. Port SettingsPage → spice tokens</span>
+<span class="p">+ 2. Kill legacy css vars · 3. tsc 0 · 4. e2e green</span>` },
+  { id:'d6', ag:'Web Dev 2', av:'W2', title:'Write unit tests for money utils', src:'swarm', kind:'low',
+    sla:23*3600, files:'2 files', add:96, del:0, branch:'ma/senior-web-2/money-tests', status:'pending',
+    reasons:['tests-only change','adds coverage on cents math'],
+    diff:`<span class="f">src/lib/__tests__/money.test.ts</span>
+<span class="p">+ test("never floats: 0.1 + 0.2 stays integer cents", () => {</span>
+<span class="p">+   expect(addCents(10, 20)).toBe(30);</span>
+<span class="p">+ });</span>` },
+];
+const AUTO = ['README typo fix (Memory)','changelog entry (CI/CD)'];
+const CHIP={high:['r-high','high risk'],med:['r-med','medium'],low:['r-low','low risk'],fail:['r-fail','needs you']};
+const SRC={swarm:'swarm',github:'cursor-agent',claude:'claude-code'};
+let selId='d1', filter='All';
+const FILTERS=['All','High risk','My swarm','External','Failures'];
+
+function fmtSla(s){ if(s<=0) return 'SLA expired';
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%60);
+  return 'SLA '+(h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
+
+function match(d){
+  if(filter==='High risk') return d.kind==='high';
+  if(filter==='My swarm') return d.src==='swarm';
+  if(filter==='External') return d.src!=='swarm';
+  if(filter==='Failures') return d.kind==='fail';
+  return true; }
+
+function renderList(){
+  const pending=D.filter(d=>d.status==='pending');
+  document.getElementById('badge').textContent=pending.length;
+  document.getElementById('pending-chip').textContent=pending.length+' pending · '+AUTO.length+' auto-approved today';
+  document.getElementById('filters').innerHTML=FILTERS.map(f=>
+    `<span class="fpill ${f===filter?'sel':''}" onclick="filter='${f}';renderList()">${f}</span>`).join('');
+  document.getElementById('dlist').innerHTML=D.filter(match).map(d=>{
+    const decided=d.status!=='pending';
+    const right = decided
+      ? `<span class="chip ${d.status==='approved'?'r-low':'r-fail'} statepill">${d.status==='approved'?'✓ approved · PR opened':d.status==='rejected'?'✕ rejected':'↺ changes requested'}</span>`
+      : `<span class="sla ${d.sla<3600?'hot':''}" data-sla="${d.id}">${fmtSla(d.sla)}</span>`;
+    return `<div class="dcard ${d.id===selId?'sel':''} ${decided?'decided':''}" onclick="selId='${d.id}';renderList();renderReview()">
+      <div class="drow"><span class="davatar">${d.av}</span><span class="dtitle">${d.title}</span>${right}</div>
+      <div class="drow" style="margin-top:7px;">
+        <span class="chip ${CHIP[d.kind][0]}">${CHIP[d.kind][1]}</span>
+        ${d.src!=='swarm'?`<span class="chip src">source: ${SRC[d.src]}</span>`:''}
+        <span class="dmeta">${d.ag}</span>
+        <span class="diffstat">${d.files} <span class="plus">+${d.add}</span> <span class="minus">−${d.del}</span></span>
+      </div></div>`;}).join('');
+  document.getElementById('auto-sec').innerHTML='✓ <b>'+AUTO.length+' auto-approved</b> under policy: '+AUTO.join(' · ')+' — audited';
+}
+
+function renderReview(){
+  const d=D.find(x=>x.id===selId);
+  const el=document.getElementById('review');
+  if(!d){ el.innerHTML='<div class="decided-note">Select a delivery.</div>'; return; }
+  if(d.status!=='pending'){
+    el.innerHTML=`<h2>${d.title}</h2>
+      <div class="decided-note ${d.status==='approved'?'good':'bad'}">
+      ${d.status==='approved'?'✓ Approved — committed on '+d.branch+' and PR opened. Agent notified: DONE.':
+        d.status==='rejected'?'✕ Rejected — sandbox discarded, decision audited.':
+        '↺ Changes requested — your feedback is now the agent’s next task.'}</div>`;
+    return; }
+  const isHigh=d.kind==='high', isFail=d.kind==='fail';
+  el.innerHTML=`
+    <h2>${d.title}</h2>
+    <div class="rmeta"><span class="chip ${CHIP[d.kind][0]}">${CHIP[d.kind][1]}</span>
+      <span class="dmeta">${d.ag} · ${d.branch}</span></div>
+    <div class="reasons ${d.kind==='low'?'ok':''}">${d.reasons.map(r=>'<span>'+r+'</span>').join('')}</div>
+    <div class="diff">${d.diff}</div>
+    ${isHigh?`<div class="confirm"><b>High-risk change.</b> Type <b>APPLY</b> to enable Approve.
+      <input id="confirm-input" placeholder="Type APPLY to confirm…" oninput="document.getElementById('btn-approve').disabled=this.value!=='APPLY'"></div>`:''}
+    <input class="fb-input" id="fb" placeholder="Feedback for the agent (used on Request changes)…">
+    <div class="actions">
+      <button class="btn b-approve" id="btn-approve" ${isHigh?'disabled':''} onclick="decide('approved')">${isFail?'Dispatch fix':'Approve → PR'}</button>
+      <button class="btn b-changes" onclick="decide('changes')">${isFail?'Quarantine test':'Request changes'}</button>
+      <button class="btn b-reject" onclick="decide('rejected')">Reject</button>
+    </div>`;
+}
+function decide(s){ const d=D.find(x=>x.id===selId); d.status=s; renderList(); renderReview(); }
+
+setInterval(()=>{ D.forEach(d=>{ if(d.status==='pending'&&d.sla>0) d.sla--; });
+  document.querySelectorAll('[data-sla]').forEach(el=>{
+    const d=D.find(x=>x.id===el.dataset.sla); if(d){ el.textContent=fmtSla(d.sla); el.classList.toggle('hot',d.sla<3600); } });
+},1000);
+
+renderList(); renderReview();
+</script>
+</body>
+</html>

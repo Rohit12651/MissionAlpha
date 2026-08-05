@@ -3,16 +3,16 @@
 // run; session-grant skips re-approval; deny blocks; auth required. Docker-gated.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { createSandbox } from "../sandbox.mjs";
+import { makeThrowawayRepo, isolatedRuntimeEnv } from "./fixtures/throwaway-repo.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dir, "..", "server.mjs");
-const REPO = join(__dir, "..", "..");
 const PORT = 3991, TOK = "exectok", BASE = `http://127.0.0.1:${PORT}`;
 const DOCKER_UP = await createSandbox().dockerAvailable();
 const skip = !DOCKER_UP;
@@ -29,13 +29,18 @@ async function waitHealth(ms = 8000) {
 before(async () => {
   if (skip) return;
   root = mkdtempSync(join(tmpdir(), "ma-exec-"));
+  // The exec worktrees MUST come off a throwaway repo: with no RUNTIME_REPO_ROOT the
+  // server defaults to the LIVE MissionAlpha checkout and every `ma/task/exectest_*`
+  // branch + worktree registration lands in the operator's working copy.
   child = spawn(process.execPath, [SERVER], {
     cwd: join(__dir, ".."),
     env: {
       ...process.env, RUNTIME_PORT: String(PORT), RUNTIME_TOKEN: TOK, RUNTIME_BACKEND: "mock",
-      RUNTIME_SANDBOX_IMAGE: "alpine:3", RUNTIME_EXEC_WT_ROOT: join(root, "wt"),
+      RUNTIME_SANDBOX_IMAGE: "alpine:3",
+      ...isolatedRuntimeEnv(root, makeThrowawayRepo(root)),
       RUNTIME_TOKEN_DIR: join(root, "tok"), RUNTIME_THREADS_DIR: join(root, "threads"),
       RUNTIME_MCP_DIR: join(root, "mcp"), RUNTIME_ENGINE_STORE: join(root, "eng"), ANTHROPIC_API_KEY: "",
+      RUNTIME_DB_PATH: join(root, "db", "mission.db"), // P2: keep the real agent-runtime/data/ clean
       // Isolate the factory's repo-bound writes so the booted server never touches the
       // TRACKED factory/registry.json or .claude/agents/*.md.
       FACTORY_REGISTRY_FILE: join(root, "factory", "registry.json"), RUNTIME_AGENTS_DIR: join(root, "agents"),
@@ -46,9 +51,8 @@ before(async () => {
 });
 after(() => {
   try { child?.kill("SIGKILL"); } catch { /* */ }
-  // clean up exec worktree branches created off the live repo
-  try { for (const b of execFileSync("git", ["-C", REPO, "branch", "--list", "ma/task/exectest*"], { encoding: "utf-8" }).split("\n").map((s) => s.trim().replace(/^\*\s*/, "")).filter(Boolean)) execFileSync("git", ["-C", REPO, "branch", "-D", b]); } catch { /* */ }
-  try { execFileSync("git", ["-C", REPO, "worktree", "prune"]); } catch { /* */ }
+  // No live-repo cleanup any more: every branch and worktree this suite creates now
+  // belongs to the throwaway repo under `root`, which goes with it.
   try { rmSync(root, { recursive: true, force: true }); } catch { /* */ }
 });
 
@@ -130,7 +134,10 @@ test("forbidden cannot be smuggled past via chaining", { skip }, async () => {
         RUNTIME_THREADS_DIR: join(root2, "threads"),
         RUNTIME_MCP_DIR: join(root2, "mcp"),
         RUNTIME_ENGINE_STORE: join(root2, "eng"),
-        RUNTIME_EXEC_WT_ROOT: join(root2, "wt"),
+        RUNTIME_DB_PATH: join(root2, "db", "mission.db"), // P2: keep the real agent-runtime/data/ clean
+        // Throwaway target — the B2 `/runtime/architect/exec` case creates an exec
+        // worktree, which used to register `ma/task/architect` on the LIVE repo.
+        ...isolatedRuntimeEnv(root2, makeThrowawayRepo(root2)),
         ANTHROPIC_API_KEY: "",
         RUNTIME_SEED_DEFAULTS: "0",
         // Isolate the factory's repo-bound writes so creating captest-*/dev agents over
@@ -153,8 +160,6 @@ test("forbidden cannot be smuggled past via chaining", { skip }, async () => {
     try { rmSync(root2, { recursive: true, force: true }); } catch { /* */ }
   });
 
-  const B2_AGENT_IDS = ["captest-content-agent", "captest-dev-agent"];
-
   // Delete test agents if they already exist (idempotent cleanup between runs).
   // Route: DELETE /factory/:id (see server.mjs ~line 1630).
   async function deleteIfExists(id) {
@@ -170,14 +175,14 @@ test("forbidden cannot be smuggled past via chaining", { skip }, async () => {
 
   // ── B2: exec-capability gate ──────────────────────────────────────────────
 
-  test("B2: content-only factory agent → POST /exec returns 403 (no dev skill)", async () => {
-    // Create a content-only agent (no dev skill).
+  test("B2: non-dev factory agent → POST /exec returns 403 (no dev skill)", async () => {
+    // Create a read-only agent (no dev skill).
     const created = await createFactoryAgent({
       id: "captest-content-agent",
-      role: "Social writer",
-      title: "Social Writer",
-      persona: "You draft social posts for BOSS approval. Bus comms in /caveman full.",
-      skills: ["content-writing"],
+      role: "Repo analyst",
+      title: "Repo Analyst",
+      persona: "You read the repository and report what you can source. Bus comms in /caveman full.",
+      skills: ["repo-read"],
       tools: ["Read"],
       integrations: [],
     });
@@ -192,7 +197,7 @@ test("forbidden cannot be smuggled past via chaining", { skip }, async () => {
     );
   });
 
-  test("B2: content agent 403 fires BEFORE any sandbox call (no Docker dependency)", async () => {
+  test("B2: non-dev agent 403 fires BEFORE any sandbox call (no Docker dependency)", async () => {
     // Same agent as above — just verify the gate is the gate, not a Docker failure.
     const r = await post2("/runtime/captest-content-agent/exec", { command: "ls" });
     assert.equal(r.status, 403, "capability gate must return 403, not a sandbox error");
@@ -245,9 +250,10 @@ test("forbidden cannot be smuggled past via chaining", { skip }, async () => {
   });
 
   test("B2: builtin agent id → /exec is NOT blocked by capability gate", async () => {
-    // architect is a builtin (not in factory registry) — isFactoryAgent returns false.
-    // The gate must let it through.
-    const r = await post2("/runtime/architect/exec", { command: "echo hi" });
+    // senior-lead-dev is a builtin (not in the factory registry) — isFactoryAgent returns
+    // false, so the gate must let it through. (`architect` is NOT one any more: S0 made it
+    // a seeded SE seat, which the capability gate correctly DOES evaluate.)
+    const r = await post2("/runtime/senior-lead-dev/exec", { command: "echo hi" });
     assert.notEqual(r.status, 403, "builtin agent must not be blocked by the capability gate");
   });
 

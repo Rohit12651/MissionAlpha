@@ -3,7 +3,7 @@
 // attempts that must ALL fail (host fs, network, root, socket) — proving the boundary.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { buildDockerArgs, createSandbox, dirSizeBytes, DEFAULT_DISK_CAP_BYTES } from "../sandbox.mjs";

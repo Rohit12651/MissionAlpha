@@ -133,3 +133,33 @@ cancelled   → ADR-025 cancellation (terminal)
 - **OQ-027.1 (principal-db-engineer):** confirm `LEASE_MS` default (propose 10min — comfortably above the longest expected `claude` write turn) and the `TASK_TTL` retention (7d).
 - **OQ-027.2 (BOSS):** is 500 a sensible `MAX_QUEUED` for S1, or smaller while the loop is proven? (Easy to raise once stable.)
 - **OQ-027.3 (principal-db-engineer):** target DB for the eventual migration — SQLite (single-file, matches the local-loop model) vs the platform's MongoDB? Affects how literal the schema-port stays.
+
+---
+
+## AS BUILT (P4, 2026-07-30)
+
+Status: **IMPLEMENTED** — `agent-runtime/queue.mjs`. Deltas from the proposal above:
+
+1. **`task.*` emit-on-persist.** `createQueue({ emit })` announces every transition from the
+   SAME function that writes it (ADR-052 §2): `enqueue` → `task.queued`, or `task.retried`
+   when the record carries `attempts > 0` (i.e. the enqueue IS an ADR-028 retry);
+   `claimNext` → `task.started`; `update({status:'failed'})` → `task.failed` with the
+   classified `error.kind`; `reclaimExpiredLeases` → `task.queued`. A deduped enqueue emits
+   nothing, so a double submit stays exactly-once. `done` / `held` / `cancelled` have **no**
+   catalog name — the v1 event catalog is closed (program plan §2), so the UI learns those
+   from the authoritative `GET /runtime/engine/runs` snapshot instead of an invented event.
+   The emitter is swallowed inside `queue.mjs`: a bus fault can never break a queue write.
+2. **`MAX_PER_AGENT` default is 1, not `ceil(MAX_INFLIGHT/2)`.** Program plan P4 requires
+   **per-agent serial** execution — an agent must never run two steps at once in its own
+   worktree. Cross-agent parallelism is unchanged and still bounded solely by the shared
+   `MAX_INFLIGHT`. `RUNTIME_MAX_PER_AGENT` still overrides. (This supersedes ADR-025 §3's
+   "default 2".)
+3. **Store remains file-backed.** The program plan's P4 line said "durable task table in
+   SQLite". Deferred deliberately: the file store already satisfies every P4 exit criterion
+   (durable, crash-safe, atomic claim, restart-resume — proven by `test/autonomy.test.mjs`
+   and a live `kill -9` probe), and OQ-027.3 is still open. The narrow interface this ADR
+   specifies is what makes the port a later, behaviour-neutral change.
+
+Resolved open questions: **OQ-027.1** — `LEASE_MS` 10 min shipped; `TASK_TTL` retention is
+NOT implemented (no sweeper yet — see the P4 exit report's deferred list). **OQ-027.2** —
+500 shipped. **OQ-027.3** — still open.

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm — MissionAlpha Command Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B1220; --deck:#121B2E; --deck-raised:#182338; --deck-raised-2:#1E2B45;
+    --line:#26324A; --line-soft:#1D2A40;
+    --brass:#C89B3C; --brass-bright:#E0B759;
+    --green:#4F9D69; --amber:#D9A441; --red:#C1554A;
+    --paper:#EDE6D6; --paper-dim:#9BA3B4; --paper-faint:#5D6579;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--ink); color:var(--paper); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+  .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--paper-faint); }
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; font-weight:600; color:var(--paper); }
+
+  .app-shell{ display:flex; min-height:100vh; }
+  .sidebar{ width:230px; flex-shrink:0; background:var(--deck); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:22px 16px; }
+  .brand{ display:flex; align-items:center; gap:10px; padding:4px 8px 22px; }
+  .brand-mark{ width:26px; height:26px; }
+  .brand-name{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; letter-spacing:0.02em; }
+  .brand-sub{ font-size:10px; color:var(--paper-faint); letter-spacing:0.08em; text-transform:uppercase; margin-top:-2px; }
+  .nav-group{ margin-bottom:18px; }
+  .nav-label{ padding:0 8px 8px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--paper-faint); }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:6px; font-size:13.5px; color:var(--paper-dim); cursor:pointer; transition:background .15s, color .15s; }
+  .nav-item svg{ width:16px; height:16px; opacity:.85; flex-shrink:0; }
+  .nav-item:hover{ background:var(--deck-raised); color:var(--paper); }
+  .nav-item.active{ background:var(--deck-raised-2); color:var(--brass-bright); border:1px solid var(--line); }
+  .inbox-item{ position:relative; border:1px solid var(--brass); background:rgba(200,155,60,0.08); color:var(--paper); }
+  .nav-badge{ margin-left:auto; background:var(--brass); color:#221803; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; padding:1px 7px; border-radius:20px; }
+  .agent-list{ overflow-y:auto; }
+  .agent-quick{ display:flex; align-items:center; gap:9px; padding:6px 10px; border-radius:6px; font-size:12px; color:var(--paper-dim); cursor:pointer; }
+  .agent-quick:hover{ background:var(--deck-raised); color:var(--paper); }
+  .aq-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .aq-role{ margin-left:auto; font-size:9.5px; color:var(--paper-faint); text-align:right; }
+  .venture-switcher{ margin-top:auto; border-top:1px solid var(--line); padding-top:14px; }
+  .venture-pill{ display:flex; align-items:center; justify-content:space-between; background:var(--deck-raised); border:1px solid var(--line); border-radius:8px; padding:10px 12px; cursor:pointer; }
+  .venture-pill-label{ font-size:12px; color:var(--paper-faint); }
+  .venture-pill-name{ font-size:13.5px; font-weight:500; color:var(--paper); margin-top:1px; }
+
+  .main{ flex:1; min-width:0; padding:28px 40px 60px; }
+  .page{ display:none; }
+  .page.active{ display:block; }
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:26px; }
+  .topbar .eyebrow{ margin-bottom:6px; }
+  .topbar h1{ font-size:26px; }
+  .topbar-status{ display:flex; align-items:center; gap:10px; }
+  .status-chip{ display:flex; align-items:center; gap:6px; background:var(--deck-raised); border:1px solid var(--line); padding:6px 12px; border-radius:20px; font-size:12px; color:var(--paper-dim); }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--green); }
+  .dot.amber{ background:var(--amber); }
+  .clock{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-faint); border:1px solid var(--line); padding:6px 12px; border-radius:20px; }
+
+  .captain-card{ background:linear-gradient(180deg, var(--deck-raised-2), var(--deck-raised)); border:1px solid var(--line); border-radius:14px; padding:28px 30px; display:flex; align-items:center; gap:26px; margin-bottom:34px; position:relative; overflow:hidden; }
+  .captain-card::before{ content:''; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%; border:1px solid var(--line-soft); }
+  .captain-card::after{ content:''; position:absolute; right:-20px; top:-20px; width:160px; height:160px; border-radius:50%; border:1px solid var(--line-soft); }
+  .compass{ width:64px; height:64px; border-radius:50%; border:1.5px solid var(--brass); flex-shrink:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 35% 30%, rgba(200,155,60,0.22), transparent 70%); position:relative; z-index:1; }
+  .compass svg{ width:30px; height:30px; }
+  .captain-body{ flex:1; z-index:1; }
+  .captain-title-row{ display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  .captain-title-row h2{ font-size:22px; }
+  .badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; padding:3px 9px; border-radius:20px; text-transform:uppercase; }
+  .badge.working{ background:rgba(79,157,105,0.15); color:var(--green); border:1px solid rgba(79,157,105,0.4); }
+  .badge.standby{ background:rgba(217,164,65,0.14); color:var(--amber); border:1px solid rgba(217,164,65,0.4); }
+  .badge.off{ background:rgba(155,163,180,0.1); color:var(--paper-faint); border:1px solid var(--line); }
+  .captain-desc{ color:var(--paper-dim); font-size:13.5px; max-width:520px; line-height:1.55; }
+  .captain-stats{ display:flex; gap:26px; z-index:1; }
+  .cstat{ text-align:right; }
+  .cstat-num{ font-family:'IBM Plex Mono',monospace; font-size:22px; color:var(--paper); font-weight:600; }
+  .cstat-label{ font-size:10px; color:var(--paper-faint); letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
+  .captain-cta{ z-index:1; background:var(--brass); color:#221803; border:none; padding:10px 16px; border-radius:8px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap; }
+  .captain-cta:hover{ background:var(--brass-bright); }
+
+  .stations-label{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .stations-label .line{ flex:1; height:1px; background:var(--line); }
+  .stations{ display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; }
+  .station{ background:var(--deck); border:1px solid var(--line); border-radius:12px; padding:18px; cursor:pointer; transition:border-color .15s, transform .15s; }
+  .station:hover{ border-color:var(--brass); transform:translateY(-2px); }
+  .station-top{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+  .station-icon{ width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--deck-raised); border:1px solid var(--line); }
+  .station-icon svg{ width:17px; height:17px; color:var(--brass); }
+  .station-eyebrow{ font-size:9.5px; }
+  .station h3{ font-size:14.5px; margin:12px 0 3px; }
+  .station-role{ font-size:10.5px; color:var(--paper-faint); letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px; }
+  .station-note{ font-size:12px; color:var(--paper-dim); line-height:1.5; min-height:34px; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(6,10,18,0.6); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:50; }
+  .modal-overlay.active{ display:flex; }
+  .modal-panel{ width:560px; max-height:82vh; overflow-y:auto; background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:26px 26px 8px; }
+  .modal-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:6px; }
+  .modal-head h2{ font-size:22px; margin-top:8px; }
+  .modal-close{ background:none; border:1px solid var(--line); color:var(--paper-dim); width:28px; height:28px; border-radius:6px; cursor:pointer; font-size:14px; }
+  .modal-desc{ color:var(--paper-dim); font-size:13px; margin:6px 0 20px; line-height:1.5; }
+  .skill-row{ border-top:1px solid var(--line-soft); padding:14px 0; }
+  .skill-row:last-child{ padding-bottom:20px; }
+  .skill-name-row{ display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .skill-name{ font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:14px; }
+  .tag{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-faint); border:1px solid var(--line); padding:2px 7px; border-radius:20px; }
+  .tag.cadence{ color:var(--brass); border-color:rgba(200,155,60,0.4); }
+  .skill-desc{ font-size:12.5px; color:var(--paper-dim); line-height:1.55; }
+
+  .brief-grid{ display:grid; grid-template-columns:1fr; gap:26px; }
+  .console{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:44px 30px; text-align:center; }
+  .console-dial{ width:88px; height:88px; margin:0 auto 18px; border-radius:50%; border:1.5px solid var(--brass); background:radial-gradient(circle at 40% 35%, rgba(200,155,60,0.28), transparent 70%); display:flex; align-items:center; justify-content:center; animation:pulse 2.6s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(200,155,60,0.0);} 50%{ box-shadow:0 0 0 10px rgba(200,155,60,0.05);} }
+  .console-dial svg{ width:38px; height:38px; }
+  .console h3{ font-size:17px; margin-bottom:6px; }
+  .console p{ color:var(--paper-dim); font-size:13px; max-width:380px; margin:0 auto 22px; line-height:1.5; }
+  .console-input-row{ display:flex; gap:10px; max-width:520px; margin:0 auto; background:var(--deck-raised); border:1px solid var(--line); border-radius:10px; padding:6px 6px 6px 16px; }
+  .console-input-row input{ flex:1; background:none; border:none; outline:none; color:var(--paper); font-size:13.5px; font-family:'Inter',sans-serif; }
+  .console-input-row input::placeholder{ color:var(--paper-faint); }
+  .console-input-row button{ background:var(--brass); color:#221803; border:none; padding:9px 16px; border-radius:7px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:12.5px; cursor:pointer; }
+
+  .log-panel{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:22px 24px; }
+  .log-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .log-panel-head h3{ font-size:15px; }
+  .log-count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-faint); border:1px solid var(--line); padding:3px 10px; border-radius:20px; }
+  .log-entry{ display:flex; align-items:flex-start; gap:14px; padding:13px 0; border-top:1px solid var(--line-soft); }
+  .log-entry:first-child{ border-top:none; }
+  .log-agent{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.05em; text-transform:uppercase; color:var(--brass); background:rgba(200,155,60,0.1); border:1px solid rgba(200,155,60,0.3); padding:3px 8px; border-radius:5px; white-space:nowrap; margin-top:1px; }
+  .log-entry-body{ flex:1; }
+  .log-entry-title{ font-size:13px; color:var(--paper); margin-bottom:2px; }
+  .log-entry-meta{ font-size:11px; color:var(--paper-faint); }
+  .log-entry-right{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .pill{ font-family:'IBM Plex Mono',monospace; font-size:10px; padding:3px 10px; border-radius:20px; letter-spacing:0.04em; }
+  .pill.done{ background:rgba(79,157,105,0.14); color:var(--green); border:1px solid rgba(79,157,105,0.35); }
+  .pill.open{ background:rgba(217,164,65,0.14); color:var(--amber); border:1px solid rgba(217,164,65,0.35); }
+  .time-ago{ font-size:11px; color:var(--paper-faint); width:44px; text-align:right; }
+
+  .log-page-grid{ display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start; }
+  .search-row{ display:flex; align-items:center; gap:10px; background:var(--deck); border:1px solid var(--line); border-radius:10px; padding:11px 16px; margin-bottom:8px; }
+  .search-row input{ flex:1; background:none; border:none; outline:none; color:var(--paper); font-size:13px; font-family:'Inter',sans-serif; }
+  .search-row input::placeholder{ color:var(--paper-faint); }
+  .hint{ font-size:11.5px; color:var(--paper-faint); margin-bottom:22px; }
+  .graph-wrap{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .graph{ position:relative; width:100%; max-width:600px; height:600px; margin:0 auto; }
+  .graph svg.lines{ position:absolute; inset:0; width:100%; height:100%; }
+  .g-node{ position:absolute; width:78px; height:78px; margin-left:-39px; margin-top:-39px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; text-align:center; }
+  .g-node .ring{ width:52px; height:52px; border-radius:50%; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; background:var(--deck-raised); transition:border-color .15s, background .15s; }
+  .g-node .ring svg{ width:20px; height:20px; color:var(--paper-dim); }
+  .g-node:hover .ring, .g-node.selected .ring{ border-color:var(--brass); background:rgba(200,155,60,0.1); }
+  .g-node:hover .ring svg, .g-node.selected .ring svg{ color:var(--brass); }
+  .g-node .g-label{ font-size:11px; margin-top:8px; color:var(--paper-dim); line-height:1.25; }
+  .g-node.selected .g-label{ color:var(--paper); }
+  .g-node.center .ring{ width:70px; height:70px; border-color:var(--brass); background:radial-gradient(circle at 35% 30%, rgba(200,155,60,0.22), transparent 70%); }
+  .g-node.center .ring svg{ width:28px; height:28px; color:var(--brass); }
+  .g-node.center .g-label{ font-weight:600; color:var(--paper); }
+  .g-node.center .g-sub{ font-size:9.5px; color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+  .detail-panel{ background:var(--deck); border:1px solid var(--line); border-radius:14px; padding:22px; min-height:420px; }
+  .detail-empty{ color:var(--paper-faint); font-size:13px; text-align:center; padding:60px 20px; }
+  .crumb{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--paper-faint); margin-bottom:14px; letter-spacing:0.04em; }
+  .crumb span{ color:var(--brass); }
+  .detail-panel h3{ font-size:19px; margin-bottom:14px; }
+  .detail-meta-row{ display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .meta-chip{ font-size:10.5px; color:var(--paper-dim); border:1px solid var(--line); padding:4px 10px; border-radius:20px; }
+  .detail-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+  .dstat{ background:var(--deck-raised); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .dstat-num{ font-family:'IBM Plex Mono',monospace; font-size:18px; color:var(--paper); }
+  .dstat-label{ font-size:10px; color:var(--paper-faint); text-transform:uppercase; letter-spacing:0.06em; margin-top:2px; }
+  .file-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid var(--line-soft); font-size:12.5px; }
+  .file-row:first-child{ border-top:none; }
+  .file-name{ color:var(--paper); }
+  .file-size{ color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .file-label{ font-size:11px; color:var(--paper-faint); text-transform:uppercase; letter-spacing:0.06em; margin:16px 0 4px; }
+
+  .inbox-list{ background:var(--deck); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .inbox-row{ display:flex; align-items:center; gap:16px; padding:16px 22px; border-top:1px solid var(--line-soft); cursor:pointer; }
+  .inbox-row:first-child{ border-top:none; }
+  .inbox-row:hover{ background:var(--deck-raised); }
+  .inbox-row.unread{ background:rgba(200,155,60,0.04); }
+  .inbox-row.unread .inbox-subject{ font-weight:600; }
+  .inbox-dot{ width:7px; height:7px; border-radius:50%; background:var(--brass); flex-shrink:0; }
+  .inbox-dot.read{ background:transparent; }
+  .inbox-from{ width:130px; flex-shrink:0; }
+  .inbox-content{ flex:1; min-width:0; display:flex; gap:10px; align-items:baseline; }
+  .inbox-subject{ font-size:13px; color:var(--paper); white-space:nowrap; }
+  .inbox-snippet{ font-size:12.5px; color:var(--paper-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .inbox-time{ font-size:11px; color:var(--paper-faint); flex-shrink:0; width:40px; text-align:right; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#C89B3C" stroke-width="1.4"/><path d="M12 6v6l4 2" stroke="#C89B3C" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <div>
+        <div class="brand-name">Helm</div>
+        <div class="brand-sub">MissionAlpha</div>
+      </div>
+    </div>
+
+    <div class="nav-item inbox-item" data-page="inbox" onclick="showPage('inbox', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+      Inbox <span class="nav-badge">10</span>
+    </div>
+
+    <div class="nav-group" style="margin-top:16px;">
+      <div class="nav-item active" data-page="deck" onclick="showPage('deck', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Agents
+      </div>
+      <div class="nav-item" data-page="brief" onclick="showPage('brief', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4H12l-5 3 1-4.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+        Daily brief
+      </div>
+      <div class="nav-item" data-page="log" onclick="showPage('log', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="4" r="1.4"/><circle cx="19" cy="8" r="1.4"/><circle cx="19" cy="16" r="1.4"/><circle cx="12" cy="20" r="1.4"/><circle cx="5" cy="16" r="1.4"/><circle cx="5" cy="8" r="1.4"/><path d="M12 6.2v3.6M17.8 8.9l-4 2M17.8 15.1l-4-2M12 17.8v-3.6M6.2 15.1l4-2M6.2 8.9l4 2"/></svg>
+        Knowledge vault
+      </div>
+    </div>
+
+    <div class="nav-group" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+      <div class="nav-label">Agents</div>
+      <div class="agent-list" id="agent-list"></div>
+    </div>
+
+    <div class="venture-switcher">
+      <div class="venture-pill">
+        <div>
+          <div class="venture-pill-label">Venture</div>
+          <div class="venture-pill-name">WAAHYU</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- PAGE: COMMAND DECK -->
+    <div class="page active" id="page-deck">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Agent network · WAAHYU</div>
+          <h1>Command deck</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot"></span> <span id="watch-count"></span></div>
+          <div class="clock" id="clock">00:00:00</div>
+        </div>
+      </div>
+
+      <div class="captain-card">
+        <div class="compass">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg>
+        </div>
+        <div class="captain-body">
+          <div class="captain-title-row">
+            <h2>Captain / CEO</h2>
+            <span class="badge working">On watch</span>
+          </div>
+          <div class="captain-desc">Receives every BOSS requirement first, researches the outside world, proposes strategy, and dispatches the fifteen stations below. Nothing builds until the Captain publishes an approved plan.</div>
+        </div>
+        <div class="captain-stats">
+          <div class="cstat"><div class="cstat-num">4</div><div class="cstat-label">Dispatches today</div></div>
+          <div class="cstat"><div class="cstat-num">1,204</div><div class="cstat-label">Records read</div></div>
+        </div>
+        <button class="captain-cta" onclick="showPage('brief', document.querySelector('[data-page=brief]'))">Open brief →</button>
+      </div>
+
+      <div class="stations-label"><span class="eyebrow">Fifteen stations, one memory</span><span class="line"></span></div>
+      <div class="stations" id="stations"></div>
+    </div>
+
+    <!-- PAGE: DAILY BRIEF -->
+    <div class="page" id="page-brief">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Captain's console · WAAHYU</div>
+          <h1>Daily brief</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot amber"></span> Last brief 2h ago</div>
+        </div>
+      </div>
+
+      <div class="brief-grid">
+        <div class="console">
+          <div class="console-dial"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg></div>
+          <h3>Talk to the Captain</h3>
+          <p>Say what you need built — it becomes a plan, a dispatch, and gated work across the stations. You approve every apply.</p>
+          <div class="console-input-row">
+            <input type="text" placeholder="e.g. port the vendor dashboard order page to the spice system...">
+            <button>Send</button>
+          </div>
+        </div>
+
+        <div class="log-panel">
+          <div class="log-panel-head">
+            <h3>Agent log</h3>
+            <span class="log-count">Last 24</span>
+          </div>
+          <div id="agent-log"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: INBOX -->
+    <div class="page" id="page-inbox">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Deliveries awaiting your decision</div>
+          <h1>Inbox</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot amber"></span> 10 pending</div>
+        </div>
+      </div>
+      <div class="inbox-list" id="inbox-list"></div>
+    </div>
+
+    <!-- PAGE: KNOWLEDGE VAULT -->
+    <div class="page" id="page-log">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Shared memory · WAAHYU swarm</div>
+          <h1>The log</h1>
+        </div>
+        <div class="topbar-status">
+          <div class="status-chip"><span class="dot"></span> 1,204 records</div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search ADRs, reviews, sessions, decisions...">
+      </div>
+      <div class="hint">Click a node to inspect it. The center holds everything every station has ever written.</div>
+
+      <div class="log-page-grid">
+        <div class="graph-wrap">
+          <div class="graph">
+            <svg class="lines" viewBox="0 0 600 600">
+              <line x1="300" y1="300" x2="300" y2="80" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="490" y2="190" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="490" y2="410" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="300" y2="520" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="110" y2="410" stroke="#26324A" stroke-width="1"/>
+              <line x1="300" y1="300" x2="110" y2="190" stroke="#26324A" stroke-width="1"/>
+            </svg>
+            <div class="g-node center" style="left:300px; top:300px;">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#C89B3C" stroke-width="1.3"/><path d="M15 9l-2 5-5 2 2-5 5-2Z" fill="#C89B3C"/></svg></div>
+              <div class="g-label">Swarm memory</div>
+              <div class="g-sub">1,204 records</div>
+            </div>
+            <div class="g-node" style="left:300px; top:80px;" onclick="selectNode(this,'adrs')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M9 11l3 3 8-8"/><path d="M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/></svg></div>
+              <div class="g-label">Decisions &amp; ADRs</div>
+            </div>
+            <div class="g-node" style="left:490px; top:190px;" onclick="selectNode(this,'reviews')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M8 4L2 12l6 8M16 4l6 8-6 8"/></svg></div>
+              <div class="g-label">Code reviews</div>
+            </div>
+            <div class="g-node" style="left:490px; top:410px;" onclick="selectNode(this,'security')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z"/></svg></div>
+              <div class="g-label">Security</div>
+            </div>
+            <div class="g-node" style="left:300px; top:520px;" onclick="selectNode(this,'sessions')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+              <div class="g-label">Sessions</div>
+            </div>
+            <div class="g-node" style="left:110px; top:410px;" onclick="selectNode(this,'builds')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18h16v3H4z"/></svg></div>
+              <div class="g-label">Builds &amp; deploys</div>
+            </div>
+            <div class="g-node" style="left:110px; top:190px;" onclick="selectNode(this,'intel')">
+              <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA3B4" stroke-width="1.6"><path d="M3 12l4-8h10l4 8-9 9-9-9Z"/></svg></div>
+              <div class="g-label">Market intel</div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-panel" id="detail-panel">
+          <div class="detail-empty">Click a node to inspect it.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalBg(event)">
+  <div class="modal-panel" id="modal-panel"></div>
+</div>
+
+<script>
+function showPage(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+function tick(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+}
+setInterval(tick, 1000); tick();
+
+/* ---- THE REAL MISSIONALPHA SWARM (15 stations + Captain) ---- */
+const AGENTS = [
+  { id:'architect',           name:'Architect',          role:'System design',    dot:'#5DCAA5', status:'working',
+    desc:'Turns approved strategy into ADRs, dependency maps, and phase plans. No station builds until the Architect publishes.',
+    note:'Drafting ADR for the Inbox delivery pipeline.',
+    skills:[['adr-writer','per feature','Writes the blocking ADR for any architecture-touching requirement.'],
+            ['dependency-map','weekly','Keeps the cross-service dependency graph current across 13 services.'],
+            ['plan-review','on dispatch','Checks every dispatch against the published plan; drift gets returned.']] },
+  { id:'senior-lead-dev',     name:'Lead Dev',           role:'Orchestration',    dot:'#C89B3C', status:'working',
+    desc:'Decomposes the Architect’s plan into per-station tasks, coordinates the build, and runs the final review gate.',
+    note:'Sequencing vendor-spice port stories S3b → S4.',
+    skills:[['task-decompose','per plan','Splits an approved plan into gated, per-agent work orders.'],
+            ['standards-gate','continuous','Enforces code standards before anything reaches review.'],
+            ['merge-gate','per PR','Final sign-off; blocks merge until sev≥Medium findings clear.']] },
+  { id:'senior-web-1',        name:'Web Dev 1',          role:'React web',        dot:'#378ADD', status:'working',
+    desc:'Senior React engineer. Owns customer-web and vendor-dashboard feature work.',
+    note:'Porting vendor OrderDetailPage into the spice system.',
+    skills:[['feature-build','on dispatch','Implements planned UI features against the shared design contract.'],
+            ['spice-port','active','Migrates legacy screens to the spice design mockup, pixel-faithful.'],
+            ['tsc-clean','per delivery','Every delivery ships with a clean typecheck, no exceptions.']] },
+  { id:'senior-web-2',        name:'Web Dev 2',          role:'React web',        dot:'#378ADD', status:'standby',
+    desc:'Second senior React engineer. Parallel track on driver-web and admin-dashboard.',
+    note:'Driver earnings cockpit shipped; awaiting next dispatch.',
+    skills:[['feature-build','on dispatch','Implements planned UI features against the shared design contract.'],
+            ['a11y-pass','per delivery','Keyboard, contrast, reduced-motion checks on every screen.'],
+            ['responsive-audit','per delivery','375/768/1440 verification before handing to QA.']] },
+  { id:'senior-backend-1',    name:'Backend 1',          role:'Python services',  dot:'#D4537E', status:'working',
+    desc:'Senior Python engineer across the FastAPI-style microservices. Motor/async Mongo, money-in-cents discipline.',
+    note:'Hardening order-service stock checks.',
+    skills:[['service-build','on dispatch','Implements endpoints and workers to the Architect’s contract.'],
+            ['money-guard','continuous','All monetary math in cents via the money module — floats rejected.'],
+            ['contract-tests','per delivery','Service-level tests accompany every endpoint change.']] },
+  { id:'senior-backend-2',    name:'Backend 2',          role:'Python services',  dot:'#D4537E', status:'standby',
+    desc:'Second senior Python engineer. Parallel service track — payments, promotions, loyalty.',
+    note:'Standing by; last cycle closed webhook retries.',
+    skills:[['service-build','on dispatch','Implements endpoints and workers to the Architect’s contract.'],
+            ['webhook-verify','per delivery','Stripe signatures verified; idempotency on every handler.'],
+            ['queue-hygiene','weekly','Sweeps dead letters and stuck jobs across services.']] },
+  { id:'principal-db',        name:'DB Engineer',        role:'MongoDB schema',   dot:'#EF9F27', status:'working',
+    desc:'Principal database engineer. Owns schema, indexes, aggregation pipelines, and validators across all 13 services — backend agents propose, this station approves.',
+    note:'Reviewing index plan for order-history queries.',
+    skills:[['schema-authority','per change','Approves or rejects every $jsonSchema validator change.'],
+            ['index-review','per change','No new query pattern ships without an index plan.'],
+            ['csfle-guard','continuous','Field-level encryption on sensitive collections stays intact.']] },
+  { id:'principal-ux',        name:'UX Lead',            role:'Design system',    dot:'#B07CE8', status:'working',
+    desc:'Principal design lead. Owns shared tokens, motion rules, and the a11y contract every frontend station consumes.',
+    note:'Spice-system tokens locked; auditing driver-web adoption.',
+    skills:[['token-authority','per change','Single owner of apps/shared design tokens — no app-level forks.'],
+            ['motion-contract','continuous','≤300ms, ease-out enters, reduced-motion — enforced, not suggested.'],
+            ['design-audit','per delivery','Anti-slop structural review before any UI merges.']] },
+  { id:'principal-rn-1',      name:'Mobile 1',           role:'React Native',     dot:'#5DCAA5', status:'off',
+    desc:'Principal React Native engineer. Customer and vendor Expo apps.',
+    note:'Off watch — mobile cycle resumes next sprint.',
+    skills:[['rn-feature','on dispatch','Implements mobile features sharing the web design contract.'],
+            ['ota-discipline','per release','Expo OTA updates staged, never straight to all users.'],
+            ['native-bridge','on demand','Owns any native-module work the Expo apps need.']] },
+  { id:'principal-rn-2',      name:'Mobile 2',           role:'React Native',     dot:'#5DCAA5', status:'off',
+    desc:'Second principal React Native engineer. Driver and admin mobile apps.',
+    note:'Off watch — mobile cycle resumes next sprint.',
+    skills:[['rn-feature','on dispatch','Implements mobile features sharing the web design contract.'],
+            ['perf-budget','per delivery','Startup and list-scroll budgets measured on low-end devices.'],
+            ['push-flows','on demand','Owns notification permission and deep-link flows.']] },
+  { id:'senior-qa',           name:'QA',                 role:'All testing',      dot:'#D9A441', status:'working',
+    desc:'Owns every test layer — unit gaps, integration, e2e, contract, perf, a11y, regression. Blocks the review gate until green.',
+    note:'e2e suite flaked twice on checkout — investigating.',
+    skills:[['tests-green','per delivery','Nothing reaches review until the full suite passes.'],
+            ['e2e-journeys','continuous','Critical user flows scripted and replayed on every cycle.'],
+            ['regression-bank','accumulating','Every fixed bug becomes a permanent regression test.']] },
+  { id:'sr-security',         name:'Security',           role:'AppSec',           dot:'#C1554A', status:'working',
+    desc:'Threat modeling, SAST/DAST gates, secrets scanning, IAM design. Authority to block any merge with a HIGH or CRITICAL finding.',
+    note:'Reviewing the Inbox approve/apply path — 2 findings open.',
+    skills:[['threat-model','per feature','STRIDE pass on any new surface before it builds.'],
+            ['merge-block','continuous','HIGH/CRITICAL finding = hard stop, no exceptions.'],
+            ['secret-sweep','daily','Repo and bus scanned for leaked credentials.']] },
+  { id:'senior-reviewer',     name:'Code Reviewer',      role:'Merge gate',       dot:'#9BA3B4', status:'working',
+    desc:'Adversarial staff-level review after QA greens. Blunt by mandate; clears or blocks every merge.',
+    note:'3 PRs in queue behind TESTS_GREEN.',
+    skills:[['adversarial-review','per PR','Assumes the code is wrong and tries to prove it.'],
+            ['severity-ledger','per PR','Findings tracked to resolution; sev≥Medium blocks.'],
+            ['pattern-watch','continuous','Repeated finding types become lint rules or hooks.']] },
+  { id:'senior-cicd',         name:'CI/CD',              role:'Platform',         dot:'#639922', status:'standby',
+    desc:'Owns GitHub Actions, Docker, Cloud Run deploys, monitoring, release engineering. Authority over every deployment file.',
+    note:'Pipeline green; watching flaky cache step.',
+    skills:[['pipeline-keeper','continuous','CI stays under 10 minutes or it gets fixed.'],
+            ['deploy-gate','per release','Cloud Run rollouts staged with instant rollback.'],
+            ['observability','continuous','Prometheus/Grafana/Loki dashboards stay truthful.']] },
+  { id:'memory-updater',      name:'Memory',             role:'Recall layer',     dot:'#B07CE8', status:'working',
+    desc:'Fires after every major task. Persists decisions, updates dependency maps and session memory so the swarm never re-learns what it already knows.',
+    note:'Persisting spice-port decisions from this morning.',
+    skills:[['decision-capture','per task','Every gate outcome written to shared memory.'],
+            ['map-refresh','per merge','Dependency and architecture maps updated on change.'],
+            ['session-log','continuous','SESSION_MEMORY stays current for the next session.']] },
+];
+
+const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 4L2 12l6 8M16 4l6 8-6 8"/></svg>';
+const BADGE = { working:['working','On watch'], standby:['standby','Standing by'], off:['off','Off watch'] };
+
+/* stations grid */
+document.getElementById('stations').innerHTML = AGENTS.map((a,i)=>`
+  <div class="station" onclick="openModal(${i})">
+    <div class="station-top"><div class="station-icon">${ICON}</div><span class="badge ${BADGE[a.status][0]}">${BADGE[a.status][1]}</span></div>
+    <div class="station-eyebrow eyebrow">Station ${String(i+1).padStart(2,'0')}</div>
+    <h3>${a.name}</h3>
+    <div class="station-role">${a.role}</div>
+    <div class="station-note">${a.note}</div>
+  </div>`).join('');
+
+/* sidebar quick list */
+document.getElementById('agent-list').innerHTML = AGENTS.map((a,i)=>`
+  <div class="agent-quick" onclick="openModal(${i})"><span class="aq-dot" style="background:${a.dot}"></span>${a.name}<span class="aq-role">${a.role}</span></div>`).join('');
+
+document.getElementById('watch-count').textContent =
+  AGENTS.filter(a=>a.status==='working').length + ' of ' + (AGENTS.length+1) + ' on watch';
+
+/* modal */
+function openModal(i){
+  const a = AGENTS[i];
+  document.getElementById('modal-panel').innerHTML = `
+    <div class="modal-head">
+      <div><span class="eyebrow">${a.role} · ${BADGE[a.status][1]}</span><h2>${a.name}</h2></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-desc">${a.desc}</div>
+    ${a.skills.map(s=>`
+      <div class="skill-row">
+        <div class="skill-name-row"><span class="skill-name">${s[0]}</span><span class="tag">skill</span><span class="tag cadence">${s[1]}</span></div>
+        <div class="skill-desc">${s[2]}</div>
+      </div>`).join('')}`;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('active'); }
+function closeModalBg(e){ if(e.target.id==='modal-overlay') closeModal(); }
+
+/* daily brief log */
+const LOG = [
+  ['Captain','Prioritized today: Inbox ADR, vendor-spice S4, checkout e2e flake','Decision','done','1h'],
+  ['Web Dev 1','Delivered OrderDetailPage spice port — 3 files, +184/−22','Delivery · needs review','open','2h'],
+  ['Security','2 findings on Inbox apply path — one HIGH, blocking','Security gate','open','3h'],
+  ['QA','Checkout e2e flaked twice; quarantined, root-causing','Test run','open','3h'],
+  ['DB Engineer','Approved order-history index plan (2 new compound indexes)','Schema authority','done','5h'],
+  ['Memory','Persisted 6 decisions from yesterday’s cycle to shared memory','Recall layer','done','8h'],
+];
+document.getElementById('agent-log').innerHTML = LOG.map(l=>`
+  <div class="log-entry">
+    <span class="log-agent">${l[0]}</span>
+    <div class="log-entry-body"><div class="log-entry-title">${l[1]}</div><div class="log-entry-meta">${l[2]} · WAAHYU</div></div>
+    <div class="log-entry-right"><span class="pill ${l[3]}">${l[3]==='done'?'completed':'needs review'}</span><span class="time-ago">${l[4]}</span></div>
+  </div>`).join('');
+
+/* inbox */
+const INBOX = [
+  [1,'Web Dev 1','JWT refresh delivery','3 files, +184/−22 · touches auth path — high risk, typed confirm required','12m'],
+  [1,'Security','HIGH finding on apply path','symlink guard regression in staged change — review before any approve','40m'],
+  [1,'QA','e2e flake report','checkout journey failed 2/3 runs — quarantine or fix decision needed','1h'],
+  [1,'Backend 1','Stock-check hardening','2 files, +96/−14 · order-service — medium risk','2h'],
+  [1,'Lead Dev','S4 plan ready for GO','vendor-spice final story sequenced — dispatch on your confirm','3h'],
+  [0,'Web Dev 2','Driver earnings shipped','delivery approved yesterday — PR merged, DONE on board','1d'],
+  [0,'DB Engineer','Index plan approved','order-history compound indexes — applied under policy','1d'],
+  [0,'CI/CD','Deploy green','vendor-dashboard rev 214 on Cloud Run — no action needed','1d'],
+  [0,'Memory','Cycle memory persisted','6 decisions captured — reference only','2d'],
+  [0,'Captain','Weekly digest','12 deliveries approved, 41 human-minutes spent — read when free','2d'],
+];
+document.getElementById('inbox-list').innerHTML = INBOX.map(r=>`
+  <div class="inbox-row ${r[0]?'unread':''}">
+    <span class="inbox-dot ${r[0]?'':'read'}"></span>
+    <span class="inbox-from ${r[0]?'inbox-subject':''}" style="font-size:12.5px;">${r[1]}</span>
+    <div class="inbox-content"><span class="inbox-subject">${r[2]}</span><span class="inbox-snippet">${r[3]}</span></div>
+    <span class="inbox-time">${r[4]}</span>
+  </div>`).join('');
+
+/* knowledge vault nodes */
+const NODES = {
+  adrs:     { crumb:'The log / decisions & ADRs', title:'Decisions & ADRs', meta:['Written by Architect','Real folder'],
+              stats:[['26','ADRs published'],['142','Decisions total']],
+              files:[['ADR-048-ops-cockpit-shell.md','3.1 KB'],['ADR-029-auto-apply-policy.md','2.2 KB'],['ADR-026-git-worktree-isolation.md','1.9 KB']] },
+  reviews:  { crumb:'The log / code reviews', title:'Code reviews', meta:['Written by Reviewer','Local'],
+              stats:[['3','PRs in queue'],['87','Reviews total']],
+              files:[['review-vendor-spice-S3b.md','1.6 KB'],['review-inbox-adr-draft.md','1.2 KB']] },
+  security: { crumb:'The log / security', title:'Security', meta:['Written by Security','Local'],
+              stats:[['2','Findings open'],['1','HIGH blocking']],
+              files:[['threat-model-inbox-apply.md','2.4 KB'],['finding-symlink-guard.md','0.8 KB']] },
+  sessions: { crumb:'The log / sessions', title:'Sessions', meta:['Sidecar recorder','ndjson'],
+              stats:[['28','Snapshots today'],['14d','Retention']],
+              files:[['2026-07-29.ndjson','412 KB'],['2026-07-28.ndjson','388 KB']] },
+  builds:   { crumb:'The log / builds & deploys', title:'Builds & deploys', meta:['Written by CI/CD','Local'],
+              stats:[['214','Deploy revision'],['9m','CI duration']],
+              files:[['deploy-vendor-dashboard-214.md','0.6 KB'],['ci-flake-cache-step.md','0.5 KB']] },
+  intel:    { crumb:'The log / market intel', title:'Market intel', meta:['Written by Captain','Local'],
+              stats:[['5','Competitor scans'],['3','Threats tracked']],
+              files:[['agent-inbox-landscape-2026-07.md','2.8 KB'],['cursor-codex-devin-pr-flow.md','1.4 KB']] },
+};
+function selectNode(el, key){
+  document.querySelectorAll('.g-node').forEach(n=>n.classList.remove('selected'));
+  el.classList.add('selected');
+  const d = NODES[key];
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="crumb">${d.crumb.split(' / ')[0]} / <span>${d.crumb.split(' / ')[1]}</span></div>
+    <h3>${d.title}</h3>
+    <div class="detail-meta-row">${d.meta.map(m=>`<span class="meta-chip">${m}</span>`).join('')}</div>
+    <div class="detail-stats">${d.stats.map(s=>`<div class="dstat"><div class="dstat-num">${s[0]}</div><div class="dstat-label">${s[1]}</div></div>`).join('')}</div>
+    <div class="file-label">Files</div>
+    ${d.files.map(f=>`<div class="file-row"><span class="file-name">${f[0]}</span><span class="file-size">${f[1]}</span></div>`).join('')}`;
+}
+</script>
+</body>
+</html>

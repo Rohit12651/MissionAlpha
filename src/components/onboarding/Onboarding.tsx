@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { MessageSquare, Cpu, Plug, Users, Rocket, X } from "lucide-react";
+import { MessageSquare, Cpu, Plug, Users, Rocket, FolderGit2, X } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 
 export const ONBOARDED_KEY = "ma.onboarded.v1";
@@ -26,7 +26,8 @@ export function markOnboarded(): void {
 }
 
 const STEPS: { icon: React.ReactNode; title: string; body: string }[] = [
-  { icon: <MessageSquare size={20} aria-hidden />, title: "Chat is the cockpit", body: "Talk to the swarm in plain language. The center column is your primary surface — describe a goal and the CEO routes it to agents." },
+  { icon: <MessageSquare size={20} aria-hidden />, title: "Chat is the cockpit", body: "Talk to the swarm in plain language. The center column is your primary surface — describe a goal and the Tech Lead routes it to the seats." },
+  { icon: <FolderGit2 size={20} aria-hidden />, title: "Open a repo", body: "Point MissionAlpha at any local git repo in Settings → Workspace. Each task runs in its own git worktree, and approving a delivery commits to that branch — never straight into your working tree. With a remote and gh signed in, it opens a pull request instead." },
   { icon: <Cpu size={20} aria-hidden />, title: "Pick a model per chat", body: "Each chat can run Opus (smartest), Sonnet (balanced), or Haiku (fastest). Set a default in Settings; switch any time from the picker or ⌘K." },
   { icon: <Plug size={20} aria-hidden />, title: "Plug in connectors", body: "Add MCP connectors (GitHub, Notion, and more) in the Team panel, then grant them per-agent. Credentials are stored encrypted, never shown." },
   { icon: <Users size={20} aria-hidden />, title: "Watch the Team board", body: "Open the Team panel (right) to see the live board, tool-loop approvals, the audit trail, and the swarm globe. Everything observable." },

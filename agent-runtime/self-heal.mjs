@@ -59,7 +59,12 @@ export function escalationArgs(agentId, kind, attempts, reason = "") {
 }
 
 // Should a failure be retried? retryable kind AND attempts budget remaining.
+//
+// S4 — `test-failed` (the unit-test gate rejected the diff) is retryable: it is the RED of
+// the red→green loop. It shares the same bounded `maxAttempts` budget as the other
+// transient kinds (a spent budget → failTerminal → the story blocks). `apply-rejected`
+// stays terminal — a fired guard is never re-attempted.
 export function shouldRetry(kind, attempts, maxAttempts) {
-  const retryable = ["spawn", "timeout", "crash", "empty-diff", "no-output"].includes(kind);
+  const retryable = ["spawn", "timeout", "crash", "empty-diff", "no-output", "test-failed"].includes(kind);
   return retryable && attempts < maxAttempts;
 }

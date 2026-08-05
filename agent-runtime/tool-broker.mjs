@@ -76,7 +76,6 @@ export function createToolBroker(opts = {}) {
   const sandbox = opts.sandbox;          // createSandbox()
   const worktreeFor = opts.worktreeFor;  // (agentId) → host worktree dir (bind-mounted /work)
   const audit = opts.audit || (() => {}); // (event, data) — secrets never passed in
-  const now = opts.now || (() => Date.now());
   // G1/G2/G3: isFactoryAgent predicate — defaults to false (all built-ins pass through unchanged).
   // Injected from factory.mjs registry membership so the broker stays decoupled from imports.
   const isFactory = opts.isFactoryAgent || (() => false);

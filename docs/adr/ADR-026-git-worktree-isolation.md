@@ -127,3 +127,66 @@ The **diff now = `git diff` of the worktree branch vs `BASE_REF`**, but `listCha
 
 - **OQ-026.1 (security):** neutralize git hooks via `-c core.hooksPath=/dev/null` per-invocation (recommended) vs a one-time repo config? Per-invocation is more robust against config drift — needs sr-security confirm.
 - **OQ-026.2 (security/perf):** use `git sparse-checkout` to limit the worktree to `src/`+`README.md`+`package.json`? Performance only (scope is enforced at apply regardless). Confirm it does not weaken any guard.
+
+---
+
+## As-built (P5, 2026-07-30)
+
+ADR-026 shipped in S1 and was already carrying every task in a real per-task worktree
+when P5 opened. P5 changed four things and deliberately did NOT change a fifth.
+
+**1. `release(key)` joins `remove(key)`.** `remove()` ends in `git branch -D`, which is
+correct while the worktree is scratch space. Once P5 COMMITS the approved paths to
+`ma/task/<id>`, that same call would delete the commit the operator just approved.
+`release()` drops the checkout and keeps the ref. It is a separate verb, not a boolean
+on `remove()`, so no future caller can lose a commit by passing the wrong flag.
+`engine.onOperatorApplied(taskId, { keepBranch })` chooses between them; the default
+(no options) is byte-identical to pre-P5 behavior.
+
+**2. Branch naming stayed `ma/task/<taskId>`.** The program plan's P5 sketch said
+`ma/<agent>/<slug>`. Renaming would invalidate every existing worktree and branch in
+flight, break `safeBranchPart`'s proven fixed-prefix anti-flag-injection property, and
+buy nothing — the taskId already resolves to an agent through the queue. NOT adopted.
+
+**3. The degradation ladder (`agent-runtime/pr.mjs`) and the `mode` column.** Approve
+now records HOW the work left the runtime: `pr` (remote + authenticated `gh` → push +
+`gh pr create --fill`), `branch` (committed locally; no remote, no/unauthenticated gh,
+or a failed push/PR), `apply` (no worktree / non-git target / nothing staged → the
+pre-P5 direct broker apply). `mode`, `branch` and `prUrl` are DB migration v3. Nothing
+is ever recorded optimistically: a failure demotes a rung, it never invents one.
+
+**4. Deviation from the program-plan wording, disclosed.** §P5 said a remote-less repo
+gets its branch "merged". The as-built leaves it as a local branch. An unattended merge
+into the checked-out branch puts agent output into the operator's working tree with no
+reviewer in the path — materially riskier than opening a PR, which is the case the
+phase is actually about. BOSS may reverse this.
+
+**5. UNCHANGED, and load-bearing: a worktree is git-state isolation ONLY.** It is not
+an execution boundary and not a security boundary. The apply broker
+(`applyAllowed` / `CONFIG_GUARD` / `APPLY_DENY` / symlink+realpath) is still the sole
+authority on what may touch the repo, and `pr.mjs` re-runs `applyAllowed` on every path
+before staging so a path the broker would refuse can never reach a commit either.
+`agent-runtime/test/broker.test.mjs` carries a regression test that pins exactly this:
+a `package.json` `scripts` change made INSIDE a worktree is still refused.
+
+**6. Credential policy on git invocations (P5 hardening + follow-up).** Every git call
+the runtime makes is prefixed with `GIT_SAFE_ARGS` (`agent-runtime/workspace.mjs`),
+which includes `-c credential.helper=`. That entry is a RESET: it clears the accumulated
+helper list for *every* scope at once — system, global, repo-local, and the URL-scoped
+`credential.<url>.helper` form. It is what stops an archive-sourced `.git/config` from
+executing a `!command` helper or handing the operator's token to one.
+
+The reset alone was too blunt. `gh auth setup-git` writes the operator's real auth as a
+*global* `credential.https://github.com.helper`, and the reset killed that too — so with
+an https remote (the common case) `git push` could never authenticate and the ladder
+always demoted rung (a) `pr` → rung (b) `branch`, defeating the phase's headline.
+
+As-built: the reset stays on every call, and **the push call alone** re-adds the
+operator's GLOBAL helper entries *after* it (`pushCredentialArgs` in `agent-runtime/pr.mjs`).
+Git's list semantics — an empty value clears the list, later values append — make the
+effective list exactly the global set, so a repo-local hostile helper (which is read
+before the reset) can never survive. Values are replayed verbatim as separate argv
+tokens, validated (no NUL/newline, no leading `-`) and capped. Read-only, index and
+commit calls keep the bare reset with no replay; they never need a credential.
+DISCLOSED: a helper configured ONLY in system scope is not replayed, so that setup still
+demotes to rung (b). SSH remotes were never affected.

@@ -55,9 +55,16 @@ function Chip({
 export interface StatusStripProps {
   /** Latest preflight push from the electron bridge; undefined in dev/vite. */
   preflight?: PreflightResult;
+  /**
+   * P3: Deliveries awaiting a decision, pushed over SSE (never polled). Undefined
+   * when the VITE_INBOX flag is off — the strip then renders exactly as before.
+   */
+  pendingDeliveries?: number;
+  /** P3: SSE bus health. Undefined ⇒ the chip is not rendered at all. */
+  liveConnected?: boolean;
 }
 
-export function StatusStrip({ preflight }: StatusStripProps) {
+export function StatusStrip({ preflight, pendingDeliveries, liveConnected }: StatusStripProps) {
   const [runtimeUp, setRuntimeUp] = useState<boolean | null>(null);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
 
@@ -141,6 +148,30 @@ export function StatusStrip({ preflight }: StatusStripProps) {
       <Chip tone={runtimeTone} label={runtimeLabel} ariaLabel={`Agent runtime ${runtimeLabel}`} />
       <Chip tone={dockerTone} label={dockerLabel} ariaLabel={dockerAria} />
       <Chip tone={quotaTone} label={quotaLabel} ariaLabel={quotaAria} mono />
+      {/* P3 — Inbox pressure + bus health. Both are SSE-driven; neither adds a poll. */}
+      {pendingDeliveries !== undefined && (
+        <Chip
+          tone={pendingDeliveries > 0 ? "blocked-amber" : "done-green"}
+          label={`inbox ${pendingDeliveries}`}
+          ariaLabel={
+            pendingDeliveries > 0
+              ? `${pendingDeliveries} deliveries awaiting your decision`
+              : "Inbox clear; nothing awaiting your decision"
+          }
+          mono
+        />
+      )}
+      {liveConnected !== undefined && (
+        <Chip
+          tone={liveConnected ? "done-green" : "blocked-amber"}
+          label={liveConnected ? "live" : "live off"}
+          ariaLabel={
+            liveConnected
+              ? "Live event stream connected"
+              : "Live event stream offline; the app is falling back to polling"
+          }
+        />
+      )}
       <span className="ml-auto hidden text-[10px] tracking-wide opacity-70 sm:inline">
         MissionAlpha · local swarm
       </span>

@@ -74,3 +74,7 @@ export function PulseGlobe({ agents, feed, scheduler, nowMs }: PulseGlobeProps) 
     </Suspense>
   );
 }
+
+// Default export so App can `lazy(() => import("./PulseGlobe"))` — this pulls the
+// PulseGlobe subtree (and, transitively, the 3D chunk) OFF the initial-paint path.
+export default PulseGlobe;

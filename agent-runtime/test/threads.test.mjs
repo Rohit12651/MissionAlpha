@@ -8,6 +8,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { makeThrowawayRepo, isolatedRuntimeEnv } from "./fixtures/throwaway-repo.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dir, "..", "server.mjs");
@@ -48,6 +49,10 @@ before(async () => {
       RUNTIME_PORT: String(PORT), RUNTIME_TOKEN: TOKEN, RUNTIME_BACKEND: "mock",
       RUNTIME_THREADS_DIR: threadsDir, RUNTIME_TOKEN_DIR: join(root, "tok"),
       RUNTIME_ENGINE_STORE: join(root, "eng"), RUNTIME_WORKTREE_ROOT: join(root, "wt"),
+      // Throwaway target: with no RUNTIME_REPO_ROOT the server defaults REPO_ROOT to
+      // the LIVE MissionAlpha checkout and any worktree it creates registers there.
+      ...isolatedRuntimeEnv(root, makeThrowawayRepo(root)),
+      RUNTIME_DB_PATH: join(root, "db", "mission.db"), // P2: keep the real agent-runtime/data/ clean
       ANTHROPIC_API_KEY: "",
     },
     stdio: "ignore",

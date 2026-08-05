@@ -114,3 +114,37 @@ spawn("bash", [agent-sync.sh, <safeId>, "BOSS", "task-failed", "-", "<scrubbed r
 
 - **OQ-028.1 (BOSS):** `maxAttempts` default — 3 (proposed) vs 2 while the loop is new and we'd rather escalate fast?
 - **OQ-028.2 (BOSS):** on goal-chain failure, default to **pause + escalate** (proposed) or **abort the whole goal**? Pause lets the operator re-queue one step; abort is cleaner but loses prior steps' context.
+
+---
+
+## AS BUILT (P4, 2026-07-30)
+
+Status: **IMPLEMENTED** — `agent-runtime/self-heal.mjs` (classifier + backoff + escalation
+args) driven by `agent-runtime/engine.mjs` (`handleRetryable` / `failTerminal`). Deltas:
+
+1. **Terminal failure now also mints a Delivery.** `failTerminal` calls the new
+   `onTerminalFailure(task, {agentId, taskId, kind, attempts, detail})` hook, which
+   `server.mjs` wires to `deliveries.mintFailure()` — the ADR-051 §9 reserved hook, wired
+   here. The row is `kind='failure'`, diff-less (`changedPaths: []`, diffstat 0/0/0), and
+   carries the classified kind plus a scrubbed tail of the agent's last output. It is minted
+   AFTER the queue write and AFTER the bus escalation, and its failure is swallowed, so a
+   Delivery-layer fault can never strand a task in a non-terminal state. Escalation via
+   `reportBack` is unchanged — the Inbox row is additive, not a replacement. DB migration v2
+   widens the `kind` CHECK to accept `failure`.
+2. **The backoff gate now wakes itself.** `notBefore` made a retry invisible to `claimNext`
+   until its gate opened, but nothing in the runtime ticked the scheduler once the loop went
+   idle (`drain` stops the moment `claimNext` returns null; there is no heartbeat anywhere).
+   A retry on an otherwise-empty queue therefore stranded forever — found by a live probe,
+   not by the unit suite. The engine now owns a single unref'd wake timer: `scheduleWake` on
+   every retry, and `armNextWake` after `reconcile` so a backoff that outlived a crash is
+   re-armed from durable state. Exactly one pending wake at a time (the earliest), so a burst
+   of retries cannot grow a timer per task. The wake also runs `reclaimExpiredLeases`, so
+   lease recovery is no longer boot-only.
+3. **Crash recovery re-queues every orphaned claim.** `reconcile` previously required
+   `task.engineState` to be set, which stranded a task claimed between `claimNext()` and the
+   first `queue.update()` for the whole 10-minute lease. The runtime is single-process, so
+   after a restart no claim can still have a live worker: every non-terminal `claimed` task
+   returns to `queued`.
+
+Resolved open questions: **OQ-028.1** — `maxAttempts` 3 shipped. **OQ-028.2** — pause +
+escalate shipped, and the pause is now VISIBLE (the failure Delivery) rather than bus-only.

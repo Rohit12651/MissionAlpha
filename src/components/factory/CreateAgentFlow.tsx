@@ -3,6 +3,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Sparkles, Loader2, Wand2, Check, RotateCcw, Trash2, ChevronDown, Send, Wrench, Plug, AlertTriangle } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import { authorAgent, createAgent, type AgentSpec, type Skill } from "../../lib/factoryClient";
+import { SkillPicker } from "./SkillPicker";
+import { buildAttachSuffix, type AttachSkill } from "../../lib/skillAttach";
+import { loadCatalog, type MissionSkill } from "../../lib/skillsCatalog";
 
 // Surface 1 — Create-Agent flow. A console flow (NOT a stacked form): describe →
 // Claude authors (streamed reasoning) → editable SPEC REVIEW CARD → confirm.
@@ -30,6 +33,9 @@ export function CreateAgentFlow({
   const [err, setErr] = useState("");
   const [personaOpen, setPersonaOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Skill priming — ids of the palette skills to fold into the new agent's persona.
+  const [attached, setAttached] = useState<Set<string>>(new Set());
+  const toggleAttach = useCallback((id: string) => setAttached((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
   const reasonRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -60,11 +66,17 @@ export function CreateAgentFlow({
     if (!spec) return;
     setCreating(true);
     setErr("");
+    // Fold attached skill prompts into the persona (behavior priming only — capability is
+    // still spec.skills, the governed closed catalog; the server re-validates the whole persona).
+    const catalog: readonly MissionSkill[] = attached.size ? (await loadCatalog()).MISSION_SKILLS : [];
+    const chosen: AttachSkill[] = catalog.filter((s) => attached.has(s.id))
+      .map((s) => ({ id: s.id, title: s.title, hint: s.hint, family: s.family, prompt: s.prompt }));
+    const persona = (spec.persona + buildAttachSuffix(chosen)).slice(0, 6000);
     const r = await createAgent({
       id: spec.id,
       role: spec.role,
       title: spec.title,
-      persona: spec.persona,
+      persona,
       skills: spec.skills,
       tools: spec.tools,
       integrations: spec.integrations,
@@ -75,7 +87,7 @@ export function CreateAgentFlow({
       return;
     }
     onCreated(r.spec);
-  }, [spec, onCreated]);
+  }, [spec, attached, onCreated]);
 
   const chip = (label: string, accent: string) => (
     <span
@@ -214,6 +226,18 @@ export function CreateAgentFlow({
               <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-muted"><Plug size={10} aria-hidden /> Integrations</span>
               {spec.integrations.length ? spec.integrations.map((i) => chip(i, tok("accent-cyan"))) : <span className="text-[10px] text-muted">none</span>}
             </div>
+          </div>
+
+          {/* Skill priming — the full palette catalog. Attaching folds the skill's prompt into
+              the persona (behavior only). Capability stays the governed "Skills" (9) above. */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-muted"><Sparkles size={10} aria-hidden /> Skill priming</span>
+              <span className="rounded-full text-[8px]" style={{ padding: "1px 7px", color: violet, backgroundColor: `color-mix(in oklch, ${violet} 12%, transparent)` }}>prompt-attach</span>
+              <span className="text-[9px] text-muted">no exec — folds into persona</span>
+              {attached.size > 0 && <span className="ml-auto text-[9px]" style={{ color: violet }}>{attached.size} attached</span>}
+            </div>
+            <SkillPicker selected={attached} onToggle={toggleAttach} />
           </div>
 
           {/* actions */}

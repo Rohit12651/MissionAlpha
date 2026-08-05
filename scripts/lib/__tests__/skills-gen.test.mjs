@@ -109,9 +109,9 @@ test("hintFrom prefers description first sentence, truncated, falls back to id",
 });
 
 test("entryFor builds a skill record (prompt = Use the <id> skill.)", () => {
-  const e = entryFor("impeccable", "skills", "---\ndescription: Polish the UI well.\n---\n");
+  const e = entryFor("impeccable", "skills", "---\ndescription: Polish the UI well.\n---\n", "user");
   assert.deepEqual(e, {
-    id: "impeccable", kind: "skill", family: "ui/ux",
+    id: "impeccable", kind: "skill", family: "ui/ux", source: "user",
     title: "/impeccable", hint: "Polish the UI well", prompt: "Use the impeccable skill. ",
   });
 });
@@ -120,6 +120,7 @@ test("entryFor builds a command record (prompt = literal /id)", () => {
   const e = entryFor("build-fix", "commands", "---\ndescription: Fix build errors.\n---\n");
   assert.equal(e.kind, "command");
   assert.equal(e.family, "commands");
+  assert.equal(e.source, "commands");
   assert.equal(e.prompt, "/build-fix ");
   assert.equal(e.title, "/build-fix");
 });
@@ -127,19 +128,21 @@ test("entryFor builds a command record (prompt = literal /id)", () => {
 test("entryFor keeps nested ecc id + family", () => {
   const e = entryFor("ecc/agent-sort", "skills", "---\ndescription: Sort agents.\n---\n");
   assert.equal(e.family, "ecc");
+  assert.equal(e.source, "user");
   assert.equal(e.title, "/ecc/agent-sort");
   assert.equal(e.prompt, "Use the ecc/agent-sort skill. ");
 });
 
 test("renderModule emits sorted (family→id) catalog + keeps prompts + public API", () => {
   const generated = [
-    { id: "zebra", kind: "skill", family: "misc", title: "/zebra", hint: "z", prompt: "Use the zebra skill. " },
-    { id: "alpha", kind: "skill", family: "misc", title: "/alpha", hint: "a", prompt: "Use the alpha skill. " },
-    { id: "code-review", kind: "command", family: "commands", title: "/code-review", hint: "cr", prompt: "/code-review " },
+    { id: "zebra", kind: "skill", family: "misc", source: "user", title: "/zebra", hint: "z", prompt: "Use the zebra skill. " },
+    { id: "alpha", kind: "skill", family: "misc", source: "user", title: "/alpha", hint: "a", prompt: "Use the alpha skill. " },
+    { id: "code-review", kind: "command", family: "commands", source: "commands", title: "/code-review", hint: "cr", prompt: "/code-review " },
   ];
   const ts = renderModule(generated);
   assert.match(ts, /export interface MissionSkill/);
   assert.match(ts, /family: string;/);
+  assert.match(ts, /source: string;/);
   assert.match(ts, /family: "prompts"/);
   assert.match(ts, /export function filterSkills/);
   assert.ok(ts.indexOf('"alpha"') < ts.indexOf('"zebra"'));

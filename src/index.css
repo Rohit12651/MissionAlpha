@@ -1,6 +1,43 @@
+/* Helm skin (P3 Inbox). Additive + scoped to [data-skin="helm"] — contributes no
+   unscoped rule, so the existing cockpit is unchanged when the attribute is absent.
+   Must sit above the @tailwind directives: CSS requires @import to precede rules. */
+@import "./theme/helm.css";
+/* Business-OS shell (B0). Same additive contract, scoped to [data-skin="helm"] .bos-*. */
+@import "./theme/bos.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Skip link (WCAG 2.4.1 bypass-blocks) — visually hidden until keyboard focus,
+   then a real focusable chip at top-left that jumps to #ma-main. A dedicated rule
+   (not Tailwind `focus:` variants) so it reveals correctly in both the dev server
+   and the production build, independent of JIT variant generation. Theme-aware via
+   the global --c-* tokens (light + dark). */
+.ma-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+}
+.ma-skip-link:focus,
+.ma-skip-link:focus-visible {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: auto;
+  height: auto;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--c-panel);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  outline: 2px solid var(--c-accent-cyan);
+  outline-offset: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
 
 /*
   Lato — bundled LOCALLY (woff2, Latin subset) so the packaged desktop app

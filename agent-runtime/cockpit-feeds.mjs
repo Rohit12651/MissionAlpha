@@ -29,6 +29,11 @@ const STATUS_RECENT = 60;
 const SESSION_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SESSION_SNAPSHOT_CAP = 240;
 
+// decodeURIComponent throws URIError on a malformed escape (e.g. "/api/sessions/%").
+// These routes are host-gated only — no token — so an unhandled throw here is an
+// UNAUTHENTICATED process kill. null means "undecodable" → the caller 400s.
+const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return null; } };
+
 // ── Shared helpers (verbatim from vite.config.ts) ─────────────────────────────
 
 function readJsonBody(req) {
@@ -395,7 +400,15 @@ export function sessionsHandler(statePath) {
     // Handle both the connect-stripped form (url="/") and full form (url="/api/sessions/...")
     const path = (req.url || "").split("?")[0];
     const rest = path.replace(/^\/api\/sessions/, "").replace(/^\/+/, "");
-    if (rest) return detail(res, decodeURIComponent(rest));
+    if (rest) {
+      const id = safeDecode(rest);
+      if (id === null) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ error: "bad session id" }));
+      }
+      return detail(res, id);
+    }
     return list(res);
   };
 }

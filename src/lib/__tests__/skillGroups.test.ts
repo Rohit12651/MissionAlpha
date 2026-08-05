@@ -10,13 +10,13 @@ import {
 } from "../skillGroups.ts";
 import type { MissionSkill } from "../missionSkills.ts";
 
-const S = (id: string, family: string, hint = id): MissionSkill =>
-  ({ id, family, hint, title: `/${id}`, prompt: `Use the ${id} skill. `, kind: "skill" });
+const S = (id: string, family: string, hint = id, source = "user"): MissionSkill =>
+  ({ id, family, source, hint, title: `/${id}`, prompt: `Use the ${id} skill. `, kind: "skill" });
 
 const FIX: MissionSkill[] = [
   S("zeta", "misc"), S("alpha", "misc"),
   S("sp-writing-plans", "sp · workflow"), S("impeccable", "ui/ux"),
-  { id: "standup", family: "prompts", hint: "h", title: "/standup", prompt: "p", kind: "prompt" },
+  { id: "standup", family: "prompts", source: "prompts", hint: "h", title: "/standup", prompt: "p", kind: "prompt" },
 ];
 
 test("groupSkills returns families in FAMILY_ORDER, items sorted by id", () => {
@@ -75,4 +75,28 @@ test("visibleSlice includes the row whose top equals scrollTop (boundary)", () =
   const { start, end } = visibleSlice(tops, 40, 400, 200, 0); // scrollTop exactly on row 10
   assert.equal(start, 10); // row 10 (top=400) is at the edge → included, not skipped
   assert.ok(end > start);
+});
+
+test("groupSkills accepts a key selector so the palette can group by source", () => {
+  const rows: MissionSkill[] = [
+    S("a", "misc", "a", "user"),
+    S("b", "ui/ux", "b", "user"),
+    S("c", "misc", "c", "tools:gstack"),
+  ];
+  const groups = groupSkills(rows, "", (s) => s.source);
+  assert.equal(groups.length, 2);
+  assert.equal(groups.find((g) => g.family === "user")?.count, 2);
+  assert.equal(groups.find((g) => g.family === "tools:gstack")?.count, 1);
+});
+
+test("groupSkills defaults to family when no selector is passed", () => {
+  const rows: MissionSkill[] = [S("a", "misc"), S("b", "ui/ux")];
+  const groups = groupSkills(rows, "");
+  assert.deepEqual(groups.map((g) => g.family).sort(), ["misc", "ui/ux"]);
+});
+
+test("search also matches a source label", () => {
+  const rows: MissionSkill[] = [S("a", "misc", "a", "tools:gstack"), S("b", "misc", "b", "user")];
+  const groups = groupSkills(rows, "gstack", (s) => s.source);
+  assert.deepEqual(groups.map((g) => g.family), ["tools:gstack"]);
 });

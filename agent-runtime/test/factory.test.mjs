@@ -2,12 +2,9 @@
 // guards.mjs SEED_DIRS/CONFIG_GUARD integrity, no MCP grant from exec capability.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SKILL_CATALOG, validateSpec, isFactoryAgent, loadRegistry, createAgent } from "../factory.mjs";
+import { SKILL_CATALOG, validateSpec, isFactoryAgent } from "../factory.mjs";
 const ALLOWED_TOOLS_SET = new Set(["Read", "Write", "Run"]); // mirrors factory's internal ALLOWED_TOOLS
-import { SEED_DIRS, SEED_FILES, CONFIG_GUARD } from "../guards.mjs";
-import { tmpdir } from "node:os";
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
+import { SEED_DIRS, CONFIG_GUARD } from "../guards.mjs";
 
 // ── G4: code-implement-* dev skills in catalog ────────────────────────────────
 test("G4: code-implement-go skill exists in catalog with correct constraints", () => {
@@ -103,7 +100,10 @@ test("G6: minted dev agent with empty integrations cannot post (authorizePost fa
   assert.ok(!result.error, `spec should be valid: ${result.error}`);
   assert.deepEqual(result.spec.integrations, [], "no integrations means no posting");
   // Verify the spec doesn't acquire any platform
-  assert.equal(result.spec.skills.includes("social-post-twitter"), false, "dev skill agent must not have posting skills");
+  assert.ok(
+    !result.spec.skills.some((id) => SKILL_CATALOG.find((c) => c.id === id)?.posting),
+    "dev skill agent must not have posting skills",
+  );
 });
 
 // ── G4: SEED_DIRS and CONFIG_GUARD must be unchanged by dev skills ────────────

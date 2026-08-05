@@ -13,6 +13,10 @@ export interface PreflightResult {
   messages: string[];
 }
 
+// MODES picker types live in agentModes.ts (pure + unit-tested). Re-exported here so
+// existing importers of runtimeBase keep working.
+export type { PermissionMode, AgentMode } from "./agentModes";
+
 interface MABridge {
   isPackaged: boolean;
   runtimeBase: string;
@@ -22,6 +26,14 @@ interface MABridge {
   pickFolder?: () => Promise<string | null>;
   getRepoRoot?: () => Promise<string | null>;
   setRepoRoot?: (path: string) => Promise<{ ok: boolean; error?: string }>;
+  // P5 — open an https://github.com URL in the real browser. The packaged app denies
+  // window.open and non-loopback navigation outright, so this bridge is the only
+  // external exit, and main.cjs re-validates the URL against its own allowlist —
+  // the renderer cannot widen it.
+  openExternal?: (url: string) => Promise<{ ok: boolean; error?: string }>;
+  // P3 — native Delivery notification + dock badge. Fire-and-forget; main.cjs
+  // coerces and caps every field, and dedupe already happened renderer-side.
+  notifyDelivery?: (p: { id: string; title: string; body: string; pending: number }) => void;
 }
 
 // Augment the global so consumers read a typed (optional) bridge — never crashes

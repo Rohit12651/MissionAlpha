@@ -1,54 +1,51 @@
-// scripts/gen-skills.mjs — scan local .claude/, emit src/lib/missionSkills.ts.
+// scripts/gen-skills.mjs — scan the WIDE skill roster (curated → ~/.claude/skills →
+// ~/.claude/plugins → WaahyuTools repos → vendored fallback) and emit two views of the
+// same scan: src/data/skills.gen.json (the roster artifact) and src/lib/missionSkills.ts
+// (what the app imports). Every root is optional; a machine with none of them still
+// generates from the repo-vendored .claude/skills tree.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { entryFor, renderModule } from "./lib/skills-gen.mjs";
+import { parseToolRepos, dedupeRoster, rosterJson, countBySource } from "./lib/skills-roster.mjs";
+import { scanRoots, discoverRoots } from "./lib/skills-scan.mjs";
 
 const ROOT = process.cwd();
-const SKILLS_DIR = path.join(ROOT, ".claude", "skills");
-// Curated, in-repo skills that vendor:skills must NOT wipe (caveman, headroom, …). Scanned in
-// addition to the auto-vendored .claude/skills; curated wins on id collision (scanned first).
-const CURATED_DIR = path.join(ROOT, ".claude", "skills-curated");
+const HOME = os.homedir();
+const TOOLS_DIR = process.env.MA_TOOLS_DIR || path.join(HOME, "Downloads", "WaahyuFOLDER", "WaahyuTools");
 const COMMANDS_DIR = path.join(ROOT, ".claude", "commands");
-const OUT = path.join(ROOT, "src", "lib", "missionSkills.ts");
+const OUT_TS = path.join(ROOT, "src", "lib", "missionSkills.ts");
+const OUT_JSON = path.join(ROOT, "src", "data", "skills.gen.json");
 
-const entries = [];
-const seen = new Set(); // `${kind}/${id}` dedup
+// 1. WaahyuTools repo roster comes from ~/.claude/CLAUDE.md (single source of truth).
+let claudeMd = "";
+try { claudeMd = fs.readFileSync(path.join(HOME, ".claude", "CLAUDE.md"), "utf8"); } catch { /* optional */ }
+const toolRepos = parseToolRepos(claudeMd);
 
-/** Recurse: any dir holding SKILL.md is a skill; id = path relative to `baseRoot`.
- *  A dir can be BOTH a skill AND a parent of sub-skills (e.g. gstack/, ecc/), so we
- *  emit-then-descend rather than early-returning. Hidden dirs (".agents", ".cursor", …)
- *  are skipped — gstack ships harness-mirror copies that would otherwise dupe entries. */
-function walkSkills(dir, baseRoot) {
-  if (fs.existsSync(path.join(dir, "SKILL.md"))) {
-    const id = path.relative(baseRoot, dir).split(path.sep).join("/");
-    const key = `skill/${id}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      entries.push(entryFor(id, "skills", fs.readFileSync(path.join(dir, "SKILL.md"), "utf8")));
-    }
-  }
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
-    if (ent.isDirectory() && !ent.name.startsWith(".")) walkSkills(path.join(dir, ent.name), baseRoot);
-  }
-}
+// 2. Scan every root, then collapse to one row per skill id (first source wins).
+const roster = dedupeRoster(scanRoots(discoverRoots({ homeDir: HOME, toolsDir: TOOLS_DIR, repoDir: ROOT, toolRepos })));
 
-function walkCommands() {
-  if (!fs.existsSync(COMMANDS_DIR)) return;
+// 3. Commands stay repo-local (they are vendored markdown files, not skill dirs).
+const commands = [];
+if (fs.existsSync(COMMANDS_DIR)) {
   for (const f of fs.readdirSync(COMMANDS_DIR).sort()) {
     if (!f.endsWith(".md")) continue;
-    const id = f.slice(0, -3);
-    const key = `command/${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    entries.push(entryFor(id, "commands", fs.readFileSync(path.join(COMMANDS_DIR, f), "utf8")));
+    commands.push(entryFor(f.slice(0, -3), "commands", fs.readFileSync(path.join(COMMANDS_DIR, f), "utf8")));
   }
 }
 
-// Curated first so it wins on any id collision, then the auto-vendored tree.
-if (fs.existsSync(CURATED_DIR)) walkSkills(CURATED_DIR, CURATED_DIR);
-if (fs.existsSync(SKILLS_DIR)) walkSkills(SKILLS_DIR, SKILLS_DIR);
-walkCommands();
+// 4. Emit both views.
+fs.mkdirSync(path.dirname(OUT_JSON), { recursive: true });
+fs.writeFileSync(OUT_JSON, rosterJson(roster));
 
-fs.writeFileSync(OUT, renderModule(entries));
-const byKind = entries.reduce((m, e) => ((m[e.kind] = (m[e.kind] || 0) + 1), m), {});
-console.log(`[gen-skills] wrote ${OUT} — ${entries.length} generated (${JSON.stringify(byKind)}) + 4 prompts`);
+const skillEntries = roster.map((r) => ({
+  id: r.id, kind: "skill", family: r.family, source: r.source,
+  title: `/${r.id}`, hint: r.description || r.id, prompt: `Use the ${r.id} skill. `,
+}));
+fs.writeFileSync(OUT_TS, renderModule([...skillEntries, ...commands]));
+
+const bySource = countBySource(roster);
+console.log(`[gen-skills] ${OUT_JSON} — ${roster.length} skills across ${Object.keys(bySource).length} sources`);
+console.log(`[gen-skills] ${OUT_TS} — ${skillEntries.length} skills + ${commands.length} commands + 4 prompts`);
+console.log(`[gen-skills] per-source: ${JSON.stringify(bySource)}`);
+if (roster.length < 1800) console.warn(`[gen-skills] WARNING: only ${roster.length} skills found — check ~/.claude and ${TOOLS_DIR}`);

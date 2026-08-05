@@ -1,16 +1,21 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { Send, Loader2, Bot, User, AlertTriangle, Zap, Check, FileEdit, Paperclip, X, FileText, Image as ImageIcon, Table, Plus } from "lucide-react";
+import { Send, Bot, User, AlertTriangle, Zap, Check, FileEdit, Paperclip, X, FileText, Image as ImageIcon, Table, Plus, Square, SquarePen, Users } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import { PermissionGate } from "../PermissionGate";
 import { ModelTierPicker } from "./ModelTierPicker";
+import { ModesPicker } from "./ModesPicker";
 import { UsageMeter, type TurnUsage } from "./UsageMeter";
+import { PendingIndicator } from "./PendingIndicator";
 import { QuotaChip } from "./QuotaChip";
 import { loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
 import { loadAgentModel } from "../../lib/agentModel";
-import { filterSkills, KIND_LABEL, type MissionSkill } from "../../lib/missionSkills";
+import { loadCatalog, loadedCatalog, type MissionSkill, type SkillCatalog } from "../../lib/skillsCatalog";
 import { runtimeToken } from "../../lib/runtimeToken";
 import { runtimeUrl } from "../../lib/runtimeBase";
+import { outgoingMessage, type AgentMode, type PermissionMode } from "../../lib/agentModes";
+import { parseTeamBlock, teamMemberToSpec, type TeamMember } from "../../lib/teamBlock";
+import { getSkills, createAgent } from "../../lib/factoryClient";
 import type { CommandRequest, CommandResult, CommandType } from "../../data/types";
 
 export interface Msg {
@@ -65,8 +70,13 @@ interface ProposedChange {
   after: string;
 }
 
+// Strip markdown emphasis the model still emits (** __) — chat renders plain text, so the
+// markers are visible junk. Mirrors the server's sanitizeReply; applied at display so even
+// the live stream is clean (server sanitizes the SAVED copy for history/reload).
+const stripEmphasis = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1");
+
 // ChatPane — the PRIMARY center chat (ADR-023 / chat-first-ux §1). One component
-// drives every thread: the Boss/CEO thread (dispatch bridge + F3 gate) and each
+// drives every thread: the Boss/Tech-Lead thread (dispatch bridge + F3 gate) and each
 // agent thread (F2b sandbox-changes bridge). Model tier is per-thread (ADR-022),
 // sent as {model} on every /chat + /run. Messages are CONTROLLED by the shell so
 // history survives thread switches; the runtime persists them to disk too.
@@ -101,10 +111,26 @@ export function ChatPane({
   const reduce = useReducedMotion();
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  // Send indicator — true from the moment the POST leaves until the FIRST token frame
+  // arrives (or the turn errors/ends). Distinct from `streaming`, which stays true for
+  // the whole turn.
+  const [pending, setPending] = useState(false);
   const [mode, setMode] = useState("");
   const [err, setErr] = useState("");
   const [usage, setUsage] = useState<TurnUsage | null>(null); // ADR-030 usage meter
   const [tier, setTier] = useState<ModelTier>(() => loadTier(threadId));
+  // MODES picker — current agent mode (cockpit-ux §6). Synced to the runtime on mount.
+  const [agentMode, setAgentMode] = useState<AgentMode>("acceptEdits");
+  // New-session "+" — disables the button while the DELETE round-trips.
+  const [clearing, setClearing] = useState(false);
+  // STOP button — AbortController for the in-flight send fetch (halts the client read).
+  const abortRef = useRef<AbortController | null>(null);
+  // Synchronous re-entrancy guards — React state lags a render behind, so a fast double
+  // Enter / double-click could slip past a state-only check. Refs flip immediately.
+  const sendingRef = useRef(false);
+  const clearingRef = useRef(false);
+  // MODES — once the operator picks a mode, stop letting the async mount-sync clobber it.
+  const modeTouchedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   // ADR-049 chat attachments (images/pdf/csv/txt). Mirror the server caps client-side
@@ -163,6 +189,14 @@ export function ChatPane({
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
   const [fired, setFired] = useState<Set<number>>(new Set());
   const [dispatchMsg, setDispatchMsg] = useState("");
+  // Tech-Lead-assembles-team (F6). `teamSkills` is the governed factory catalog, fetched once
+  // for the boss thread — the parser drops any proposed member naming a skill outside it,
+  // so the confirm card can only ever show something the server will accept.
+  const [teamSkills, setTeamSkills] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [gateTeamFor, setGateTeamFor] = useState<number | null>(null);
+  const [teamBuilt, setTeamBuilt] = useState<Set<number>>(new Set());
+  const [teamMsg, setTeamMsg] = useState("");
+  const [teamBusy, setTeamBusy] = useState(false);
   // Agent F2b changes state.
   const [changes, setChanges] = useState<ProposedChange[]>([]);
   const [gateApply, setGateApply] = useState(false);
@@ -174,8 +208,20 @@ export function ChatPane({
   // filterable list of MissionAlpha's own skills (prompt templates). Picking one drops
   // its prompt into the box; the BOSS edits if wanted, then sends. App-scoped, portable.
   const [skillIdx, setSkillIdx] = useState(0);
+  // The catalog is a lazily-loaded chunk — fetch it the first time "/" is typed, not on
+  // first paint. Until it lands the menu simply has no rows (one frame at most, cached after).
+  const [catalog, setCatalog] = useState<SkillCatalog | null>(() => loadedCatalog());
   const slashQuery = input.startsWith("/") && !input.includes("\n") ? input.slice(1) : null;
-  const skillResults = useMemo(() => (slashQuery == null ? [] : filterSkills(slashQuery)), [slashQuery]);
+  useEffect(() => {
+    if (slashQuery == null || catalog) return;
+    let live = true;
+    void loadCatalog().then((c) => { if (live) setCatalog(c); });
+    return () => { live = false; };
+  }, [slashQuery, catalog]);
+  const skillResults = useMemo(
+    () => (slashQuery == null || !catalog ? [] : catalog.filterSkills(slashQuery)),
+    [slashQuery, catalog],
+  );
   const slashOpen = slashQuery !== null && skillResults.length > 0 && !streaming;
   useEffect(() => { setSkillIdx(0); }, [slashQuery]);
   const pickSkill = (s: MissionSkill) => {
@@ -210,9 +256,13 @@ export function ChatPane({
     setErr("");
     setUsage(null);
     setStreaming(false);
+    setPending(false);
     setFired(new Set());
     setGateForMsg(null);
     setDispatchMsg("");
+    setGateTeamFor(null);
+    setTeamBuilt(new Set());
+    setTeamMsg("");
     setChanges([]);
     setApplyMsg("");
     inputRef.current?.focus();
@@ -237,6 +287,36 @@ export function ChatPane({
     if (tierReloadKey != null) setTier(loadTier(threadId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tierReloadKey]);
+
+  // MODES — load the runtime's current permission mode on mount (server is the source
+  // of truth; the picker reflects it). The server only ever stores a PermissionMode, so
+  // narrow the cast to it — "plan" is UI-only and must never arrive from the server.
+  // Skip if the operator already picked a mode (don't clobber an intentional choice).
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const token = await runtimeToken();
+        const r = await fetch(runtimeUrl("/runtime/config"), { headers: { "x-runtime-token": token } });
+        if (!r.ok) return;
+        const j = (await r.json()) as { permissionMode?: PermissionMode };
+        if (live && !modeTouchedRef.current && j.permissionMode) setAgentMode(j.permissionMode);
+      } catch {
+        /* default stays */
+      }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  // F6 — load the governed skill catalog for team-proposal validation (boss thread only).
+  useEffect(() => {
+    if (!isBoss) return;
+    let live = true;
+    void getSkills()
+      .then((d) => { if (live) setTeamSkills(new Set((d.skills ?? []).map((s) => s.id))); })
+      .catch(() => { /* proposal card stays hidden until the catalog loads */ });
+    return () => { live = false; };
+  }, [isBoss]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduce ? "auto" : "smooth" });
@@ -284,22 +364,33 @@ export function ChatPane({
   const send = useCallback(async () => {
     const text = input.trim();
     const files = attachments;
-    if ((!text && !files.length) || streaming) return;
+    // Re-entrancy guard is the REF, not `streaming` — state lags a render, so two fast
+    // Enters could both pass a state check and clobber abortRef (first fetch un-stoppable).
+    if ((!text && !files.length) || sendingRef.current) return;
+    sendingRef.current = true;
     setErr("");
     setInput("");
     setAttachments([]);
     const attachLine = files.length ? `\n📎 ${files.map((f) => f.name).join(", ")}` : "";
     setMessages((m) => [...m, { role: "user", content: text + attachLine }, { role: "assistant", content: "" }]);
     setStreaming(true);
+    setPending(true);
+    // STOP — fresh AbortController per turn; stop() aborts the read, finally clears it.
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // MODES (plan) — message-level plan-only prefix; never changes the server perm mode.
+    // Single source of truth for the wrap lives in agentModes.outgoingMessage (tested).
+    const outgoing = outgoingMessage(agentMode, text);
     try {
       // multipart when files are attached (ADR-049); plain JSON otherwise (back-compat).
       const url = runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/chat`);
       const res = files.length
         ? await fetch(url, {
             method: "POST",
+            signal: controller.signal,
             body: (() => {
               const fd = new FormData();
-              fd.append("message", text);
+              fd.append("message", outgoing);
               fd.append("model", tier);
               for (const f of files) fd.append("files", f, f.name);
               return fd; // NB: do NOT set Content-Type — browser sets the multipart boundary
@@ -307,8 +398,9 @@ export function ChatPane({
           })
         : await fetch(url, {
             method: "POST",
+            signal: controller.signal,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text, model: tier }),
+            body: JSON.stringify({ message: outgoing, model: tier }),
           });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
@@ -337,6 +429,7 @@ export function ChatPane({
           else if (ev === "usage") setUsage(data as TurnUsage); // ADR-030 — tokens + context%, no $
           else if (ev === "token") {
             const t = String(data);
+            setPending(false); // first frame landed — swap the indicator for real text
             setMessages((m) => {
               const c = m.slice();
               c[c.length - 1] = { role: "assistant", content: c[c.length - 1].content + t };
@@ -346,12 +439,89 @@ export function ChatPane({
         }
       }
     } catch (e) {
-      setErr((e as Error).message);
+      // STOP — an AbortError is the user pressing Stop, not a real failure. Stay quiet.
+      if ((e as Error).name !== "AbortError") setErr((e as Error).message);
     } finally {
       setStreaming(false);
+      setPending(false);
+      sendingRef.current = false;
+      abortRef.current = null;
       if (!isBoss) void fetchChanges();
     }
-  }, [input, attachments, streaming, threadId, tier, isBoss, setMessages, fetchChanges]);
+  }, [input, attachments, threadId, tier, isBoss, agentMode, setMessages, fetchChanges]);
+
+  // STOP — abort the client read immediately AND tell the runtime to kill the spawned
+  // child (otherwise the model keeps generating and burning tokens after the UI frees).
+  // /stop is auth-gated (process control), so the token header is REQUIRED, not decorative.
+  const stop = useCallback(async () => {
+    abortRef.current?.abort();
+    setStreaming(false); // optimistic — the finally above will also run
+    setPending(false);
+    try {
+      const token = await runtimeToken();
+      await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/stop`), {
+        method: "POST",
+        headers: { "x-runtime-token": token },
+      });
+    } catch {
+      /* child may already have finished — nothing to stop */
+    }
+  }, [threadId]);
+
+  // New session "+" — clear this agent's history (memory + disk) and reset the meters.
+  // Reuses the existing auth-gated DELETE /runtime/:id/thread (server deleteThread()).
+  const handleNewSession = useCallback(async () => {
+    // Ref guard (not state) so a fast double-click can't dispatch two DELETEs.
+    if (streaming || clearingRef.current) return;
+    const name = isBoss ? "the Tech Lead" : threadId;
+    if (!window.confirm(`Clear ${name}'s conversation history?\nThis deletes the saved history and starts a fresh session. It cannot be undone.`)) return;
+    clearingRef.current = true;
+    setClearing(true);
+    try {
+      const token = await runtimeToken();
+      await fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/thread`), {
+        method: "DELETE",
+        headers: { "x-runtime-token": token },
+      });
+      setMessages(() => []);
+      setUsage(null); // back to the zero-state meter
+      setChanges([]);
+      setErr("");
+    } catch (e) {
+      setErr(`clear failed: ${(e as Error).message}`);
+    } finally {
+      clearingRef.current = false;
+      setClearing(false);
+    }
+  }, [streaming, isBoss, threadId, setMessages]);
+
+  // STOP — ⌘. / Ctrl+. while streaming. Bound on document because the composer textarea
+  // is disabled mid-stream and won't receive its own keydown.
+  useEffect(() => {
+    if (!streaming) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") { e.preventDefault(); void stop(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [streaming, stop]);
+
+  // STOP — on unmount (panel closed mid-stream), abort the read AND tell the runtime to
+  // kill the child, else the model keeps generating server-side and burns tokens with no
+  // UI attached. Fire-and-forget; the component is gone, so no state updates here.
+  useEffect(() => {
+    return () => {
+      if (!abortRef.current) return;
+      abortRef.current.abort();
+      void runtimeToken().then((token) =>
+        fetch(runtimeUrl(`/runtime/${encodeURIComponent(threadId)}/stop`), {
+          method: "POST",
+          headers: { "x-runtime-token": token },
+          keepalive: true, // let the kill survive the unmount/navigation
+        }).catch(() => {}),
+      );
+    };
+  }, [threadId]);
 
   // Boss: directives for the message awaiting confirm.
   const gateDirectives = useMemo<Directive[]>(
@@ -370,7 +540,7 @@ export function ChatPane({
           type: d.type,
           target: d.target,
           issuedBy: "BOSS",
-          body: d.type === "task" ? d.body || "see CEO directive" : undefined,
+          body: d.type === "task" ? d.body || "see tech-lead directive" : undefined,
         }).catch((e): CommandResult => ({ ok: false, error: (e as Error).message })),
       ),
     );
@@ -386,7 +556,7 @@ export function ChatPane({
         fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-runtime-token": token },
-          body: JSON.stringify({ task: d.body || "see CEO directive", model: loadAgentModel(d.target) }),
+          body: JSON.stringify({ task: d.body || "see tech-lead directive", model: loadAgentModel(d.target) }),
         }).catch(() => {}),
       ),
     );
@@ -395,7 +565,42 @@ export function ChatPane({
         (taskDirs.length ? ` · ${taskDirs.length} agent(s) running — review diffs in their threads` : ""),
     );
     window.setTimeout(() => setDispatchMsg(""), 8000);
-  }, [gateForMsg, messages, onCommand, tier]);
+  }, [gateForMsg, messages, onCommand]);
+
+  // F6 — batch-create the proposed team. Each member goes through the SAME
+  // POST /factory/create the Factory uses, so validateSpec re-checks id/skills/persona
+  // server-side. Partial success is reported honestly (created N of M, with the failures).
+  const hireTeam = useCallback(async () => {
+    const idx = gateTeamFor;
+    if (idx == null) return;
+    const members = parseTeamBlock(parseDispatch(messages[idx]?.content ?? "").clean, teamSkills).members;
+    setGateTeamFor(null);
+    if (!members.length) return;
+    setTeamBusy(true);
+    // The job = the BOSS turn that prompted this reply (the message just above it).
+    const job = messages[idx - 1]?.role === "user" ? messages[idx - 1].content : "";
+    const results = await Promise.all(
+      members.map((mem) =>
+        createAgent(teamMemberToSpec(mem, job))
+          .then((r) => ({ id: mem.id, ok: !r.error, error: r.error }))
+          .catch((e: unknown) => ({ id: mem.id, ok: false, error: (e as Error).message })),
+      ),
+    );
+    setTeamBusy(false);
+    const ok = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    if (ok.length) setTeamBuilt((s) => new Set(s).add(idx));
+    setTeamMsg(
+      `hired ${ok.length}/${members.length}` +
+        (failed.length ? ` · failed: ${failed.map((f) => `${f.id} (${f.error || "rejected"})`).join(", ")}` : " — live on the board"),
+    );
+    window.setTimeout(() => setTeamMsg(""), 10000);
+  }, [gateTeamFor, messages, teamSkills]);
+
+  const gateTeamMembers = useMemo<TeamMember[]>(
+    () => (gateTeamFor == null ? [] : parseTeamBlock(parseDispatch(messages[gateTeamFor]?.content ?? "").clean, teamSkills).members),
+    [gateTeamFor, messages, teamSkills],
+  );
 
   return (
     <section role="main" aria-label="Conversation" className="grid h-full min-h-0 grid-rows-[auto_1fr_auto]" style={{ backgroundColor: tok("panel") }}>
@@ -425,7 +630,20 @@ export function ChatPane({
           )}
           <UsageMeter usage={usage} />
           <QuotaChip />
+          <ModesPicker value={agentMode} onChange={(m) => { modeTouchedRef.current = true; setAgentMode(m); }} disabled={streaming} />
           <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
+          <button
+            type="button"
+            onClick={() => void handleNewSession()}
+            disabled={streaming || clearing}
+            aria-label="New session (clear history)"
+            aria-haspopup="dialog"
+            title="New session"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
+            style={{ color: tok("muted"), backgroundColor: tok("bg"), borderColor: tok("border") }}
+          >
+            <SquarePen size={13} aria-hidden />
+          </button>
           {headerExtra}
         </div>
       </header>
@@ -436,7 +654,7 @@ export function ChatPane({
           {messages.length === 0 && (
             <div className="rounded-lg border p-4 text-[13px] leading-relaxed" style={{ borderColor: tok("border"), color: tok("muted") }}>
               {isBoss ? (
-                <><span className="font-semibold" style={{ color: tok("text") }}>Talk to your CEO.</span> Give a goal, ask for strategy, or direct the swarm. The CEO thinks first-principles, brings options + a recommendation, and reports to you.</>
+                <><span className="font-semibold" style={{ color: tok("text") }}>Talk to your Tech Lead.</span> Give a goal, ask how to build it, or direct the seats. The Tech Lead thinks first-principles, brings options + a recommendation, and reports to you.</>
               ) : (
                 <><span className="font-semibold" style={{ color: tok("text") }}>Message {threadId}.</span> They reply with their Claude brain; edits land in a sandbox you review before they touch the repo.</>
               )}
@@ -446,7 +664,9 @@ export function ChatPane({
             const isLast = i === messages.length - 1;
             const live = streaming && isLast && m.role === "assistant";
             const parsed = isBoss && m.role === "assistant" ? parseDispatch(m.content) : { clean: m.content, directives: [] as Directive[] };
+            const team = isBoss && m.role === "assistant" && !live ? parseTeamBlock(parsed.clean, teamSkills) : { clean: parsed.clean, members: [] as TeamMember[] };
             const showDispatch = isBoss && m.role === "assistant" && !live && parsed.directives.length > 0;
+            const showTeam = isBoss && m.role === "assistant" && !live && team.members.length > 0;
             return (
               <div key={i} className="flex gap-3">
                 <span className="mt-0.5 shrink-0" style={{ color: m.role === "user" ? tok("accent-cyan") : accentColor }}>
@@ -454,21 +674,27 @@ export function ChatPane({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="font-mono text-[9px] uppercase tracking-wide" style={{ color: tok("muted") }}>
-                    {m.role === "user" ? "you" : isBoss ? "CEO" : threadId}
+                    {m.role === "user" ? "you" : isBoss ? "tech lead" : threadId}
                   </div>
                   <div
                     className="whitespace-pre-wrap break-words text-[13px] leading-relaxed"
                     style={{ color: tok("text") }}
                     aria-live={live ? "polite" : undefined}
                   >
-                    {live ? m.content : parsed.clean}
-                    {live && <span className="ml-0.5 inline-block animate-pulse">▍</span>}
+                    {live && pending && !m.content ? (
+                      <PendingIndicator accent={accentColor} />
+                    ) : (
+                      <>
+                        {live ? stripEmphasis(m.content) : stripEmphasis(team.clean)}
+                        {live && <span className="ml-0.5 inline-block animate-pulse">▍</span>}
+                      </>
+                    )}
                   </div>
 
                   {showDispatch && (
                     <div className="mt-2 rounded-md p-2.5" style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 8%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 26%, transparent)` }}>
                       <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: accentColor }}>
-                        <Zap size={12} aria-hidden /> CEO proposes {parsed.directives.length} dispatch{parsed.directives.length === 1 ? "" : "es"}
+                        <Zap size={12} aria-hidden /> Tech Lead proposes {parsed.directives.length} dispatch{parsed.directives.length === 1 ? "" : "es"}
                       </div>
                       <ul className="mb-2 space-y-1">
                         {parsed.directives.map((d, k) => (
@@ -485,6 +711,37 @@ export function ChatPane({
                       ) : (
                         <button type="button" onClick={() => setGateForMsg(i)} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold outline-none focus-visible:ring-2" style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}>
                           <Zap size={13} aria-hidden /> Review &amp; confirm
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {showTeam && (
+                    <div className="mt-2 rounded-md p-2.5" style={{ backgroundColor: `color-mix(in oklch, ${tok("factory-violet")} 8%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("factory-violet")} 26%, transparent)` }}>
+                      <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: tok("factory-violet") }}>
+                        <Users size={12} aria-hidden /> Tech Lead proposes a team of {team.members.length}
+                      </div>
+                      <ul className="mb-2 space-y-1">
+                        {team.members.map((t) => (
+                          <li key={t.id} className="font-mono text-[11px]" style={{ color: tok("text") }}>
+                            <span style={{ color: tok("factory-violet") }}>{t.id}</span> — {t.role}
+                            {t.skills.length ? <span style={{ color: tok("muted") }}> · {t.skills.join(", ")}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                      {teamBuilt.has(i) ? (
+                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px]" style={{ color: tok("done-green") }}>
+                          <Check size={13} aria-hidden /> team created — live on the board
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setGateTeamFor(i)}
+                          disabled={teamBusy}
+                          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold outline-none transition-colors duration-150 hover:brightness-110 focus-visible:ring-2 disabled:cursor-default disabled:opacity-40 motion-reduce:transition-none"
+                          style={{ color: tok("factory-violet"), backgroundColor: `color-mix(in oklch, ${tok("factory-violet")} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("factory-violet")} 34%, transparent)` }}
+                        >
+                          <Users size={13} aria-hidden /> Review &amp; hire team
                         </button>
                       )}
                     </div>
@@ -545,6 +802,11 @@ export function ChatPane({
             <Check size={12} aria-hidden /> {dispatchMsg}
           </p>
         )}
+        {teamMsg && (
+          <p className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("factory-violet") }} role="status" aria-live="polite">
+            <Users size={12} aria-hidden /> {teamMsg}
+          </p>
+        )}
         <div className="relative mx-auto max-w-[760px]">
           {/* "/" skill menu — opens above the composer */}
           {slashOpen && (
@@ -557,7 +819,7 @@ export function ChatPane({
                     <Fragment key={s.id}>
                       {showHeader && (
                         <div className="sticky top-0 bg-panel px-3 py-1 text-[9px] font-medium uppercase tracking-wide text-muted">
-                          {KIND_LABEL[s.kind]}
+                          {catalog?.KIND_LABEL[s.kind] ?? s.kind}
                         </div>
                       )}
                       <button
@@ -672,23 +934,37 @@ export function ChatPane({
                 void send();
               }
             }}
-            placeholder={isBoss ? "Message your CEO…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
+            placeholder={isBoss ? "Message your Tech Lead…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
             disabled={streaming}
-            aria-label={isBoss ? "Message the CEO" : `Message ${threadId}`}
+            aria-label={isBoss ? "Message the Tech Lead" : `Message ${threadId}`}
             className="min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
             style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={streaming || (!input.trim() && attachments.length === 0)}
-            aria-label="Send"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
-            style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
-          >
-            {streaming ? <Loader2 size={14} className={reduce ? "" : "animate-spin"} aria-hidden /> : <Send size={14} aria-hidden />}
-            {streaming ? "…" : "Send"}
-          </button>
+          {streaming ? (
+            <button
+              type="button"
+              onClick={() => void stop()}
+              aria-label="Stop generation"
+              aria-description="Keyboard shortcut: Command or Control period"
+              title="Stop (⌘.)"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold text-white outline-none transition-transform focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
+              style={{ backgroundColor: tok("stale-red") }}
+            >
+              <Square size={12} fill="currentColor" aria-hidden />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={!input.trim() && attachments.length === 0}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
+              style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
+            >
+              <Send size={14} aria-hidden />
+              Send
+            </button>
+          )}
           </div>
           <div className="mt-1 px-0.5 text-[10px] text-muted">
             drag &amp; drop or paste · png jpg pdf csv txt · max {ATTACH_MAX_FILES} files · 25 MB each
@@ -700,13 +976,26 @@ export function ChatPane({
       {isBoss && (
         <PermissionGate
           open={gateForMsg !== null}
-          title="Confirm CEO dispatch"
-          summary={`Fire ${gateDirectives.length} command${gateDirectives.length === 1 ? "" : "s"} to the swarm, as directed by the CEO. Each is recorded in the audit log.`}
+          title="Confirm Tech Lead dispatch"
+          summary={`Fire ${gateDirectives.length} command${gateDirectives.length === 1 ? "" : "s"} to the swarm, as directed by the Tech Lead. Each is recorded in the audit log.`}
           affected={gateDirectives.map((d) => `${d.type}→${d.target}`)}
           confirmLabel={`Dispatch ${gateDirectives.length}`}
           accent="ceo-gold"
           onConfirm={() => void fireDispatch()}
           onCancel={() => setGateForMsg(null)}
+        />
+      )}
+      {/* Tech Lead team-hire gate (F3) */}
+      {isBoss && (
+        <PermissionGate
+          open={gateTeamFor !== null}
+          title={`Hire ${gateTeamMembers.length} agent${gateTeamMembers.length === 1 ? "" : "s"}?`}
+          summary={`Creates ${gateTeamMembers.length} new agent${gateTeamMembers.length === 1 ? "" : "s"} in the factory registry, each live on the board with a BOSS badge. Every spec is re-validated server-side; none can post externally.`}
+          affected={gateTeamMembers.map((t) => `${t.id} — ${t.role}${t.skills.length ? ` (${t.skills.join(", ")})` : ""}`)}
+          confirmLabel={teamBusy ? "Hiring…" : `Hire ${gateTeamMembers.length}`}
+          accent="factory-violet"
+          onConfirm={() => void hireTeam()}
+          onCancel={() => setGateTeamFor(null)}
         />
       )}
       {/* Agent apply gate */}

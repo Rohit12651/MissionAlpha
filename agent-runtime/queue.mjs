@@ -12,7 +12,7 @@
 // run loop); a DB port MUST use a real atomic claim before any multi-process deploy.
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync, readFileSync, readdirSync, renameSync, existsSync, openSync, fsyncSync, closeSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, renameSync, existsSync, openSync, fsyncSync, closeSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const PRIORITY_BANDS = ["high", "normal", "low"];
@@ -34,9 +34,21 @@ export function createQueue(opts = {}) {
   const tasksDir = join(dir, "tasks");
   const now = opts.now || (() => Date.now());
   const maxQueued = opts.maxQueued ?? Number(process.env.RUNTIME_MAX_QUEUED || 500);
-  const maxPerAgent = opts.maxPerAgent ?? Number(process.env.RUNTIME_MAX_PER_AGENT || 2);
+  // P4 — per-agent SERIAL (program plan P4). Cross-agent parallelism stays bounded by
+  // the SHARED MAX_INFLIGHT in the scheduler; within one agent, one task at a time so
+  // an agent never races itself in its own worktree.
+  const maxPerAgent = opts.maxPerAgent ?? Number(process.env.RUNTIME_MAX_PER_AGENT || 1);
   const leaseMs = opts.leaseMs ?? Number(process.env.RUNTIME_LEASE_MS || 600_000); // 10 min (OQ-027.1)
   const scrub = opts.scrub || ((s) => s);
+  // P4 — emit-on-persist (program plan §2 / ADR-052 §2): the SAME function that writes
+  // a transition announces it. The bus is OBSERVATIONAL — a throwing or absent emitter
+  // must never break a queue write, so every call is swallowed here.
+  const rawEmit = opts.emit || (() => {});
+  const emit = (name, data) => { try { rawEmit(name, data); } catch { /* bus is observational */ } };
+  const wire = (rec) => ({
+    taskId: rec.taskId, goalId: rec.goalId, agentId: rec.agentId,
+    stepIndex: rec.stepIndex, attempts: rec.attempts, priority: rec.priority, status: rec.status,
+  });
   mkdirSync(tasksDir, { recursive: true });
 
   // In-memory index (derived cache). Source of truth = per-task files on disk.
@@ -104,6 +116,12 @@ export function createQueue(opts = {}) {
       goalId: s.goalId || `goal_${randomBytes(6).toString("hex")}`,
       parentTaskId: s.parentTaskId ?? null,
       chainNext: s.chainNext ?? null,
+      // S3 — the STORY back-pointer. ADDITIVE metadata, default null so every existing
+      // caller/test is unaffected. It is NOT part of computeIdemKey (adding it would change
+      // every existing key): a task's IDENTITY is its work unit, not the story that owns it.
+      // Sanitized to the same safe id charset as agentId — a task file is keyed by taskId,
+      // never by storyId, so this can never steer a path; the scrub is belt-and-braces.
+      storyId: s.storyId ? String(s.storyId).replace(/[^a-z0-9_-]/gi, "").slice(0, 80) : null,
       stepIndex: s.stepIndex ?? 0,
       agentId: String(s.agentId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64),
       tier: s.tier || "sonnet",
@@ -121,6 +139,9 @@ export function createQueue(opts = {}) {
       error: null,
     };
     persist(rec);
+    // attempts>0 ⇒ this enqueue IS the retry the engine just scheduled (ADR-028 §3),
+    // so it announces itself as task.retried rather than a fresh task.queued.
+    emit(rec.attempts > 0 ? "task.retried" : "task.queued", wire(rec));
     return { taskId, idemKey, deduped: false };
   }
 
@@ -136,17 +157,37 @@ export function createQueue(opts = {}) {
     if (patch.result != null) next.result = scrub(String(patch.result).slice(0, 4000));
     if (patch.error != null && patch.error.msg) next.error = { ...patch.error, msg: scrub(String(patch.error.msg).slice(0, 1000)) };
     persist(next);
+    // Only the terminal FAILED transition has a catalog name; done/held/cancelled do
+    // not (the v1 catalog is CLOSED — program plan §2). Never invent one. Guarded on
+    // the PREVIOUS status so a re-update of an already-failed task emits once only.
+    if (patch.status === "failed" && rec.status !== "failed") {
+      emit("task.failed", { ...wire(next), kind: next.error?.kind || "unknown" });
+    }
+    // PLAN AMENDMENT 2026-07-30 (program plan §2) — `task.done` was added to the v1
+    // catalog. Without a success-terminal name the QueueStrip could only learn that a
+    // task LEFT the queue from the 400ms debounced re-truth fetch, so it rendered a
+    // finished task as still running for up to ~0.4s. Same emit-on-persist rule, same
+    // 7-scalar wire(), same emit-once guard on the PREVIOUS status.
+    if (patch.status === "done" && rec.status !== "done") emit("task.done", wire(next));
     return next;
   }
 
   // Reclaim leases whose holder died (claimed + expired + step not terminal).
-  function reclaimExpiredLeases() {
+  // `isLive(taskId)` lets the caller veto a reclaim for a task it KNOWS is still
+  // executing in-process (engine.mjs passes its `running` map). Without it, a
+  // watchdog longer than the lease would re-queue a live task → two writers on one
+  // worktree. Default: no veto, so every existing caller behaves exactly as before.
+  function reclaimExpiredLeases(isLive) {
     const t = now();
     let n = 0;
+    const live = typeof isLive === "function" ? isLive : () => false;
     for (const rec of index.values()) {
       if (rec.status !== "claimed" || !rec.leaseExpiry) continue;
+      if (live(rec.taskId)) continue;
       if (Date.parse(rec.leaseExpiry) <= t) {
-        persist({ ...rec, status: "queued", claimedAt: null, leaseExpiry: null, updatedAt: new Date(t).toISOString() });
+        const requeued = { ...rec, status: "queued", claimedAt: null, leaseExpiry: null, updatedAt: new Date(t).toISOString() };
+        persist(requeued);
+        emit("task.queued", wire(requeued));
         n++;
       }
     }
@@ -193,6 +234,7 @@ export function createQueue(opts = {}) {
         updatedAt: new Date(t).toISOString(),
       };
       persist(claimed);
+      emit("task.started", wire(claimed));
       lastServed.set(pick.agentId, ++serveTick);
       return claimed;
     }
@@ -209,5 +251,27 @@ export function createQueue(opts = {}) {
     return [...index.values()];
   }
 
-  return { enqueue, claimNext, update, get, findByIdemKey, reclaimExpiredLeases, counts, all, rebuild };
+  // ── retention: boot sweep of terminal task records ──────────────────────────
+  // A done/failed/cancelled record is HISTORY, not state — nothing reads it once the
+  // chain has moved on, yet every one is a file on disk forever and is re-parsed into
+  // `index` on every rebuild(). Mirrors uploads.mjs sweepStaleUploads: TTL-bounded,
+  // best-effort, boot-only, returns a count for the boot log. Non-terminal records are
+  // NEVER touched, whatever their age.
+  const TASK_RETENTION_MS = Math.max(0, Number(opts.retentionDays ?? process.env.RUNTIME_TASK_RETENTION_DAYS ?? 7)) * 86_400_000;
+  function sweepTerminal(ttlMs = TASK_RETENTION_MS, at = now()) {
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0) return 0;
+    const cutoff = at - ttlMs;
+    let removed = 0;
+    for (const rec of [...index.values()]) {
+      if (!TERMINAL.has(rec.status)) continue;
+      const ts = Date.parse(rec.updatedAt || rec.createdAt || "");
+      if (!Number.isFinite(ts) || ts > cutoff) continue;
+      try { rmSync(taskFile(rec.taskId), { force: true }); } catch { continue; }
+      index.delete(rec.taskId);
+      removed++;
+    }
+    return removed;
+  }
+
+  return { enqueue, claimNext, update, get, findByIdemKey, reclaimExpiredLeases, counts, all, rebuild, sweepTerminal, leaseMs };
 }

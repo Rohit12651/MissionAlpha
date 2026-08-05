@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MissionAlpha — The Agent Inbox · Mockup</title>
+<style>
+  :root{
+    --bg: oklch(0.14 0.012 270);
+    --panel: oklch(0.18 0.014 270);
+    --panel2: oklch(0.21 0.016 270);
+    --line: oklch(0.30 0.02 270 / .55);
+    --text: oklch(0.93 0.005 270);
+    --muted: oklch(0.66 0.01 270);
+    --cyan: oklch(0.80 0.15 200);
+    --gold: oklch(0.83 0.13 85);
+    --violet: oklch(0.78 0.13 300);
+    --green: oklch(0.78 0.17 150);
+    --amber: oklch(0.80 0.15 75);
+    --red: oklch(0.68 0.19 25);
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;padding:48px 24px 96px}
+  .wrap{max-width:1240px;margin:0 auto}
+  .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan)}
+  h1{font-size:clamp(28px,4vw,44px);font-weight:750;letter-spacing:-.02em;margin:10px 0 6px}
+  .sub{color:var(--muted);max-width:70ch;margin-bottom:40px}
+  .sub b{color:var(--text)}
+  .caption{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:56px 0 16px}
+
+  /* ── app window ─────────────────────────────── */
+  .win{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 30px 80px oklch(0 0 0/.5), 0 0 0 1px oklch(1 0 0/.03) inset}
+  .titlebar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:oklch(0.16 0.013 270)}
+  .dots{display:flex;gap:7px}
+  .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:oklch(0.65 0.18 25)}.dots i:nth-child(2){background:oklch(0.8 0.15 85)}.dots i:nth-child(3){background:oklch(0.75 0.17 150)}
+  .titlebar span{font:500 12px var(--mono);color:var(--muted);margin:0 auto}
+  .repo-chip{font:600 11px var(--mono);color:var(--cyan);border:1px solid oklch(0.8 0.15 200/.3);border-radius:6px;padding:3px 9px}
+
+  .cols{display:grid;grid-template-columns:216px 1fr 420px;min-height:640px}
+  @media(max-width:980px){.cols{grid-template-columns:1fr}.rail,.review{display:none}}
+
+  /* left rail */
+  .rail{border-right:1px solid var(--line);padding:14px 10px;background:oklch(0.155 0.013 270)}
+  .nav{display:flex;flex-direction:column;gap:2px;margin-bottom:22px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:550;font-size:13.5px}
+  .nav a.active{background:oklch(0.8 0.15 200/.12);color:var(--text);box-shadow:inset 3px 0 0 var(--cyan)}
+  .badge{margin-left:auto;background:var(--cyan);color:oklch(0.15 0.02 240);font:700 11px var(--mono);border-radius:99px;padding:1px 7px}
+  .rail h4{font:600 10px var(--mono);letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:0 10px 8px}
+  .agent{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:12.5px;color:var(--muted)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .on{background:var(--green)} .busy{background:var(--cyan);animation:pulse 1.6s infinite} .stale{background:var(--red)}
+  @keyframes pulse{50%{opacity:.35}}
+
+  /* inbox center */
+  .inbox{padding:18px 20px;border-right:1px solid var(--line)}
+  .inbox-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .inbox-head h2{font-size:19px;font-weight:700;letter-spacing:-.01em}
+  .inbox-head small{color:var(--muted);font:500 12px var(--mono)}
+  .filters{display:flex;gap:6px;margin-bottom:16px}
+  .pill{font:600 11px var(--mono);border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:4px 11px}
+  .pill.sel{border-color:oklch(0.8 0.15 200/.5);color:var(--cyan);background:oklch(0.8 0.15 200/.08)}
+  .card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel2);margin-bottom:10px;display:grid;gap:8px}
+  .card.sel{border-color:oklch(0.8 0.15 200/.55);box-shadow:0 0 0 1px oklch(0.8 0.15 200/.35), 0 8px 28px oklch(0 0 0/.35)}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .avatar{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font:700 11px var(--mono);flex:none}
+  .a-cyan{background:oklch(0.8 0.15 200/.16);color:var(--cyan)} .a-violet{background:oklch(0.78 0.13 300/.16);color:var(--violet)} .a-ext{background:oklch(0.66 0.01 270/.16);color:var(--muted)}
+  .card h3{font-size:14.5px;font-weight:650}
+  .meta{font:500 11.5px var(--mono);color:var(--muted)}
+  .diffstat{font:600 11.5px var(--mono)} .add{color:var(--green)} .del{color:var(--red)}
+  .chip{font:700 10px var(--mono);letter-spacing:.06em;border-radius:6px;padding:3px 8px;text-transform:uppercase}
+  .risk-hi{background:oklch(0.68 0.19 25/.15);color:var(--red);border:1px solid oklch(0.68 0.19 25/.4)}
+  .risk-md{background:oklch(0.8 0.15 75/.13);color:var(--amber);border:1px solid oklch(0.8 0.15 75/.35)}
+  .risk-lo{background:oklch(0.78 0.17 150/.12);color:var(--green);border:1px solid oklch(0.78 0.17 150/.35)}
+  .src{background:oklch(0.66 0.01 270/.12);color:var(--muted);border:1px solid var(--line)}
+  .sla{margin-left:auto;font:600 11px var(--mono);color:var(--amber)}
+  .sla.hot{color:var(--red)}
+  .autorow{display:flex;align-items:center;gap:10px;color:var(--muted);font:500 12px var(--mono);padding:10px 16px;border:1px dashed var(--line);border-radius:12px;margin-bottom:10px}
+  .autorow b{color:var(--green)}
+
+  /* review pane */
+  .review{padding:18px 20px;background:oklch(0.165 0.013 270);display:flex;flex-direction:column;gap:14px}
+  .review h2{font-size:16.5px;font-weight:700;letter-spacing:-.01em}
+  .reasons{display:flex;flex-direction:column;gap:5px}
+  .reasons span{font:500 12px var(--mono);color:var(--muted)}
+  .reasons span::before{content:"▸ ";color:var(--red)}
+  .diff{background:oklch(0.12 0.01 270);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font:12px/1.7 var(--mono);overflow:auto}
+  .diff .f{color:var(--cyan);display:block;margin-bottom:2px}
+  .diff .p{color:var(--green)} .diff .m{color:var(--red)} .diff .c{color:var(--muted)}
+  .confirm{border:1px solid oklch(0.68 0.19 25/.4);border-radius:10px;padding:10px 12px;font:500 12px var(--mono);color:var(--muted)}
+  .confirm b{color:var(--red)}
+  .confirm input{width:100%;margin-top:8px;background:oklch(0.12 0.01 270);border:1px solid var(--line);border-radius:7px;color:var(--text);font:500 12px var(--mono);padding:7px 10px}
+  .actions{display:flex;gap:8px;margin-top:auto}
+  .btn{flex:1;border:none;border-radius:9px;padding:11px 0;font:650 13px -apple-system,sans-serif;cursor:pointer}
+  .approve{background:var(--green);color:oklch(0.16 0.03 150)}
+  .changes{background:oklch(0.8 0.15 75/.14);color:var(--amber);border:1px solid oklch(0.8 0.15 75/.4)}
+  .reject{background:oklch(0.68 0.19 25/.12);color:var(--red);border:1px solid oklch(0.68 0.19 25/.4)}
+
+  /* ── flow diagram ───────────────────────────── */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px}
+  .node{border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:14px 16px;min-width:150px;flex:1}
+  .node h5{font-size:13px;font-weight:700;margin-bottom:4px}
+  .node p{font:500 11px var(--mono);color:var(--muted);line-height:1.6}
+  .node.human{border-color:oklch(0.83 0.13 85/.5);background:oklch(0.83 0.13 85/.07)}
+  .node.human h5{color:var(--gold)}
+  .arrow{display:grid;place-items:center;color:var(--cyan);font:700 18px var(--mono);padding:0 8px;flex:none}
+  .senders{display:flex;flex-direction:column;gap:6px}
+  .senders span{font:600 11px var(--mono);border:1px solid var(--line);border-radius:7px;padding:4px 9px;color:var(--muted)}
+  .senders span.mine{color:var(--cyan);border-color:oklch(0.8 0.15 200/.4)}
+  .loopnote{margin-top:10px;font:500 12px var(--mono);color:var(--amber)}
+
+  /* ── build timeline ─────────────────────────── */
+  .timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:800px){.timeline{grid-template-columns:1fr}}
+  .stage{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px}
+  .stage .id{font:800 12px var(--mono);color:var(--cyan)}
+  .stage.core .id{color:var(--gold)}
+  .stage h5{font-size:14.5px;font-weight:700;margin:6px 0 4px}
+  .stage p{font-size:12.5px;color:var(--muted);line-height:1.55}
+  .stage .eff{float:right;font:700 10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .foot{margin-top:48px;color:var(--muted);font:500 12px var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">MissionAlpha · Product Mockup · 2026-07-29</div>
+  <h1>The Agent Inbox</h1>
+  <p class="sub">One inbox for <b>all</b> AI-agent work — your swarm, Claude Code, Cursor, Codex, Devin.
+  Work arrives as a <b>Delivery</b>, gets risk-routed, a human approves, it ships as a PR, everything is audited.
+  <b>Like email: many senders, one inbox.</b></p>
+
+  <div class="caption">01 · The app — Inbox-first cockpit (mock screenshot)</div>
+  <div class="win">
+    <div class="titlebar"><div class="dots"><i></i><i></i><i></i></div><span>MissionAlpha — Agent Inbox</span><span class="repo-chip">repo: acme/checkout-service</span></div>
+    <div class="cols">
+
+      <aside class="rail">
+        <nav class="nav">
+          <a class="active" href="#">📥 Inbox <span class="badge">7</span></a>
+          <a href="#">💬 Chat</a>
+          <a href="#">🗂 Board</a>
+          <a href="#">🏭 Agent Factory</a>
+          <a href="#">🕘 Sessions</a>
+          <a href="#">⚙️ Settings</a>
+        </nav>
+        <h4>Agents</h4>
+        <div class="agent"><i class="dot busy"></i> ceo</div>
+        <div class="agent"><i class="dot busy"></i> senior-web-1</div>
+        <div class="agent"><i class="dot on"></i> senior-backend-2</div>
+        <div class="agent"><i class="dot on"></i> senior-qa</div>
+        <div class="agent"><i class="dot stale"></i> sr-security</div>
+        <div class="agent"><i class="dot on"></i> java17-developer</div>
+      </aside>
+
+      <main class="inbox">
+        <div class="inbox-head"><h2>Inbox</h2><small>7 pending · 2 auto-approved today</small></div>
+        <div class="filters">
+          <span class="pill sel">All</span><span class="pill">High risk</span><span class="pill">My swarm</span><span class="pill">External</span><span class="pill">Failures</span>
+        </div>
+
+        <div class="card sel">
+          <div class="row">
+            <span class="avatar a-cyan">W1</span><h3>Add JWT refresh to auth middleware</h3>
+            <span class="sla hot">SLA 00:41 ⏳</span>
+          </div>
+          <div class="row">
+            <span class="chip risk-hi">high risk</span>
+            <span class="meta">senior-web-1 · 12 min ago</span>
+            <span class="diffstat">3 files <span class="add">+184</span> <span class="del">−22</span></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row"><span class="avatar a-ext">CU</span><h3>PR #482 — Migrate cart store to Zustand</h3><span class="sla">SLA 6:12:00</span></div>
+          <div class="row"><span class="chip risk-md">medium</span><span class="chip src">source: cursor-agent</span><span class="meta">via GitHub · 1 h ago</span><span class="diffstat">9 files <span class="add">+412</span> <span class="del">−388</span></span></div>
+        </div>
+
+        <div class="card">
+          <div class="row"><span class="avatar a-violet">J17</span><h3>Write unit tests for money utils</h3><span class="sla">SLA 22:04:11</span></div>
+          <div class="row"><span class="chip risk-lo">low</span><span class="meta">java17-developer · 2 h ago</span><span class="diffstat">2 files <span class="add">+96</span> <span class="del">−0</span></span></div>
+        </div>
+
+        <div class="card">
+          <div class="row"><span class="avatar a-cyan">QA</span><h3>⚠️ Agent stuck — e2e suite flaked twice</h3></div>
+          <div class="row"><span class="chip risk-md">needs you</span><span class="meta">senior-qa · retry 1/1 failed · 3 h ago</span></div>
+        </div>
+
+        <div class="autorow">✅ <b>2 auto-approved</b> under policy: docs-only README fix · changelog entry &nbsp;— view</div>
+      </main>
+
+      <aside class="review">
+        <h2>Add JWT refresh to auth middleware</h2>
+        <div class="row"><span class="chip risk-hi">high risk</span><span class="meta">senior-web-1 · branch ma/senior-web-1/jwt-refresh</span></div>
+        <div class="reasons">
+          <span>touches auth path: src/middleware/auth.ts</span>
+          <span>new dependency: jose@5</span>
+          <span>modifies token expiry logic</span>
+        </div>
+        <div class="diff">
+<span class="f">src/middleware/auth.ts</span>
+<span class="c">@@ -41,7 +41,19 @@</span>
+<span class="m">- if (token.exp &lt; now) throw new AuthError("expired");</span>
+<span class="p">+ if (token.exp &lt;= now) {</span>
+<span class="p">+   const fresh = await refreshToken(token, { leeway: 30 });</span>
+<span class="p">+   if (!fresh) throw new AuthError("expired");</span>
+<span class="p">+   return attach(req, fresh);</span>
+<span class="p">+ }</span>
+        </div>
+        <div class="confirm"><b>High-risk change.</b> Type <b>APPLY</b> to enable Approve.
+          <input placeholder="Type APPLY to confirm…"/>
+        </div>
+        <div class="actions">
+          <button class="btn approve">Approve → PR</button>
+          <button class="btn changes">Request changes</button>
+          <button class="btn reject">Reject</button>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <div class="caption">02 · How work flows — the Delivery pipeline</div>
+  <div class="flow">
+    <div class="node">
+      <h5>Any agent</h5>
+      <div class="senders">
+        <span class="mine">MissionAlpha swarm</span><span>Claude Code</span><span>Cursor agents</span><span>Codex / Devin (PRs)</span>
+      </div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node"><h5>Isolated work</h5><p>git worktree<br/>branch ma/&lt;agent&gt;/&lt;task&gt;<br/>Bash OFF · guards ON</p></div>
+    <div class="arrow">→</div>
+    <div class="node"><h5>Delivery</h5><p>diffstat · summary<br/>source · audit ref</p></div>
+    <div class="arrow">→</div>
+    <div class="node"><h5>Risk router</h5><p>low → policy/auto<br/>med → human<br/>high → typed confirm<br/>SLA timers</p></div>
+    <div class="arrow">→</div>
+    <div class="node human"><h5>INBOX · human decides</h5><p>Approve → commit + PR<br/>Request changes → feedback runs agent again<br/>Reject → discard</p>
+      <div class="loopnote">↺ feedback loops back to the agent</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node"><h5>Audit</h5><p>who · what · why<br/>risk reasons<br/>export JSON/CSV</p></div>
+  </div>
+
+  <div class="caption">03 · End-to-end build order (each stage ships alone)</div>
+  <div class="timeline">
+    <div class="stage"><span class="eff">S</span><div class="id">M0</div><h5>Debt burn-down</h5><p>STOP button · send-loading · 1800+ skills · delete-agent · factory add · CEO team-assembly.</p></div>
+    <div class="stage core"><span class="eff">M</span><div class="id">M1 ★</div><h5>THE INBOX</h5><p>Delivery object + endpoints + badge + notifications + full-diff review + approve/reject/feedback.</p></div>
+    <div class="stage"><span class="eff">M</span><div class="id">M2</div><h5>Never lose work</h5><p>Task queue · retry/self-heal · auto-chain · failure Deliveries.</p></div>
+    <div class="stage"><span class="eff">M</span><div class="id">M3</div><h5>Any repo → real PRs</h5><p>Repo picker · git worktree isolation · approve ⇒ branch ⇒ GitHub PR.</p></div>
+    <div class="stage"><span class="eff">S–M</span><div class="id">M4</div><h5>Risk router</h5><p>Heuristic risk bands · BOSS policy file · SLA timers · typed confirm on high.</p></div>
+    <div class="stage core"><span class="eff">M–L</span><div class="id">M5 ★</div><h5>Universal ingestion</h5><p>GitHub adapter (Cursor/Codex/Devin PRs) + Claude Code sessions → one inbox, every vendor.</p></div>
+    <div class="stage"><span class="eff">S</span><div class="id">M6</div><h5>Usage + audit export</h5><p>Tokens & context% per agent · one-click audit bundle.</p></div>
+    <div class="stage"><span class="eff">M</span><div class="id">M7</div><h5>Second seat</h5><p>Two users · roles · assignment · decidedBy in audit.</p></div>
+    <div class="stage"><span class="eff">S–M</span><div class="id">M8</div><h5>Dogfood scoreboard</h5><p>MissionAlpha ships MissionAlpha weekly through its own Inbox — recorded proof.</p></div>
+  </div>
+
+  <p class="foot">Mockup only — not a live app. Spec: docs/ceo/MISSION-INBOX-master-spec.md · Success metric: Deliveries approved ÷ human-minutes.</p>
+</div>
+</body>
+</html>

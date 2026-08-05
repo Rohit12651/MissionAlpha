@@ -133,3 +133,58 @@ test("git is unavailable → create throws a clear error (caller falls back)", (
   mkdirSync(join(root, "not-a-repo"), { recursive: true });
   assert.throws(() => wt.create("task_nogit"), /worktree|git/i);
 });
+
+// ── P5 — release(): the branch must outlive its worktree ─────────────────────
+test("release() drops the worktree dir but KEEPS the branch (P5 approve→commit)", () => {
+  const wt = mk();
+  const r = wt.create("task_rel");
+  writeFileSync(join(r.path, "src", "App.tsx"), "released\n");
+  git(["add", "-A"], r.path);
+  git(["-c", "user.email=t@t.t", "-c", "user.name=t", "commit", "-q", "-m", "wip"], r.path);
+  const sha = git(["rev-parse", r.branch]);
+  wt.release("task_rel");
+  assert.ok(!existsSync(r.path), "worktree dir gone");
+  assert.equal(git(["rev-parse", r.branch]), sha, "branch survives with its commit");
+  assert.equal(wt.pathFor("task_rel"), null);
+});
+
+test("release() of an unknown key is a safe no-op", () => {
+  const wt = mk();
+  assert.doesNotThrow(() => wt.release("never-existed"));
+});
+
+// ── sr-security P5 re-review #6 — create() must not `branch -D` landed work ───
+const commitInWt = (path, text) => {
+  writeFileSync(join(path, "src", "App.tsx"), text);
+  git(["add", "-A"], path);
+  git(["-c", "user.email=t@t.t", "-c", "user.name=t", "commit", "-q", "-m", "landed"], path);
+};
+
+test("#6 create() REFUSES to delete a stale branch whose tip is not in the base", () => {
+  const wt = mk();
+  const r = wt.create("task_div");
+  commitInWt(r.path, "approved work\n");
+  const sha = git(["rev-parse", r.branch]);
+  wt.release("task_div"); // P5 landing: dir dropped, ref kept — the ONLY copy of the commit
+  assert.throws(() => wt.create("task_div"), /refusing to delete|not in the base/i);
+  assert.equal(git(["rev-parse", r.branch]), sha, "the approved commit survives key reuse");
+});
+
+test("#6 create() still recycles a genuinely stale branch (tip == base, no work on it)", () => {
+  const wt = mk();
+  wt.create("task_stale");
+  wt.release("task_stale"); // branch left at the base SHA, carrying nothing
+  assert.doesNotThrow(() => wt.create("task_stale"));
+  assert.ok(existsSync(wt.pathFor("task_stale")));
+});
+
+test("pruneOrphans() clears stale worktree metadata without touching live ones", () => {
+  const wt = mk();
+  const live = wt.create("task_live");
+  const dead = wt.create("task_dead");
+  rmSync(dead.path, { recursive: true, force: true }); // simulate a crash-orphaned dir
+  wt.pruneOrphans();
+  const list = git(["worktree", "list", "--porcelain"]);
+  assert.ok(list.includes(live.path), "live worktree still registered");
+  assert.ok(!list.includes(dead.path), "orphan metadata pruned");
+});

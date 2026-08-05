@@ -86,7 +86,7 @@ export function RightPanel({
         <ChatPane
           threadId={bossId}
           title="Boss command"
-          subtitle="you (BOSS) → CEO · supreme over swarm"
+          subtitle="you (BOSS) → tech lead · runs the story pipeline"
           accent="ceo-gold"
           isBoss
           messages={messages}

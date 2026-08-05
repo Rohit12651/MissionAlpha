@@ -5,9 +5,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { History, ChevronDown, Search } from "lucide-react";
+import { History, ChevronDown, Search, Download } from "lucide-react";
 import type { AuditEntry, Heartbeat } from "../../data/types";
-import { getRuntimeAudit } from "../../lib/factoryClient";
+import { getRuntimeAudit, exportAudit } from "../../lib/factoryClient";
 import {
   normalizeFactory,
   normalizeOperator,
@@ -60,7 +60,23 @@ export function AuditTrailPanel({
   const [agent, setAgent] = useState<string>("all");
   const [rangeMs, setRangeMs] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // P8 (ADR-055) — audit export bundle: date range + format.
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exportFormat, setExportFormat] = useState<"json" | "csv">("csv");
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
   const mounted = useRef(true);
+
+  const doExport = useCallback(async () => {
+    setExporting(true);
+    setExportErr(null);
+    const r = await exportAudit({ from: exportFrom || undefined, to: exportTo || undefined, format: exportFormat });
+    if (mounted.current) {
+      setExporting(false);
+      if (!r.ok) setExportErr(r.error || "export failed");
+    }
+  }, [exportFrom, exportTo, exportFormat]);
 
   const poll = useCallback(async () => {
     try {
@@ -137,6 +153,32 @@ export function AuditTrailPanel({
                   autoComplete="off"
                   spellCheck={false}
                 />
+              </div>
+
+              {/* P8 — export bar: date range + format → scrubbed JSON/CSV bundle */}
+              <div className="mb-2.5 flex flex-wrap items-center gap-2 rounded-md border border-border bg-panel-2/40 px-2.5 py-1.5">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-muted">Export</span>
+                <label className="flex items-center gap-1 text-[10px] text-muted">
+                  from
+                  <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} aria-label="Export from date"
+                    className="rounded border border-border bg-panel/60 px-1.5 py-0.5 font-mono text-[10px] text-text outline-none focus-visible:ring-2" />
+                </label>
+                <label className="flex items-center gap-1 text-[10px] text-muted">
+                  to
+                  <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} aria-label="Export to date"
+                    className="rounded border border-border bg-panel/60 px-1.5 py-0.5 font-mono text-[10px] text-text outline-none focus-visible:ring-2" />
+                </label>
+                <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as "json" | "csv")} aria-label="Export format"
+                  className="rounded border border-border bg-panel/60 px-2 py-0.5 font-mono text-[10px] text-text outline-none focus-visible:ring-2">
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </select>
+                <button type="button" onClick={() => void doExport()} disabled={exporting}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] outline-none transition-colors focus-visible:ring-2 disabled:opacity-50"
+                  style={{ color: tok("accent-cyan"), backgroundColor: `color-mix(in oklch, ${tok("accent-cyan")} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("accent-cyan")} 30%, transparent)` }}>
+                  <Download size={12} aria-hidden /> {exporting ? "exporting…" : "Export"}
+                </button>
+                {exportErr && <span role="alert" className="w-full font-mono text-[10px]" style={{ color: tok("stale-red") }}>{exportErr}</span>}
               </div>
 
               {/* facets */}

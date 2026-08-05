@@ -7,10 +7,11 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync, readFileSync, chmodSync, readdirSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, chmodSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { makeThrowawayRepo, isolatedRuntimeEnv } from "./fixtures/throwaway-repo.mjs";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dir, "..", "server.mjs");
@@ -51,7 +52,11 @@ before(async () => {
       CLAUDE_BIN: FAKE, FAKE_CLAUDE_OUT: fakeOut,
       RUNTIME_MCP_DIR: mcpDir, RUNTIME_TOKEN_DIR: join(root, "tok"),
       RUNTIME_THREADS_DIR: join(root, "threads"), RUNTIME_ENGINE_STORE: join(root, "eng"),
+      RUNTIME_DB_PATH: join(root, "db", "mission.db"), // P2: keep the real agent-runtime/data/ clean
       RUNTIME_WORKTREE_ROOT: join(root, "wt"), ANTHROPIC_API_KEY: "",
+      // Throwaway target: with no RUNTIME_REPO_ROOT the server defaults REPO_ROOT to
+      // the LIVE MissionAlpha checkout and any worktree it creates registers there.
+      ...isolatedRuntimeEnv(root, makeThrowawayRepo(root)),
       BROKER_KEY: "test-broker-key-32-bytes-long-xx",
       FAKE_CLAUDE_ECHO: "1", // echo injected cred values so we can assert SSE scrubbing
       RUNTIME_SEED_DEFAULTS: "0", // deterministic connector list (no pre-seeded Playwright)

@@ -3,9 +3,9 @@
 // ESM modules (runtime-supervisor.js, preflight.js) are imported via dynamic await import().
 "use strict";
 
-const { app, BrowserWindow, ipcMain, session, screen, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, session, screen, dialog, Notification, shell } = require("electron");
 const { join } = require("node:path");
-const { readFileSync, existsSync, mkdirSync, writeFileSync } = require("node:fs");
+const { readFileSync, mkdirSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { spawn } = require("node:child_process");
 const { promisify } = require("node:util");
@@ -21,9 +21,13 @@ const TOKEN_FILE = join(RUNTIME_TOKEN_DIR, ".runtime-token");
 const isDev = !app.isPackaged;
 
 // Server path: dev → repo sibling; packaged → extraResources bundle.
-const SERVER_PATH = isDev
-  ? join(__dirname, "..", "agent-runtime", "server.mjs")
-  : join(process.resourcesPath, "agent-runtime", "server.mjs");
+const RUNTIME_DIR = isDev
+  ? join(__dirname, "..", "agent-runtime")
+  : join(process.resourcesPath, "agent-runtime");
+const SERVER_PATH = join(RUNTIME_DIR, "server.mjs");
+// The runtime's OWN workspace validator — main must not grow a second, weaker one.
+const WORKSPACE_PATH = join(RUNTIME_DIR, "workspace.mjs");
+const { validateRepoRoot } = require("./repo-root-guard.cjs");
 
 // Wrap node:child_process exec in a promise that resolves to { code: 0 } on
 // success and rejects (throws) on non-zero exit — matches preflight contract.
@@ -115,6 +119,44 @@ ipcMain.handle("ma:get-runtime-token", () => {
 });
 
 // ---------------------------------------------------------------------------
+// IPC: Delivery notification + dock badge (P3)
+//
+// Renderer-supplied strings are DATA. They are coerced, control-char stripped and
+// length-capped here, then handed to the OS notification API only — never to a
+// shell, a path, a URL or a require(). The dock badge is a short numeric string.
+// Dedupe is renderer-side (deliveryNotify.shouldNotify), and re-checked here with
+// a bounded set so a second window or a reload cannot double-notify one Delivery.
+// ---------------------------------------------------------------------------
+const NOTIFIED = new Set();
+const NOTIFIED_CAP = 500;
+// eslint-disable-next-line no-control-regex
+const CTRL_RE = /[\u0000-\u001f\u007f]/g;
+const clean = (v, cap) => String(v ?? "").replace(CTRL_RE, " ").trim().slice(0, cap);
+
+ipcMain.on("ma:notify-delivery", (_event, payload) => {
+  try {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const id = clean(p.id, 64);
+    if (!id || NOTIFIED.has(id)) return;
+    NOTIFIED.add(id);
+    if (NOTIFIED.size > NOTIFIED_CAP) NOTIFIED.delete(NOTIFIED.values().next().value);
+
+    const pending = Math.max(0, Math.min(9999, Math.floor(Number(p.pending) || 0)));
+    if (Notification.isSupported()) {
+      new Notification({
+        title: clean(p.title, 120) || "New delivery",
+        body: clean(p.body, 200) || "Awaiting your decision",
+        silent: false,
+      }).show();
+    }
+    // macOS only; a no-op elsewhere (app.dock is undefined on Windows/Linux).
+    app.dock?.setBadge?.(pending > 0 ? String(pending) : "");
+  } catch {
+    /* a notification must never be able to take the main process down */
+  }
+});
+
+// ---------------------------------------------------------------------------
 // IPC: project folder picker + RUNTIME_REPO_ROOT hot-swap
 // ---------------------------------------------------------------------------
 ipcMain.handle("ma:pick-folder", async () => {
@@ -129,16 +171,36 @@ ipcMain.handle("ma:pick-folder", async () => {
 
 ipcMain.handle("ma:get-repo-root", () => repoRoot);
 
-ipcMain.handle("ma:set-repo-root", async (_event, folderPath) => {
-  if (!folderPath || !existsSync(folderPath)) {
-    return { ok: false, error: "Path does not exist" };
+// P5 — open a PR URL in the user's real browser. The renderer cannot navigate or
+// window.open out of the app (both are denied in web-contents-created below), so
+// this is the ONLY external exit — and it is allowlisted HERE, in main, where the
+// renderer cannot influence the check. https + github.com only.
+ipcMain.handle("ma:open-external", async (_event, rawUrl) => {
+  try {
+    const u = new URL(String(rawUrl));
+    if (u.protocol !== "https:") return { ok: false, error: "https only" };
+    if (!/^(.+\.)?github\.com$/.test(u.hostname)) return { ok: false, error: "github.com only" };
+    await shell.openExternal(u.toString());
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
-  repoRoot = folderPath;
-  // Persist for next launch.
+});
+
+// sr-security P5 re-review #3 — VALIDATE before pinning. The value set here becomes
+// RUNTIME_REPO_ROOT, which outranks the validated persisted config, so an unchecked
+// path (setRepoRoot("/"), setRepoRoot($HOME)) is a whole-disk grant to every agent.
+// The renderer's string is DATA: only the repoPath that the runtime's own
+// validateWorkspace RETURNS is ever stored or exported.
+ipcMain.handle("ma:set-repo-root", async (_event, folderPath) => {
+  const v = await validateRepoRoot(folderPath, WORKSPACE_PATH);
+  if (!v.ok) return { ok: false, error: v.error };
+  repoRoot = v.repoPath;
+  // Persist for next launch — the VALIDATED realpath, never the raw input.
   try {
     if (repoRootFile) {
       mkdirSync(join(app.getPath("userData"), "missionalpha"), { recursive: true });
-      writeFileSync(repoRootFile, folderPath, "utf8");
+      writeFileSync(repoRootFile, repoRoot, "utf8");
     }
   } catch { /* non-fatal */ }
   // Restart runtime with new RUNTIME_REPO_ROOT.
@@ -188,9 +250,18 @@ async function boot() {
 
   // Initialise persistent repo-root path now that userData is available.
   repoRootFile = join(app.getPath("userData"), "missionalpha", "repo-root.txt");
-  // Load persisted folder (env override already wins via module-level init).
+  // Load persisted folder (env override already wins via module-level init). The
+  // file on disk is re-validated, not trusted: it is the same env pin with the same
+  // highest precedence, so a tampered repo-root.txt is a setRepoRoot("/") by another
+  // route. Rejected ⇒ null ⇒ the runtime falls back to its own default root.
   if (!repoRoot) {
-    try { repoRoot = readFileSync(repoRootFile, "utf8").trim() || null; } catch { /* not set */ }
+    let persisted = null;
+    try { persisted = readFileSync(repoRootFile, "utf8").trim() || null; } catch { /* not set */ }
+    if (persisted) {
+      const v = await validateRepoRoot(persisted, WORKSPACE_PATH);
+      repoRoot = v.ok ? v.repoPath : null;
+      if (!v.ok) console.warn(`[main] persisted repo root rejected (${v.error}) — using the runtime default`);
+    }
   }
 
   // Run host dependency preflight (claude / docker / auth).
@@ -237,6 +308,11 @@ async function boot() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Tell the (sandboxed) preload whether this is a dev run. In dev the renderer is
+      // served by vite on localhost:3004 and must reach the runtime through vite's
+      // same-origin /runtime + /api proxy (relative URLs) — fetching 127.0.0.1:3005
+      // directly is cross-origin and CORS-blocked. Packaged stays on the direct base.
+      additionalArguments: [isDev ? "--ma-dev" : "--ma-packaged"],
     },
   });
 
@@ -244,17 +320,28 @@ async function boot() {
   // CSP — defense-in-depth header injection (index.html also sets a meta CSP).
   // Applied to defaultSession so it covers all requests for the window.
   // ---------------------------------------------------------------------------
+  // Header CSP INTERSECTS with the index.html meta CSP (most-restrictive wins). In dev,
+  // vite serves an inline react-refresh preamble + a websocket HMR client, so the dev
+  // header must permit them too — else the renderer goes blank even though the meta CSP
+  // (relaxed by the devCspRelax vite plugin) allows it. Packaged stays strict: no inline.
+  const CSP_PROD =
+    "default-src 'self';" +
+    " connect-src 'self' http://127.0.0.1:3005;" +
+    " img-src 'self' data:;" +
+    " style-src 'self' 'unsafe-inline';" +
+    " font-src 'self' data:;";
+  const CSP_DEV =
+    "default-src 'self';" +
+    " script-src 'self' 'unsafe-inline';" + // vite react-refresh preamble is inline
+    " connect-src 'self' ws://localhost:3004 http://localhost:3004 http://127.0.0.1:3005;" +
+    " img-src 'self' data:;" +
+    " style-src 'self' 'unsafe-inline';" +
+    " font-src 'self' data:;";
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        "Content-Security-Policy": [
-          "default-src 'self';" +
-            " connect-src 'self' http://127.0.0.1:3005;" +
-            " img-src 'self' data:;" +
-            " style-src 'self' 'unsafe-inline';" +
-            " font-src 'self' data:;",
-        ],
+        "Content-Security-Policy": [isDev ? CSP_DEV : CSP_PROD],
       },
     });
   });
