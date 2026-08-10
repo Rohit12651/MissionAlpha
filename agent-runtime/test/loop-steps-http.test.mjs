@@ -66,6 +66,14 @@ before(async () => {
     stdio: "ignore",
   });
   await waitHealth();
+  // Multi-account contract: the engine only runs when an active account is swarm-capable
+  // (Claude). A fresh store now has ZERO accounts, so we add a Claude subscription account
+  // (no secret, no probe) which auto-activates → capability:swarm → the cli engine runs.
+  const acct = await fetch(`${BASE}/runtime/accounts`, {
+    method: "POST", headers: auth(),
+    body: JSON.stringify({ providerType: "claude", label: "engine", authMethod: "subscription" }),
+  });
+  assert.equal(acct.status, 200, "seed a swarm-capable Claude account before the engine turn");
 });
 after(async () => {
   await new Promise((r) => { if (!child) return r(); child.once("exit", r); try { child.kill("SIGKILL"); } catch { r(); } });

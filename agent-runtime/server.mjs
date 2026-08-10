@@ -161,6 +161,17 @@ import { createUsers, createSessions } from "./users.mjs";
 import { validateWorkspace, writeWorkspace, readWorkspace, defaultConfigDir, isInside, samePath } from "./workspace.mjs";
 import { createPr } from "./pr.mjs";
 import { createAdapters } from "./adapters/index.mjs";
+// Multi-Provider Credentials (Phase 1) — provider registry, encrypted credential
+// store (lives under TOKEN_DIR, OUTSIDE the repo), the pure child-env builder, and
+// the /runtime/providers HTTP handlers.
+import { createStore as createCredStore } from "./providers/credentials.mjs";
+import { ensureKey as ensureCredKey } from "./providers/crypto.mjs";
+import { buildChildEnv } from "./providers/child-env.mjs";
+import { createProviderRoutes } from "./providers/routes.mjs";
+import { assertSafeHttpUrl } from "./providers/url-guard.mjs";
+// OpenAI-compatible chat adapter — routes chat to a non-Claude active account (the
+// engine still runs only on Claude). pickChatBackend picks adapter vs the CLI path.
+import { streamChat as openaiCompatStream, pickChatBackend } from "./providers/adapters/openai-compat.mjs";
 // ADR-049 multimodal chat attachments — file intake for /chat (images/pdf/csv/txt).
 import Busboy from "busboy";
 import { createWriteStream } from "node:fs";
@@ -245,6 +256,51 @@ try {
   // Its default lives under TOKEN_DIR (asserted above); assert the override too.
   if (process.env.RUNTIME_CONFIG_DIR) outside(process.env.RUNTIME_CONFIG_DIR, "RUNTIME_CONFIG_DIR");
 }
+// Multi-Provider Credentials — the encrypted credential store lives under TOKEN_DIR
+// (asserted OUTSIDE REPO_ROOT above, so a read-mode agent's cwd=REPO_ROOT can never
+// reach cred.key / credentials.enc). ensureKey mints the 0600 machine key once.
+ensureCredKey(TOKEN_DIR);
+const credStore = createCredStore(TOKEN_DIR);
+// The connect probe verifies an api_key with a real 1-token Anthropic request before
+// the store persists it. RUNTIME_PROVIDER_PROBE=stub (tests / dev flag) swaps in an
+// offline stub that accepts any non-empty secret so the wire flow is provable without
+// a live key or credits. Prod (default) does the real messages.create max_tokens:1.
+// The stub (tests / dev flag) accepts any non-empty secret and rejects any beginning
+// "bad-" so probe-gating is provable offline. Prod probes per provider type: claude via
+// a 1-token @anthropic-ai/sdk messages.create; openai via GET /v1/models. Only probe-
+// capable types (claude/openai) ever reach probeFn (routes.mjs gates on preset).
+const PROBE_TIMEOUT_MS = 10_000;
+const providerProbe = process.env.RUNTIME_PROVIDER_PROBE === "stub"
+  ? async (secret) => ({ ok: typeof secret === "string" && secret.length > 0 && !secret.startsWith("bad-") })
+  : async (secret, { providerType, baseUrl } = {}) => {
+      if (providerType === "openai") {
+        // A GET /models is the cheapest authenticated call. Any 2xx proves the key.
+        // A user-supplied baseUrl is SSRF-vetted first; a resolved private/loopback/
+        // metadata target throws here → probe fails → connect 400, nothing persisted.
+        let root = "https://api.openai.com/v1";
+        if (typeof baseUrl === "string" && baseUrl) {
+          await assertSafeHttpUrl(baseUrl);
+          root = baseUrl.replace(/\/+$/, "");
+        }
+        const res = await fetch(`${root}/models`, {
+          headers: { Authorization: `Bearer ${secret}` },
+          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+          redirect: "manual", // never follow a 3xx to a possibly-internal Location
+        });
+        if (res.status >= 300 && res.status < 400) throw new Error(`openai probe redirect ${res.status}`);
+        if (!res.ok) throw new Error(`openai probe ${res.status}`);
+        return { ok: true };
+      }
+      // Default (claude): a minimal messages.create — any 200 proves the key authenticates.
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const client = new Anthropic({ apiKey: secret });
+      await client.messages.create(
+        { model: MODEL, max_tokens: 1, messages: [{ role: "user", content: "ping" }] },
+        { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
+      );
+      return { ok: true };
+    };
+const providerRoutes = createProviderRoutes(credStore, providerProbe);
 // Constant-time token compare.
 function tokenOk(req) {
   const got = req.headers["x-runtime-token"];
@@ -853,13 +909,16 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // Granted to the boss/tech-lead thread ONLY — webToolArgs() returns [] for every other id.
   args.push(...webToolArgs(agentId));
 
-  // Minimal child env — strip secret-shaped vars so a tool/log can't leak them
-  // (claude CLI uses subscription auth via ~/.claude, not env keys).
-  const childEnv = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
-    childEnv[k] = v;
-  }
+  // Minimal child env — strip secret-shaped vars so a tool/log can't leak them.
+  // Multi-Provider Credentials: chat honors the active auth mode too — the pure
+  // buildChildEnv re-injects ANTHROPIC_API_KEY only for an active Claude api_key
+  // credential; subscription/other modes leave it absent (CLI uses ~/.claude).
+  const _chatActiveType = credStore.getActive()?.providerType ?? null;
+  // Fail-closed: a decrypt/read fault in getActiveSecret must degrade to "no usable
+  // secret" (chat proceeds on subscription/none) rather than throwing out of the spawn.
+  let _chatSecret = null;
+  try { _chatSecret = credStore.getActiveSecret(); } catch { _chatSecret = null; }
+  const childEnv = buildChildEnv(process.env, { activeSecret: _chatSecret, activeProviderType: _chatActiveType });
   // headroom output shaper: `headroom wrap claude <...args>` compresses output tokens.
   const spawnArgs = _HEADROOM_WRAP ? ["wrap", "claude", ...args] : args;
   const child = spawn(CLAUDE_BIN, spawnArgs, {
@@ -937,6 +996,55 @@ function sanitizeReply(s) {
     .trim();
 }
 
+// OpenAI-compatible adapter reply — stream a chat_only active account's response over
+// the SAME SSE shape as the CLI path (meta → token* → usage → done). Fail-closed and
+// friendly: a missing model id or an unreadable key ends the turn with a clear message
+// rather than an error. `save` is handleChat's persist+usage closure (emits usage).
+async function adapterReply(agentId, message, sysPrompt, acct, stream, save) {
+  const model = acct.model;
+  stream.meta({ mode: "api", model: model || null, providerType: acct.providerType, agentId });
+  if (!model) {
+    stream.token("This account has no model set — edit the account and add a model id (e.g. nvidia/…:free).");
+    stream.done();
+    return;
+  }
+  // Fail-closed: a decrypt/read fault must degrade to "no usable key", never throw out.
+  let apiKey = null;
+  try { apiKey = credStore.getActiveSecret(); } catch { apiKey = null; }
+  if (!apiKey) {
+    stream.token("This account has no usable API key — re-add the key on the account and try again.");
+    stream.done();
+    return;
+  }
+
+  const messages = [
+    { role: "system", content: sysPrompt },
+    { role: "user", content: message },
+  ];
+  // STOP — honor /stop by aborting the in-flight fetch (adapter analog of the CLI kill).
+  const ac = new AbortController();
+  chatKillMap.set(agentId, () => { try { ac.abort(); } catch { /* */ } });
+
+  let acc = "";
+  try {
+    const gen = openaiCompatStream({ baseUrl: acct.baseUrl, apiKey, model, messages, signal: ac.signal });
+    for (;;) {
+      const { value, done } = await gen.next();
+      if (done) break;
+      acc += value;
+      stream.token(value);
+    }
+    save(acc || "(no output)"); // token/context estimate — never provider $ (usage event)
+    stream.done();
+  } catch (e) {
+    // streamChat guarantees the api key is never in the message; surface it plainly.
+    if (acc) save(acc);
+    stream.error(e?.message || String(e));
+  } finally {
+    chatKillMap.delete(agentId);
+  }
+}
+
 async function handleChat(agentId, message, res, tier, modelId, attachments = [], attachDir = null) {
   const stream = sse(res);
   const hist = threads.get(agentId) || [];
@@ -976,6 +1084,16 @@ async function handleChat(agentId, message, res, tier, modelId, attachments = []
       `\n\nMCP CONNECTORS GRANTED: ${mcpNames.join(", ")}. You DO have tool access via these MCP servers ` +
       `(their tools are named mcp__<server>__*). Disregard any earlier "chat-only / no tool access" framing — ` +
       `USE these MCP tools to read/fetch/act as the task requires, then report the real results.`;
+  }
+
+  // Multi-Provider chat routing — if the ACTIVE account is a chat-capable, OpenAI-
+  // compatible account (custom/openai/minimax/zai with a stored key + baseUrl), stream
+  // its reply via the adapter instead of spawning the Claude CLI. Claude/subscription/
+  // none accounts fall through to the UNCHANGED CLI path below.
+  const _chatAcct = credStore.getActive();
+  if (pickChatBackend(_chatAcct) === "adapter") {
+    await adapterReply(agentId, message, sysPrompt, _chatAcct, stream, save);
+    return;
   }
 
   // CLI backend — Claude Code subscription, no key/credits.
@@ -1202,7 +1320,22 @@ async function engineDispatch(ctx) {
   // PLAIN-SAFE diff. Everything after (listChanges → jailed test gate → policy → apply) is
   // unchanged. Default OFF ⇒ this branch is never taken.
   if (deterministicSpawner) return deterministicSpawner.dispatch(ctx);
-  if (BACKEND !== "cli") return { error: "engine write-loop requires the cli backend (claude subscription)" };
+  // Multi-Provider Credentials — the write-loop still spawns the `claude` CLI, but
+  // eligibility is now decided by the ACTIVE provider's capability, not the backend:
+  // an api_key Claude credential (BACKEND may be "api") runs the full swarm too. A
+  // chat-only provider (minimax/zai) cleanly refuses with a structured CHAT_ONLY code.
+  const activeAccount = credStore.getActive();
+  if (!activeAccount || activeAccount.capability !== "swarm") {
+    const who = activeAccount ? `active account '${activeAccount.label}' (${activeAccount.providerType})` : "no active account";
+    return { error: `${who} cannot run the autonomous engine — switch to a Claude account (capability:swarm)`, code: "CHAT_ONLY" };
+  }
+  const activeProviderType = activeAccount.providerType;
+  // The write-loop spawns the `claude` CLI. Both real Claude backends can drive it:
+  // "cli" (subscription via ~/.claude) and "api" (api_key mode injects ANTHROPIC_API_KEY
+  // into the child). "mock" has no model — it never spawns (preserves pre-feature behavior).
+  if (BACKEND !== "cli" && BACKEND !== "api") {
+    return { error: "engine write-loop requires a real Claude backend (cli subscription or api key)" };
+  }
   const { modelId } = resolveTier(ctx.tier);
   // F5 — non-git target: ctx.workdir is null (worktreeMgr was null → engine skipped create).
   // Fall back to the copy-sandbox path (same as the manual /run path). The apply broker
@@ -1226,11 +1359,9 @@ async function engineDispatch(ctx) {
     // pins acceptEdits and NEVER reads runtimePermMode — a UI flip to bypassPermissions
     // must not silently turn the unattended engine loose with no prompts.
     args.push("--add-dir", workdir, "--permission-mode", "acceptEdits");
-    const childEnv = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
-      childEnv[k] = v;
-    }
+    // Multi-Provider Credentials — strip secret-shaped vars, then re-inject
+    // ANTHROPIC_API_KEY ONLY when the active Claude credential is api_key mode.
+    const childEnv = buildChildEnv(process.env, { activeSecret: credStore.getActiveSecret(), activeProviderType });
     let child;
     try {
       child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: workdir, env: childEnv });
@@ -1460,6 +1591,12 @@ const currentSession = (req) => { const c = parseCookies(req)[SESSION_COOKIE]; r
 function routeNeedsApprover(method, pathname) {
   if (method === "POST" && /^\/inbox\/[^/]+\/(approve|reject|request-changes|assign)$/.test(pathname)) return true;
   if (method === "POST" && ["/runtime/policy", "/runtime/adapters", "/runtime/workspace", "/runtime/config"].includes(pathname)) return true;
+  // Multi-Provider Credentials — connecting/replacing/disconnecting a credential and
+  // switching the active provider are mutations → approver-only when auth is active.
+  if (method === "POST" && pathname === "/runtime/accounts") return true;
+  if (method === "POST" && pathname === "/runtime/accounts/active") return true;
+  if (method === "POST" && /^\/runtime\/accounts\/[^/]{1,64}\/secret$/.test(pathname)) return true;
+  if (method === "DELETE" && /^\/runtime\/accounts\/[^/]{1,64}$/.test(pathname)) return true;
   // sr-security P9 HIGH: the raw engine MUTATION routes are the mechanical half of
   // approve→apply and of launching/killing agents — a viewer must NOT reach them by
   // direct request (it would write the live repo / run agents, bypassing the decide
@@ -2543,6 +2680,14 @@ const handle = async (req, res) => {
     url.pathname === "/runtime/workspace" ||
     url.pathname === "/runtime/policy" ||
     url.pathname === "/runtime/adapters" ||
+    // Multi-Provider Credentials — the providers surface joins the SAME gate as
+    // /apply and /inbox (token + origin + loopback Host); no new auth mechanism.
+    // GET is viewer-readable; the mutating POSTs are additionally approver-gated in
+    // routeNeedsApprover. It handles API keys, so it is never looser than /inbox.
+    url.pathname === "/runtime/providers" ||
+    url.pathname.startsWith("/runtime/providers/") ||
+    url.pathname === "/runtime/accounts" ||
+    url.pathname.startsWith("/runtime/accounts/") ||
     url.pathname === "/runtime/quota" ||
     url.pathname === "/runtime/audit/export" ||
     // B7 (outputs): the artifact registry read joins the SAME gate as /audit/export — no new
@@ -2608,6 +2753,28 @@ const handle = async (req, res) => {
       res.end(JSON.stringify({ error: "forbidden — approver role required" }));
       return;
     }
+  }
+
+  // ── Multi-Provider Credentials — /runtime/providers/* ─────────────────────
+  // Gated by the needsAuth block above (token + origin + loopback Host) — identical
+  // trust level to /inbox, because a connected api_key drives the swarm. GET lists the
+  // registry + account metadata; the POSTs mutate the encrypted store (approver-gated
+  // above when auth is active). No secret is ever echoed in a response.
+  if (url.pathname === "/runtime/providers" || url.pathname.startsWith("/runtime/providers/") ||
+      url.pathname === "/runtime/accounts" || url.pathname.startsWith("/runtime/accounts/")) {
+    if (req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
+      res.writeHead(405, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "method not allowed" }));
+      return;
+    }
+    const body = req.method === "POST" ? await readJsonBody(req) : null;
+    let result;
+    try {
+      result = await providerRoutes.dispatch({ method: req.method, pathname: url.pathname, body });
+    } catch (e) {
+      return ok2(res, { error: scrub(String(e?.message || e)) }, 400);
+    }
+    return ok2(res, result.json, result.status);
   }
 
   // ── P2 INBOX + TICKET MINT (ADR-051 §5, ADR-052 §6) ───────────────────────
@@ -3917,7 +4084,9 @@ const handle = async (req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     // P2 (ADR-051 §8): `deliveries` + `events` are ADDITIVE siblings — the existing
     // `engine` block (and its queue counters) is untouched.
-    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none", tiers: TIER_KEYS, defaultTier: DEFAULT_TIER, engine: { inflight, maxInflight: MAX_INFLIGHT, queue: engineQueue.counts() }, deliveries: deliveries.counts(), events: { clients: events.clientCount() }, workspace: { repoPath: REPO_ROOT, isGit: targetIsGit, envPinned: !!process.env.RUNTIME_REPO_ROOT } }));
+    const _active = credStore.getActive();
+    const _activeAccount = _active ? { id: _active.id, label: _active.label, providerType: _active.providerType, capability: _active.capability } : null;
+    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none", tiers: TIER_KEYS, defaultTier: DEFAULT_TIER, activeAccount: _activeAccount, engine: { inflight, maxInflight: MAX_INFLIGHT, queue: engineQueue.counts() }, deliveries: deliveries.counts(), events: { clients: events.clientCount() }, workspace: { isGit: targetIsGit, envPinned: !!process.env.RUNTIME_REPO_ROOT } }));
     return;
   }
   res.writeHead(404, { "Content-Type": "application/json" });

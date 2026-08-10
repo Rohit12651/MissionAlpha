@@ -19,7 +19,8 @@ test("every nav entry is view, action or page — no dead ids", () => {
     // B6 added the pipeline (kanban) + content (content engine) pages, narrowed again
     // by CC-Primitives P6 (engineering-only scope — backend modules stay dormant).
     // S6 widened the union with `stories` (the pipeline board), inserted directly under Inbox.
-    if (e.kind === "page") assert.ok(["center", "stories", "deck", "vault", "brief", "workflows", "schedule", "outputs", "roadmap"].includes(e.page), e.page);
+    // Multi-Provider Credentials widened it with `accounts` (bring-your-own-AI), above Settings.
+    if (e.kind === "page") assert.ok(["center", "stories", "deck", "vault", "brief", "workflows", "schedule", "outputs", "accounts", "roadmap"].includes(e.page), e.page);
   }
 });
 
@@ -103,7 +104,7 @@ test("B3: brief entry exists as a page kind pointing at the brief page", () => {
 
 test("B3+B4+B5+B6(cut by P6)+B7: every page entry still names a page that exists", () => {
   const pages = BOS_NAV.filter((e) => e.kind === "page").map((e) => (e.kind === "page" ? e.page : null));
-  assert.deepEqual(pages.sort(), ["brief", "center", "deck", "outputs", "roadmap", "schedule", "stories", "vault", "workflows"]);
+  assert.deepEqual(pages.sort(), ["accounts", "brief", "center", "deck", "outputs", "roadmap", "schedule", "stories", "vault", "workflows"]);
 });
 
 // ── B5 — the Command Center joins the closed page union at the TOP ────────────
@@ -206,4 +207,17 @@ test("B7: outputs + roadmap entries exist as page kinds pointing at their pages"
   const ids = BOS_NAV.map((e) => e.id);
   assert.equal(ids[ids.indexOf("schedule") + 1], "outputs");
   assert.equal(ids[ids.length - 1], "roadmap");
+});
+
+// ── Multi-Provider Credentials — Accounts joins the closed page union ─────────
+test("accounts entry exists as a page kind pointing at the accounts page, above Settings", () => {
+  const acc = resolveNav("accounts");
+  assert.ok(acc, "accounts entry must exist");
+  assert.equal(acc.kind, "page");
+  assert.equal(acc.kind === "page" ? acc.page : null, "accounts");
+  assert.equal(acc.label, "Accounts");
+  assert.equal(acc.icon, "accounts");
+  // Accounts sits directly above Settings, closing the actions cluster.
+  const ids = BOS_NAV.map((e) => e.id);
+  assert.equal(ids[ids.indexOf("accounts") + 1], "settings");
 });

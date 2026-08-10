@@ -636,7 +636,9 @@ test("P5 /runtime/workspace rejects an unsupported method without 500-ing", asyn
 
 test("P5 /runtime/health exposes the active workspace", async () => {
   const j = await (await fetch(`${BASE}/runtime/health`, { headers: H() })).json();
-  assert.equal(j.workspace.repoPath, repo);
+  // Security fix: the unauthenticated health body must NOT leak the absolute repo fs
+  // path — only non-sensitive workspace flags remain.
+  assert.equal(j.workspace.repoPath, undefined, "absolute repo path must not leak in unauthenticated health");
   assert.equal(j.workspace.envPinned, true);
 });
 

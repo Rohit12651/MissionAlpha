@@ -114,6 +114,11 @@ const SchedulePage = lazy(() =>
 const OutputsPage = lazy(() =>
   import("./components/bos/OutputsPage").then((m) => ({ default: m.OutputsPage })),
 );
+// Multi-Provider Credentials — the Accounts page is its OWN chunk: the add-account
+// form, the Framer-Motion list and the accounts client stay out of the main index.
+const AccountsPage = lazy(() =>
+  import("./components/bos/AccountsPage").then((m) => ({ default: m.AccountsPage })),
+);
 const RoadmapPage = lazy(() =>
   import("./components/bos/RoadmapPage").then((m) => ({ default: m.RoadmapPage })),
 );
@@ -683,7 +688,7 @@ function AppInner() {
       />
 
       {/* preflight gate — blocking setup screen / docker banner / cockpit */}
-      <PreflightGate preflight={preflight}>
+      <PreflightGate preflight={preflight} onOpenAccounts={() => setBosPage("accounts")}>
       {/* B0 — sidebar + shell body. The rail is a <nav>, never a <main>, so exactly
           one <main id="ma-main"> still renders per view and the skip link keeps its
           single target. It also sits AFTER the skip link in DOM order. */}
@@ -823,6 +828,18 @@ function AppInner() {
         >
           <main id="ma-main" aria-label="Outputs" className="relative z-10 flex min-h-0 flex-1">
             <OutputsPage venture={venture} lastEvent={lastEvent} liveNonce={resyncNonce} />
+          </main>
+        </Suspense>
+      ) : BOS_ENABLED && bosPage === "accounts" ? (
+        <Suspense
+          fallback={
+            <div className="relative z-10 flex flex-1 items-center justify-center text-muted" role="status" aria-live="polite">
+              <span className="font-mono text-sm">opening accounts…</span>
+            </div>
+          }
+        >
+          <main id="ma-main" aria-label="Accounts" className="relative z-10 flex min-h-0 flex-1">
+            <AccountsPage />
           </main>
         </Suspense>
       ) : BOS_ENABLED && bosPage === "roadmap" ? (

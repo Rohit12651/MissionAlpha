@@ -25,6 +25,7 @@ import {
   PackageOpen,
   GitBranch,
   Map as MapIcon,
+  KeyRound,
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -66,6 +67,9 @@ const ICONS: Record<string, LucideIcon> = {
   chat: MessageSquare,
   replay: History,
   factory: Factory,
+  // Multi-Provider Credentials — Accounts. KeyRound reads as a credential/identity
+  // glyph, distinct from the settings gear; the one new icon this feature adds.
+  accounts: KeyRound,
   settings: SettingsIcon,
 };
 

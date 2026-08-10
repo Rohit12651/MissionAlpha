@@ -19,7 +19,7 @@ import type { ShellView } from "../ViewToggle";
  *  S0 (story pipeline) DELETED both, along with their stores, routes and client libs.
  *  Only the `lead.moved` / `content.changed` SSE names survive, RESERVED in the closed
  *  event catalog — nothing emits them. */
-export type BosPage = "center" | "stories" | "deck" | "vault" | "brief" | "workflows" | "schedule" | "outputs" | "roadmap";
+export type BosPage = "center" | "stories" | "deck" | "vault" | "brief" | "workflows" | "schedule" | "outputs" | "accounts" | "roadmap";
 
 export type BosNavEntry =
   | { id: string; label: string; icon: string; kind: "view"; view: ShellView }
@@ -57,6 +57,10 @@ export const BOS_NAV: readonly BosNavEntry[] = [
   { id: "vault",    label: "Knowledge vault", icon: "vault",  kind: "page",   page: "vault" },
   { id: "sessions", label: "Sessions",      icon: "replay",   kind: "action", action: "sessions" },
   { id: "factory",  label: "Agent Factory", icon: "factory",  kind: "action", action: "factory" },
+  // Multi-Provider Credentials — Accounts is its OWN top-level surface (a page, not a
+  // Settings section): bring-your-own-AI credentials live here. It sits directly above
+  // Settings, closing the actions cluster before the settings modal.
+  { id: "accounts", label: "Accounts",      icon: "accounts", kind: "page",   page: "accounts" },
   { id: "settings", label: "Settings",      icon: "settings", kind: "action", action: "settings" },
   // B7 — Roadmap is a read-only documentation surface (mirrors the program plan), so it
   // takes the LAST slot, after the operational pages and actions.
