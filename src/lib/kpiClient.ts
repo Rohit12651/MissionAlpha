@@ -48,10 +48,28 @@ export interface Kpis {
   /** True in v1: decisions/approvals span every venture (no venture column). */
   crossVenture: boolean;
   pendingDeliveries: number;
+  /** 14.2 — jobs that reached `shipped` in the window. A branch-only ship counts here. */
+  jobsShipped?: number;
+  /** 14.2 — of those, the ones that opened a real PR. Kept SEPARATE from `jobsShipped` on
+   *  purpose: with no `gh` the ship ladder honestly stops at a branch, and reporting that as
+   *  a PR would be the overclaim the ladder itself refuses to make. */
+  prsShipped?: number;
   ventures: VentureKpi[];
 }
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
+/**
+ * PURE. The PR tile's note. Names the branch-only remainder when there is one, so a week whose
+ * work landed without PRs reads as that rather than as a week with no output.
+ */
+export function prNote(kpis: Kpis | null, error: boolean): string {
+  if (error || !kpis) return "all ventures";
+  const shipped = kpis.jobsShipped ?? 0;
+  const prs = kpis.prsShipped ?? 0;
+  const branchOnly = Math.max(0, shipped - prs);
+  return branchOnly > 0 ? `+${branchOnly} branch-only` : "all ventures";
+}
+
 /**
  * Format a tile value. Renders "—" when the metric is pending (no real source yet) or
  * the value is non-finite / impossible (negative) — a fabricated 0 would read as truth.

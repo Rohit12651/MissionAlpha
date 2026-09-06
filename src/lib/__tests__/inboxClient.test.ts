@@ -16,6 +16,7 @@ import {
   isFailure,
   TYPED_CONFIRM,
   type Delivery,
+  needsTypedConfirm,
 } from "../inboxClient.ts";
 
 const D = (over: Partial<Delivery> = {}): Delivery => ({
@@ -243,4 +244,50 @@ test("P7 adapter status tones + labels", () => {
   assert.equal(adapterStateTone("error"), "red");
   assert.equal(adapterStateTone("disabled"), "muted");
   assert.equal(ADAPTER_STATE_LABEL["gh-not-authed"], "gh not authenticated");
+});
+
+// ── The typed-confirm gate must match the field that renders it ──────────────────
+//
+// Found by driving the live product: a `design-approval` gate is banded HIGH by the risk
+// router, and ReviewPane renders the typed-confirm input only when `isHigh && !failure &&
+// !gate` — but computed `approveBlocked` from the band ALONE. So on a high-band GATE the
+// Approve button sat permanently disabled with a tooltip telling the operator to type
+// APPLY into a field that was not on the page. The story sat at `waiting-you` and the only
+// way through was curl. The render condition is the specification; the disabled state had
+// drifted from it, so the predicate now takes the same inputs.
+//
+// A gate is diff-less by construction (mintGate writes 0 files), which is exactly why its
+// author exempted it: the typed confirmation exists to slow down a high-risk APPLY, and
+// approving a gate applies nothing.
+test("isApproveBlocked: a high-risk DIFF still demands the typed confirmation", () => {
+  assert.equal(isApproveBlocked("high", ""), true);
+  assert.equal(isApproveBlocked("high", "nope"), true, "a wrong word is not a confirmation");
+  assert.equal(isApproveBlocked("high", TYPED_CONFIRM), false);
+  assert.equal(isApproveBlocked("medium", ""), false);
+  assert.equal(isApproveBlocked("low", ""), false);
+});
+
+test("isApproveBlocked: a high-band DESIGN gate is approvable — it writes nothing", () => {
+  assert.equal(isApproveBlocked("high", "", { designGate: true }), false);
+  assert.equal(isApproveBlocked("high", "", { failure: true }), false);
+  // …and the diff case is unchanged by the option object being absent.
+  assert.equal(isApproveBlocked("high", "", {}), true);
+});
+
+test("isApproveBlocked: a RELEASE gate KEEPS the confirmation — approving it deploys", () => {
+  // The dead-end fix must not become a licence to remove friction from the one gate whose
+  // approval has a consequence outside the repo. A release gate is diff-less too, and that
+  // is exactly why reasoning from "carries no diff" alone would have been wrong.
+  assert.equal(isApproveBlocked("high", "", {}), true);
+  assert.equal(isApproveBlocked("high", TYPED_CONFIRM, {}), false);
+});
+
+test("needsTypedConfirm: the field's condition, and it does not vanish once the word is typed", () => {
+  assert.equal(needsTypedConfirm("high", {}), true, "a high-risk diff always shows the field");
+  assert.equal(needsTypedConfirm("high", { designGate: true }), false);
+  assert.equal(needsTypedConfirm("high", { failure: true }), false);
+  assert.equal(needsTypedConfirm("medium", {}), false);
+  // The field stays rendered after the word is typed; only the BUTTON changes state.
+  assert.equal(needsTypedConfirm("high", {}), true);
+  assert.equal(isApproveBlocked("high", TYPED_CONFIRM, {}), false);
 });

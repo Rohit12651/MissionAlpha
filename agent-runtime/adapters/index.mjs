@@ -20,6 +20,10 @@ function defaults() {
   return {
     github: { enabled: false, botAuthors: [], repo: null, pollIntervalMs: DEFAULT_POLL_MS, mergeOnApprove: false },
     claudeCode: { enabled: false, workspaceSlug: "", debounceMs: 800 },
+    // MUNDER-ADOPTION A7 — Slack ingress. Fail-closed: disabled, empty allowlist. The
+    // signing secret NEVER lives in this file — it stays in the environment
+    // (SLACK_SIGNING_SECRET), same posture as every other credential.
+    slack: { enabled: false, channelAllowlist: [] },
   };
 }
 
@@ -55,6 +59,22 @@ export function normalizeAdapterConfig(raw, { strict = false } = {}) {
   if (c.debounceMs !== undefined) { const n = Number(c.debounceMs); if (Number.isFinite(n) && n >= 100) out.claudeCode.debounceMs = Math.floor(n); }
   if (strict && out.claudeCode.enabled && !out.claudeCode.workspaceSlug) throw new Error("adapters: enable claudeCode requires a workspaceSlug");
 
+  // MUNDER-ADOPTION A7 — Slack ingress config. Channel ids are Slack's own shape
+  // (C + upper-alnum); anything else is dropped (load) or refused (save). Enabling
+  // with an empty allowlist is refused on save — an ingress that accepts every
+  // channel is not a configuration, it is an accident.
+  const s = r.slack && typeof r.slack === "object" ? r.slack : {};
+  if (s.enabled !== undefined && typeof s.enabled !== "boolean") { if (fail("slack.enabled must be boolean") === null && strict) return null; }
+  out.slack.enabled = !!s.enabled;
+  if (s.channelAllowlist !== undefined) {
+    if (!(Array.isArray(s.channelAllowlist) && s.channelAllowlist.every((x) => typeof x === "string"))) {
+      const v = fail("slack.channelAllowlist must be a string array"); if (v === null && strict) return null;
+    } else {
+      out.slack.channelAllowlist = s.channelAllowlist.map((x) => x.trim()).filter((x) => /^[A-Z0-9]{5,20}$/.test(x)).slice(0, 50);
+    }
+  }
+  if (strict && out.slack.enabled && out.slack.channelAllowlist.length === 0) throw new Error("adapters: enable slack requires at least one allowlisted channel id");
+
   return out;
 }
 
@@ -65,6 +85,8 @@ export function createAdapters(deps = {}) {
   const runner = deps.runner; // injected gh runner (tests); undefined ⇒ github uses defaultRunner
   const log = deps.log || (() => {});
   const now = deps.now || (() => Date.now());
+  // Phase 3 / R10 — OPTIONAL trust recorder. Absent = byte-identical pre-R10 behaviour.
+  const trust = deps.trust || null;
   const makeGithub = deps.makeGithub || createGithubAdapter;
   const makeClaude = deps.makeClaude || createClaudeSessionsAdapter;
 
@@ -76,8 +98,8 @@ export function createAdapters(deps = {}) {
   function rebuild() {
     try { github?.stop(); } catch { /* */ }
     try { claude?.stop(); } catch { /* */ }
-    github = makeGithub({ deliveries, runner, log, now, enabled: config.github.enabled, config: config.github });
-    claude = makeClaude({ deliveries, log, now, enabled: config.claudeCode.enabled, config: config.claudeCode });
+    github = makeGithub({ deliveries, runner, log, now, trust, enabled: config.github.enabled, config: config.github });
+    claude = makeClaude({ deliveries, log, now, trust, enabled: config.claudeCode.enabled, config: config.claudeCode });
   }
 
   function load() {
@@ -114,7 +136,11 @@ export function createAdapters(deps = {}) {
     return github ? github.decideExternal(args) : { ok: false, error: "github adapter not initialised" };
   }
 
-  function raw() { return { github: { ...config.github }, claudeCode: { ...config.claudeCode }, valid }; }
+  function raw() { return { github: { ...config.github }, claudeCode: { ...config.claudeCode }, slack: { ...config.slack, channelAllowlist: [...(config.slack?.channelAllowlist || [])] }, valid }; }
+
+  // MUNDER-ADOPTION A7 — the slack adapter reads its config LIVE through this getter
+  // (a BOSS save() takes effect on the next request, no restart, fail-closed on invalid).
+  function slackConfig() { return valid && config.slack ? { ...config.slack, channelAllowlist: [...config.slack.channelAllowlist] } : { enabled: false, channelAllowlist: [] }; }
 
   // Validate FIRST (throws on invalid) — a rejected save never touches disk, then hot-
   // reload: stop the old adapters, rebuild from the new config, start the enabled ones.
@@ -136,5 +162,5 @@ export function createAdapters(deps = {}) {
   }
 
   load();
-  return { load, startAll, stopAll, status, decideExternal, save, raw, valid: () => valid, adapters: () => ({ github, claude }) };
+  return { load, startAll, stopAll, status, decideExternal, save, raw, slackConfig, valid: () => valid, adapters: () => ({ github, claude }) };
 }

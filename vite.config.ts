@@ -8,6 +8,9 @@ import type { Plugin } from "vite";
 // use IDENTICAL logic. Helpers (readJsonBody, knownAgentIds, readDirJson,
 // ALLOWED_TYPES, TARGET_RE, summarizeLines…) now live in cockpit-feeds.mjs.
 import { stateHandler, commandHandler, auditHandler, commandStatusHandler, sessionsHandler } from "./agent-runtime/cockpit-feeds.mjs";
+// Phase 0 Task 0.4 (autonomy program) — the build-identity stamp the visual harness
+// verifies before it captures anything. See scripts/lib/build-id.mjs for the rationale.
+import { computeSourceId, buildIdMetaTag } from "./scripts/lib/build-id.mjs";
 
 // ── Data seam ──────────────────────────────────────────────────────────────
 // MissionAlpha is a STANDALONE watcher. It does NOT live inside the swarm it
@@ -142,6 +145,31 @@ function serveRuntimeToken(env: Record<string, string>): Plugin {
 // + a websocket HMR client — both blocked by `default-src 'self'`, which leaves the
 // renderer blank ("plugin-react can't detect preamble"). `apply: "serve"` scopes this to
 // the dev server only; `vite build` never runs it, so production CSP is unchanged.
+/**
+ * PHASE 0 TASK 0.4 — stamp the build inputs' content hash into index.html.
+ *
+ * `apply: "build"` on purpose. The visual suite runs against the PRODUCTION build on
+ * :3007 (playwright.config.mjs), and the guard's whole job is to prove the page under the
+ * camera came from THIS tree's build. Stamping the dev server too would let the suite pass
+ * against :3004 — a different bundle from a different pipeline — which is the confusion
+ * the guard exists to prevent. A dev page carries no stamp and the harness says so by name.
+ *
+ * The hash is computed ONCE per build (a `vite build` transforms index.html once), so the
+ * ~200-file walk costs nothing measurable.
+ */
+function stampBuildId(): Plugin {
+  return {
+    name: "ma-build-id",
+    apply: "build",
+    transformIndexHtml(html) {
+      const id = computeSourceId(__dirname);
+      // Injected right after <head> so it is present before any stylesheet — a truncated
+      // or partially-written index.html cannot yield a page that looks stamped.
+      return html.replace(/<head>/i, `<head>\n    ${buildIdMetaTag(id)}`);
+    },
+  };
+}
+
 function devCspRelax(): Plugin {
   const DEV_CSP =
     "default-src 'self'; " +
@@ -174,6 +202,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       devCspRelax(),
+      stampBuildId(),
       serveRuntimeToken(env),
     ],
     server: {
@@ -191,6 +220,28 @@ export default defineConfig(({ mode }) => {
         // /runtime + /factory; without this every Inbox call would hit vite and 404.
         "/inbox": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
         // LIVE cockpit feeds — runtime builds these from real activity, not the static file.
+        "/api/state.json": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/command": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/audit": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/commands": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/api/sessions": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+      },
+    },
+    // The PREVIEW server needs the same data-plane proxy as dev. `server.proxy` is
+    // dev-only — `vite preview` reads `preview.proxy`, and without it every /runtime,
+    // /inbox and /api/state.json request 404s at the static server instead of reaching
+    // the runtime on RUNTIME_PORT.
+    //
+    // This exists for ONE consumer: `npm run test:visual:record`, which drives the
+    // production build against a live runtime to capture the fixture file. Playback
+    // never uses it — page.route() intercepts before the network — but the recorder
+    // cannot record what it cannot reach, and it failed silently-ish until this landed.
+    preview: {
+      port: 3007,
+      proxy: {
+        "/runtime": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/factory": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
+        "/inbox": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
         "/api/state.json": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
         "/api/command": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },
         "/api/audit": { target: `http://127.0.0.1:${env.RUNTIME_PORT || "3005"}`, changeOrigin: true },

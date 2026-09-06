@@ -176,3 +176,42 @@ test("kpis clamps a sub-1h window up to 1h before computing `since`", () => {
 test("kpis requires a db handle", () => {
   assert.throws(() => kpis({ nowMs: NOW, windowMs: DAY }), /db handle/);
 });
+
+// ── Phase 14 · task 14.2 — the milestone's number ────────────────────────────
+//
+// M2-LIVE is "≥ 5 jobs shipped as PRs in one week". Nothing on the board showed it, so the
+// target could not be read off the running system at all.
+//
+// TWO figures, and keeping them apart is the point: a job shipped as a LOCAL BRANCH (no `gh`)
+// is shipped, but it is not a PR. Collapsing them would report the branch-only fallback as a
+// PR — the same overclaim the ship ladder itself refuses to make.
+
+test("KPI-JOB-1: shipped jobs are counted, and PRs are counted SEPARATELY", () => {
+  const db = openDb({ path: join(tmp(), "mission.db") }).db;
+  const now = NOW;
+  const ins = db.prepare(
+    `INSERT INTO jobs(id,title,brief,repo,source,externalKey,status,questions,answers,summary,prUrl,blockedOn,createdAt,updatedAt)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  // two shipped with a PR, one shipped as a branch only, one still building
+  ins.run("job_a", "a", "b1", null, "paste", null, "shipped", "[]", null, null, "https://github.com/x/y/pull/1", null, now, now);
+  ins.run("job_b", "b", "b2", null, "paste", null, "shipped", "[]", null, null, "https://github.com/x/y/pull/2", null, now, now);
+  ins.run("job_c", "c", "b3", null, "paste", null, "shipped", "[]", null, null, null, null, now, now);
+  ins.run("job_d", "d", "b4", null, "paste", null, "building", "[]", null, null, null, null, now, now);
+
+  const k = kpis({ db, windowMs: 7 * 86_400_000, nowMs: now });
+  assert.equal(k.jobsShipped, 3, "a branch-only ship is still a ship");
+  assert.equal(k.prsShipped, 2, "a branch-only ship is NOT a PR — counting it as one is the overclaim");
+});
+
+test("KPI-JOB-2: a job shipped BEFORE the window is outside it", () => {
+  const db = openDb({ path: join(tmp(), "mission.db") }).db;
+  const now = NOW;
+  const old = now - 30 * 86_400_000;
+  db.prepare(
+    `INSERT INTO jobs(id,title,brief,repo,source,externalKey,status,questions,answers,summary,prUrl,blockedOn,createdAt,updatedAt)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run("job_old", "old", "b", null, "paste", null, "shipped", "[]", null, null, "https://x/pull/9", null, old, old);
+  const k = kpis({ db, windowMs: 7 * 86_400_000, nowMs: now });
+  assert.equal(k.jobsShipped, 0, "last month's work must not be reported as this week's");
+  assert.equal(k.prsShipped, 0);
+});

@@ -88,6 +88,72 @@ export const EVENT_NAMES = Object.freeze(new Set([
   // the auth-gated GET /runtime/stories/:id, same rationale as vault.written / loop.step.
   // MUST stay byte-identical to the client RUNTIME_EVENT_NAMES and both catalog-equality tests.
   "story.changed",
+  // RUFLO-ADOPTION 2026-08-18 — the adoption program's names, registered in ONE catalog
+  // change for the same reason the B2 batch was: the catalog is CLOSED, and widening it
+  // once per phase means four more wire-contract edits per phase, each a chance to desync
+  // this Set from the client's RUNTIME_EVENT_NAMES and from the two equality tests.
+  //   doctor.status     — R4, LIVE. Health verdict changed. Identity+status only
+  //                       ({status, fails, warns}); the full report stays behind the
+  //                       auth-gated GET /runtime/doctor, same rationale as vault.written.
+  //   run.killed        — R1, RESERVED. A lifecycle hook aborted a run mid-flight
+  //                       ({taskId, agentId, event, reason}) so the operator can see WHY
+  //                       a run died, not merely that it did.
+  //   worker.deferred   — R2b, RESERVED. A cadence tick was held back by the resource
+  //                       guard or a daily cap ({reason}). Distinct from workflow.run,
+  //                       which reports a DISPATCH; this reports a non-dispatch.
+  //   retrieval.hit     — R6, RESERVED. Prior-art records injected into a prompt
+  //                       ({taskId, recordIds, scores}).
+  //   selfgrade.changed — R9, RESERVED. Config self-grade moved ({score, delta}).
+  //   trust.changed     — R10, RESERVED. An ingestion adapter's trust tier moved
+  //                       ({source, tier}).
+  // RESERVED = emit() accepts it and no caller emits it yet. Nothing renders off a
+  // reserved name, so nothing shows a fabricated number before its phase lands — the
+  // same disclosed-gap convention the B2 batch uses.
+  "doctor.status",
+  "run.killed",
+  "worker.deferred",
+  "retrieval.hit",
+  "selfgrade.changed",
+  "trust.changed",
+  // MUNDER-ADOPTION 2026-08-20 — the adoption program's names, registered in ONE catalog
+  // change (same closed-catalog convention as the B2 and RUFLO batches; see the spec at
+  // docs/superpowers/specs/2026-08-19-munder-adoption-design.md).
+  //   breaker.state    — A2, LIVE. An agent's runaway-ladder level CHANGED
+  //                      ({agentId, level, reason}). Change-only: a stable level never
+  //                      frames. Detail (full ladder snapshot) behind the gated GET.
+  //   usage.transcript — A3, RESERVED until P2. Ground-truth token usage mined from
+  //                      Claude Code's own JSONL transcripts changed
+  //                      ({sessions, inputTokens, outputTokens}). Tokens only — no dollars.
+  //   vault.condensed  — A4, RESERVED until P3. A vault node's tail was condensed
+  //                      ({venture, node, evicted, bytesBefore, bytesAfter}).
+  //   engine.roster    — A1, RESERVED until P5. The detected CLI-engine roster changed
+  //                      ({detected, total}).
+  //   run.output       — A6, RESERVED until P6. A running task's output tail grew
+  //                      ({taskId, agentId, bytes}); the text stays behind the gated GET.
+  // RESERVED = emit() accepts it and no caller emits it yet — the disclosed-gap
+  // convention every prior batch used.
+  "breaker.state",
+  "usage.transcript",
+  "vault.condensed",
+  "engine.roster",
+  "run.output",
+  // MISSIONALPHA PHASE 7.0b 2026-09-04 — three names registered in ONE catalog change,
+  // and DECLARED BEFORE any caller emits them. That ordering is the whole point: the
+  // catalog is CLOSED, so a phase that shipped its emitter first would have emit()
+  // throw on its own frame. Registered together for the same reason the B2, RUFLO and
+  // MUNDER batches were — one wire-contract edit, one chance to desync, not three.
+  //   roster.changed — LIVE since 7.1 (roster.mjs add()). Identity + count.
+  //   job.changed    — LIVE since 9.1 (jobs.mjs create/setStatus) and, since 12.2, on
+  //                    setTasks/updateTask too: a JOB's status changes a handful of times but
+  //                    its TASKS change constantly, and every one of those moves a board card.
+  //                    Identity only ({id, status}) — the title and the brief stay behind the
+  //                    auth-gated GET, same rationale as vault.written.
+  //   mail           — LIVE since 8.1 (mailbox route).
+  // All three were declared BEFORE their emitters and are now live. MUST stay byte-identical
+  // to the client RUNTIME_EVENT_NAMES and both catalog-equality tests.
+  "roster.changed",
+  "job.changed",
+  "mail",
 ]));
 
 const TICKET_BYTES = 24;

@@ -64,6 +64,12 @@ test("load drops off-charset keys and non-strings, caps oversized values", () =>
     writeFileSync(file, JSON.stringify({ "../evil": "a", "qa-station": 9, "sr-backend": "y".repeat(100) }));
     const sm = createStationMemory({ file, max: 50 });
     assert.deepEqual(Object.keys(sm.all()), ["sr-backend"]);
-    assert.equal(sm.get("sr-backend").length, 50);
+    // R8 — the cap is now a BUDGET WITH AN HONEST EDGE, so the stored value is `<= max`
+    // rather than exactly max: an over-length value is cut on a boundary and the drop is
+    // declared, and the marker is paid for OUT OF the budget (or it would not be a budget).
+    // The contract this test exists for is "an oversized value cannot exceed the cap".
+    const stored = sm.get("sr-backend");
+    assert.ok(stored.length <= 50, `cap exceeded: ${stored.length}`);
+    assert.match(stored, /omitted/, "the drop must be declared, not silent");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

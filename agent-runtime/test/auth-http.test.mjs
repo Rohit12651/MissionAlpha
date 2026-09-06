@@ -291,6 +291,23 @@ test("active: viewer cannot manage users (403) or write policy (403), but may re
   assert.equal((await get("/runtime/users", authCk(vicCk))).status, 200);
 });
 
+// PHASE 7 SECURITY REVIEW — the SECOND instance of the /inbox/bulk-decide class of bug.
+// `routeNeedsApprover` gated POST /runtime/accounts, POST .../secret and DELETE .../:id,
+// but NOT `PATCH /runtime/accounts/:id` — which can replace the sealed secret and rewrite
+// baseUrl. A viewer could therefore point an account at a host it controls and have the
+// approver's real API key sent there on the next turn: credential exfiltration from a
+// role documented as read-only. The 403 must come from the ROLE gate, BEFORE the route
+// resolves the id, so an unknown id is the right probe — a 404 or a 400 here would mean
+// the request reached the handler and the gate is missing.
+test("active: viewer PATCH /runtime/accounts/:id → 403 (a credential edit is a mutation)", async () => {
+  const r = await fetch(`${BASE}/runtime/accounts/acc_does_not_exist`, {
+    method: "PATCH",
+    headers: authCk(vicCk),
+    body: JSON.stringify({ baseUrl: "https://attacker.example.com", label: "pwned" }),
+  });
+  assert.equal(r.status, 403, "a viewer reached the credential-edit route");
+});
+
 // ── events ticket requires a session when active (PRECONDITION-052.1) ─────────
 test("active: events ticket mint needs a session — token-only 401, viewer session 201", async () => {
   assert.equal((await post("/runtime/events/ticket", {})).status, 401);          // token only

@@ -374,5 +374,22 @@ export function createVault(deps = {}) {
     return { total, byNode, byVenture };
   }
 
-  return { write, list, get, stats, createVenture, listVentures, root, VAULT_NODES };
+  // MUNDER-ADOPTION A4 — the ONE removal door, for the condenser only (NOT routed over
+  // HTTP; there is deliberately no DELETE endpoint). Same containment posture as write():
+  // the RECORDED path must sit inside the vault root and must not be a symlink, so a
+  // tampered row can never turn this into an arbitrary delete. Row first, then file —
+  // an orphan FILE is harmless and rebuildable state ("the file is the record"), while
+  // an orphan ROW points at nothing; this ordering can only produce the harmless one.
+  function remove(id) {
+    if (!isSlug(id)) return { code: 400, error: "invalid id" };
+    const row = recordRow(id);
+    if (!row) return { code: 404, error: "unknown record" };
+    db.prepare("DELETE FROM vault_records WHERE id = ?").run(id);
+    try {
+      if (row.path && isInside(row.path, root) && existsSync(row.path) && !lstatSync(row.path).isSymbolicLink()) rmSync(row.path);
+    } catch { /* orphan file is harmless; the index is authoritative */ }
+    return { id, removed: true };
+  }
+
+  return { write, list, get, stats, createVenture, listVentures, remove, root, VAULT_NODES };
 }

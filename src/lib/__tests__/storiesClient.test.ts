@@ -21,6 +21,7 @@ import {
   whenLabel,
   taskErrorText,
   type Story,
+  manualAdvance,
 } from "../storiesClient.ts";
 
 const mk = (over: Partial<Story> = {}): Story => ({
@@ -158,4 +159,18 @@ test("taskErrorText: folds the {kind,msg} engine error to a render-safe string, 
 test("whenLabel: compact UTC stamp; invalid/missing → em dash", () => {
   assert.equal(whenLabel(Date.UTC(2026, 7, 4, 14, 0)), "Aug 4 · 14:00 UTC");
   assert.equal(whenLabel(NaN), "—");
+});
+
+// ── D6 — the control the Stories UI never had ───────────────────────────────────
+test("manualAdvance offers START only at idea, and RETRY only when blocked", () => {
+  assert.equal(manualAdvance({ stage: "idea", status: "active" })?.kind, "start");
+  assert.equal(manualAdvance({ stage: "design", status: "blocked" })?.kind, "retry");
+  assert.equal(manualAdvance({ stage: "requirements", status: "blocked" })?.kind, "retry");
+  // A stage that is mid-flight must NOT offer a button — a second dispatch of a running
+  // stage is exactly the double-spend the pipeline's own dedupe exists to prevent.
+  assert.equal(manualAdvance({ stage: "design", status: "active" }), null);
+  assert.equal(manualAdvance({ stage: "design", status: "waiting-you" }), null);
+  assert.equal(manualAdvance({ stage: "accept", status: "shipped" }), null);
+  assert.equal(manualAdvance({ stage: "design", status: "rejected" }), null);
+  assert.equal(manualAdvance(null), null);
 });

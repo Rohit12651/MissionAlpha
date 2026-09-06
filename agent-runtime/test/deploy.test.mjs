@@ -130,3 +130,27 @@ test("no healthUrl configured → deployed with healthy=null (no probe)", async 
   assert.equal(v.healthy, null);
   assert.equal(fetched, false, "no URL ⇒ no probe");
 });
+
+
+// Phase 6.4 — the deploy command is chosen from WHAT CHANGED. A story that touched only
+// agent-runtime/ never runs the full `npm run build` (which exceeded the jail's disk cap
+// live on 2026-09-02); it runs the scoped typecheck instead. An unknown/empty list falls
+// back to the FULL command — never narrow blindly.
+test("6.4: agent-runtime-only changes select the scoped typecheck command", async () => {
+  const seen = [];
+  const sandbox = { dockerAvailable: async () => true, runInSandbox: async (_cwd, command) => { seen.push(command); return { exitCode: 0, stdout: "ok", stderr: "" }; } };
+  const ex = createDeployExecutor({ sandbox, realpath: (p) => p, loadConfig: () => ({ config: { deployCmd: ["npm", "run", "build"], healthUrl: null, timeoutMs: 1000, network: false, cwd: null } }), scrub: (x) => x, log: () => {} });
+  const v = await ex.run({ storyId: "s", deployRoot: "/repo", changedPaths: ["agent-runtime/plan-scope.mjs"] });
+  assert.equal(v.deployed, true);
+  assert.deepEqual(seen, ["npm run typecheck"]);
+});
+
+test("6.4: a src change keeps the configured full command; an empty list falls back to it", async () => {
+  const seen = [];
+  const sandbox = { dockerAvailable: async () => true, runInSandbox: async (_cwd, command) => { seen.push(command); return { exitCode: 0, stdout: "ok", stderr: "" }; } };
+  const ex = createDeployExecutor({ sandbox, realpath: (p) => p, loadConfig: () => ({ config: { deployCmd: ["npm", "run", "build"], healthUrl: null, timeoutMs: 1000, network: false, cwd: null } }), scrub: (x) => x, log: () => {} });
+  await ex.run({ storyId: "s", deployRoot: "/repo", changedPaths: ["src/lib/x.ts", "agent-runtime/y.mjs"] });
+  await ex.run({ storyId: "s", deployRoot: "/repo", changedPaths: [] });
+  await ex.run({ storyId: "s", deployRoot: "/repo" });
+  assert.deepEqual(seen, ["npm run build", "npm run build", "npm run build"]);
+});

@@ -29,6 +29,11 @@ import {
 } from "node:fs";
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHash } from "node:crypto";
 
+// Phase 10 — HR's creation path reuses the ROSTER's own rules rather than restating them.
+// roster.mjs imports only guards.mjs, so this adds no cycle.
+import { TOOL_ALLOW, fatalScopeProblem } from "./roster.mjs";
+import { SEED_DIRS } from "./guards.mjs";
+
 // Extended secret-shape detector (sr-security T1): the runtime's SECRET_RE plus
 // bearer/oauth/access_token/JWT/google/meta/slack shapes. Used to (a) reject a
 // secret-shaped persona at creation and (b) as a scrub source. NOTE: a `g` regex
@@ -100,6 +105,25 @@ export const SKILL_CATALOG = [
   { id: "repo-health-check", label: "Repo health check", station: true, desc: "Read recent commits and issues for patterns worth flagging to the operator. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
   { id: "workflow-audit", label: "Workflow audit", station: true, desc: "Find repeated manual steps across agent runs that are worth automating. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
   { id: "claude-code-handoff", label: "Claude Code handoff", station: true, desc: "Package a flagged improvement into a ready-to-run prompt for a coding agent. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
+  // P7 — worker-seat skills. Each names a slice of the codebase a hired seat owns, and
+  // each ships a brief at .claude/skills-curated/<id>/SKILL.md that states the slice AND
+  // the files the seat must never touch.
+  //
+  // They are PLAIN entries on purpose — no `dev`, no `station`, no `redirect`, no
+  // `stack`. Tools are {Read, Write} and nothing else:
+  //   • Read is what Glob/Grep collapse to — the catalog has no finer read verb.
+  //   • Write is what agent-tools.mjs `allowedToolsForAgent` turns into Write + Edit.
+  //   • Run is DELIBERATELY ABSENT. Run is the exec-broker capability, and the G6 guard
+  //     only demands an allowlisted `redirect` when a skill is `dev: true`. A plain entry
+  //     carrying Run would hand out exec authority with no redirect check at all.
+  //   • Bash/Glob/Grep/Edit are not in ALLOWED_TOOLS — naming them here would not grant
+  //     them, it would just be dropped by the derivation filter and read as a lie.
+  // platforms: [] + posting: false means no integration can attach to these seats.
+  { id: "ui", label: "UI", desc: "Build and change the React front end in src/ — components, hooks, view state, theme and CSS.", tools: ["Read", "Write"], platforms: [], posting: false },
+  { id: "api", label: "API", desc: "Build and change HTTP endpoints and runtime service modules under agent-runtime/.", tools: ["Read", "Write"], platforms: [], posting: false },
+  { id: "db", label: "Database", desc: "Own the SQLite schema, the migration ladder and the data-access layer in agent-runtime/db.mjs.", tools: ["Read", "Write"], platforms: [], posting: false },
+  { id: "test", label: "Test", desc: "Author node:test suites that fail against the defect before they pass against the fix.", tools: ["Read", "Write"], platforms: [], posting: false },
+  { id: "notifications", label: "Notifications", desc: "Own outbound notification plumbing — how a delivery or alert reaches the operator.", tools: ["Read", "Write"], platforms: [], posting: false },
 ];
 
 // G6: allowlist of specialist agent IDs that a dev skill's `redirect` may name.
@@ -348,6 +372,151 @@ export function deleteAgent(id) {
   // Leave the .md (harmless, easy to re-derive); just drop from the live registry.
   audit("agent.delete", { id });
   return { ok: true };
+}
+
+// ── Phase 10 / task 10.0 — HR'S CREATION PATH ────────────────────────────────
+//
+// A SECOND DOOR, deliberately. `createAgent` above is the BOSS's: it forces
+// `createdBy:"BOSS"`, allows only {Read,Write,Run} and knows nothing of seats or
+// writeScope. Widening it to fit a roster worker would silently widen what every
+// BOSS-made agent may hold, so HR gets its own choke point and `createAgent` is untouched.
+//
+// THIS IS THE PRIVILEGED OPERATION OF PHASE 10 — an AGENT is minting another agent's
+// permissions. Every rule below is a boundary, not ergonomics.
+
+/** Tools a roster worker may hold. The ROSTER's list, not a second copy. */
+export const ROSTER_TOOL_ALLOW = TOOL_ALLOW;
+
+/** One hire is one specialist. A general contractor is how a writeScope grows unnoticed. */
+export const MAX_HIRE_SKILLS = 4;
+
+/** The tools a hire gets when the request does not say. A worker seat's working set. */
+const DEFAULT_HIRE_TOOLS = Object.freeze(["Read", "Glob", "Grep", "Edit", "Write", "Bash"]);
+
+/**
+ * The hire's NAME AND ID, derived from its primary catalog skill — never supplied.
+ *
+ * The name is interpolated verbatim into another agent's system prompt (server.mjs
+ * `seatSystemPrompt`), beside the SKILL bodies that are capped and scrubbed precisely
+ * because they land there. A name HR could choose is a name a hostile plan could write, so
+ * HR does not choose it: the catalog does. Skill ids are already `^[a-z0-9-]+$` and
+ * validated against SKILL_CATALOG, which makes this closed by construction.
+ *
+ * (The phase plan specified a fixed `NAME_POOL` of example-crew names — Jigglypuff and so
+ * on. Deriving from the catalog is strictly MORE closed than a hand-maintained pool, and it
+ * matches the roster this app actually runs, whose seats are role-descriptive:
+ * `sr-backend`, `qa`, `docs-writer`. Recorded as a deviation in STATE.md.)
+ */
+export function rosterAgentName(skills) {
+  const primary = String((Array.isArray(skills) ? skills[0] : "") ?? "").trim();
+  return primary ? `${primary}-engineer` : "";
+}
+
+/**
+ * The choke point. Returns `{member}` in ROSTER shape, or `{error}`.
+ * `takenIds` is the set of ids already on the roster (HR passes `roster.all()`).
+ */
+export function validateRosterSpec(raw, { takenIds = new Set() } = {}) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { error: "hire spec must be an object" };
+
+  // ── skills: the only thing the caller really chooses ──────────────────────
+  const skills = Array.isArray(raw.skills) ? [...new Set(raw.skills.map((x) => String(x)))] : [];
+  if (!skills.length) return { error: "a hire needs at least one skill — a worker who can do nothing is not a hire" };
+  if (skills.length > MAX_HIRE_SKILLS) {
+    return { error: `a hire may hold at most ${MAX_HIRE_SKILLS} skills (asked for ${skills.length})` };
+  }
+  for (const sid of skills) if (!SKILL_IDS.has(sid)) return { error: `unknown skill: ${sid}` };
+
+  // ── identity: DERIVED. raw.name / raw.id / raw.seat are not read at all. ──
+  const id = rosterAgentName(skills);
+  if (!id) return { error: "could not derive an id from the requested skills" };
+  if (takenIds.has(id)) return { error: `a seat with id "${id}" already exists` };
+  if (BUILTIN_IDS.has(id)) return { error: `id "${id}" is reserved (built-in agent)` };
+
+  // ── tools ⊆ the roster allow-list ─────────────────────────────────────────
+  const tools = Array.isArray(raw.tools) && raw.tools.length
+    ? [...new Set(raw.tools.map((x) => String(x)))]
+    : [...DEFAULT_HIRE_TOOLS];
+  for (const t of tools) if (!ROSTER_TOOL_ALLOW.includes(t)) return { error: `tool not allowed: ${t}` };
+
+  // ── writeScope: THE privilege ─────────────────────────────────────────────
+  const writeScope = Array.isArray(raw.writeScope) ? [...new Set(raw.writeScope.map((x) => String(x)))] : [];
+  if (!writeScope.length) {
+    return { error: "a hire needs a writeScope — a worker that cannot write cannot do the task it was hired for" };
+  }
+  for (const entry of writeScope) {
+    // The ROSTER's own rule: absolute, traversal, backslash, control chars, a literal
+    // CORE_GUARD path, or a ReDoS-shaped glob.
+    const bad = fatalScopeProblem(entry);
+    if (bad) return { error: bad };
+    // And REFUSE anything rooted outside the appliable dirs. roster.load() DROPS such an
+    // entry (deliberately — a config change must never brick the boot), but dropping at
+    // HIRE time would mint a worker with an empty scope whose task then fails for a reason
+    // nobody can see. Refusing lets HR answer `hire-failed` with a readable cause.
+    const rooted = entry === "**" || entry.startsWith("**/");
+    if (!rooted && !SEED_DIRS.includes(entry.split("/")[0])) {
+      return { error: `writeScope entry is outside the appliable dirs (SEED_DIRS=${SEED_DIRS.join(",")}): ${entry}` };
+    }
+  }
+
+  return {
+    member: {
+      id,
+      name: id,
+      seat: id,
+      // FORCED, never read from the caller. HR hires WORKERS. A hire that could name its own
+      // role could mint itself a manager — and a manager is the only seat HR takes orders
+      // from (mailbox routeAllowed), which is a complete privilege loop in one field.
+      role: "worker",
+      skills,
+      writeScope,
+      tools,
+      // FORCED. Provenance is the runtime's to state; a hire that could call itself a `seed`
+      // would launder its own origin past every audit that reads this field.
+      createdBy: "hr",
+      createdAt: new Date(nowMs()).toISOString(),
+    },
+  };
+}
+
+/**
+ * Persist the hire's identity document and hand back the roster member.
+ *
+ * NOT REGISTERED IN THE FACTORY REGISTRY, on purpose. server.mjs picks a spawn's tools with
+ * `seat ? seatAllowedTools(seat) : factoryTools`, so a registry entry could not widen a
+ * hire's tools — but `strictMcp: allowedToolsForAgent(id) !== null` WOULD flip to true for
+ * it, giving a hired worker a different MCP posture from a seeded one like `qa`. A hire must
+ * behave exactly like the workers already on the roster. Pinned by FRA-15.
+ *
+ * The caller (hr.mjs) is what adds the member to roster.json, because `roster.add` is the
+ * only writer of that file and it re-validates through `validateMember` anyway.
+ */
+export function createRosterAgent(raw, { takenIds = new Set() } = {}) {
+  const v = validateRosterSpec(raw, { takenIds });
+  if (v.error) return v;
+  const m = v.member;
+  ensureDirs();
+  const desc = clean(`${m.name} — hired by HR on a Manager request. worker seat.`, 240).replace(/\n/g, " ");
+  const md =
+    `---\n` +
+    `name: ${m.id}\n` +
+    `description: ${desc}\n` +
+    `tools: ${m.tools.join(", ")}\n` +
+    `factory: false\n` +
+    `---\n\n` +
+    `# ${m.name}\n\n` +
+    `**Role:** worker (roster seat)\n\n` +
+    `**Skills:** ${m.skills.join(", ")}\n` +
+    `**Write scope:**\n${m.writeScope.map((g) => `  - ${g}`).join("\n")}\n\n` +
+    `Created by HR at ${m.createdAt} on a Manager hire-request. Its SKILL bodies are handed ` +
+    `to it at spawn (server.mjs seatSystemPrompt); this file is the durable record of who it is.\n`;
+  try {
+    writeFileSync(join(agentsDir(), `${m.id}.md`), md, "utf-8");
+  } catch (e) {
+    return { error: `could not write the hire's identity file: ${e?.message ?? e}` };
+  }
+  audit("roster.hire", { id: m.id, skills: m.skills, writeScope: m.writeScope, createdBy: m.createdBy });
+  return { member: m };
 }
 
 // nowMs is injected by server (Date.* is fine in this standalone service, but keep

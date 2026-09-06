@@ -3,6 +3,7 @@ import { runtimeToken } from "../../lib/runtimeToken";
 import { runtimeUrl, type PreflightResult } from "../../lib/runtimeBase";
 import { getQuota, type QuotaStatus } from "../../lib/quotaClient";
 import { tok } from "../../lib/agentMeta";
+import type { BreakerSummary } from "../../lib/breakerModel";
 
 /*
   Bottom status strip (F4) — Docker-Desktop-style footer telling the operator
@@ -62,9 +63,15 @@ export interface StatusStripProps {
   pendingDeliveries?: number;
   /** P3: SSE bus health. Undefined ⇒ the chip is not rendered at all. */
   liveConnected?: boolean;
+  /**
+   * MUNDER-ADOPTION A2: the runaway-breaker summary, folded from `breaker.state`
+   * frames in App's single SSE subscription. Undefined (flag off, or no frame yet)
+   * ⇒ the chip is not rendered — the strip stays exactly as before.
+   */
+  breaker?: BreakerSummary;
 }
 
-export function StatusStrip({ preflight, pendingDeliveries, liveConnected }: StatusStripProps) {
+export function StatusStrip({ preflight, pendingDeliveries, liveConnected, breaker }: StatusStripProps) {
   const [runtimeUp, setRuntimeUp] = useState<boolean | null>(null);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
 
@@ -170,6 +177,26 @@ export function StatusStrip({ preflight, pendingDeliveries, liveConnected }: Sta
               ? "Live event stream connected"
               : "Live event stream offline; the app is falling back to polling"
           }
+        />
+      )}
+      {/* MUNDER-ADOPTION A2 — runaway-breaker ladder. SSE-driven (breaker.state);
+          adds no poll. steering advises (amber), constrained/stopped refuse new turns. */}
+      {breaker !== undefined && (
+        <Chip
+          tone={
+            breaker.degraded === 0
+              ? "done-green"
+              : breaker.worst === "stopped"
+                ? "stale-red"
+                : "blocked-amber"
+          }
+          label={breaker.degraded === 0 ? "breaker ok" : `breaker ${breaker.degraded} ${breaker.worst}`}
+          ariaLabel={
+            breaker.degraded === 0
+              ? "Runaway breaker: all agents healthy"
+              : `Runaway breaker: ${breaker.degraded} agent(s) degraded, worst level ${breaker.worst}. Constrained agents are refused new turns until they recover.`
+          }
+          mono
         />
       )}
       <span className="ml-auto hidden text-[10px] tracking-wide opacity-70 sm:inline">

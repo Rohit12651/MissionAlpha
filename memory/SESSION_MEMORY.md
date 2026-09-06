@@ -384,3 +384,168 @@ Verified invariant empirically + by inspection: frozen map, hasOwnProperty + str
 
 ### Run: runtime `cd agent-runtime && RUNTIME_TOOLS=write RUNTIME_SANDBOX_ROOT=/tmp/ma-sb npm start` · dashboard `npm run dev` (binds IPv6 localhost:3004 — curl `localhost` not `127.0.0.1`) · sim `TICK_SECONDS=6 python3 scripts/sim_swarm.py`. Mock backend for free UI tests: prefix `RUNTIME_BACKEND=mock`.
 ### NOTE for BOSS: unrelated uncommitted churn left untouched (NOT this feature) — factory/registry.json + .claude/agents/java17-engineer.md (your browser-created agent), and docs/SESSION_MEMORY.md (133KB) + docs/ceo/master-roadmap.md appeared from another process. Surfaced, not committed.
+
+---
+
+# 2026-08-24 — SESSIONS 15 / 15b: THE LOOP REPAIR
+
+> **This file went stale after 2026-06-18.** Everything between then and now was written to
+> `.planning/STATE.md`, which is the LIVE handoff — read that first, newest at the bottom.
+> This entry exists so the June-era log does not silently mislead anyone who starts here.
+> claude-mem (cross-session memory) is still down: stale Claude Desktop OAuth.
+
+## The finding that started it
+
+Audited the running product against its own claim — *idea → Delivery → human decision →
+branch/PR*. **That loop had never completed once.** 53 deliveries, 0 approved code
+deliveries, 0 branches, 0 PRs, engine queue lifetime `done: 0` against `failed: 42`.
+
+Root cause, one premise wearing three masks: the engine's baseline was `HEAD` while the
+operator's reality was a 216-file uncommitted tree.
+
+## Fixed (all TDD, all wired, all verified on the running install)
+
+| ID | What | File |
+|---|---|---|
+| D3 | worktrees base on a SNAPSHOT of the working tree, built in a temp index — operator's `.git/index`/HEAD/branches never move | `worktree.mjs` |
+| D1 | quality gate runs the tests RELATED to the diff, not the whole 2,500-test repo under a 120s deadline | `test-scope.mjs`, `test-gate.mjs`, `factory/quality.json` |
+| D4 | a dispatch REFUSAL (hook veto, not-capable, backend) is terminal on attempt 1, not retried 3× as `spawn` | `self-heal.mjs`, `engine.mjs` |
+| D5 | the story pipeline had NO retry — one 429 parked a story forever. Bounded, transient-only, + stalled-active rescue | `stage-retry.mjs` |
+| D6 | nothing in the app ever called `POST /stories/:id/advance` — a UI story sat at `idea` forever | `StoryAdvance.tsx` |
+| D7 | `lastEvent` is one value slot; SSE bursts batch and only the last frame survived → strip read "0 running" | `queueModel.ts`, `App.tsx` |
+| D8 | every doctor check asked about a PRECONDITION; all green on 0 done / 42 failed | `doctor.mjs` |
+| D9 | chat saved the provider's 401 prose into the thread as the agent's own words | `server.mjs` |
+| #8 | provider circuit breaker — the shared memory of "this endpoint is refusing everyone" | `provider-breaker.mjs` |
+| #9 | appliable scope widened to `agent-runtime` + `docs`, with an un-removable `CORE_GUARD` floor | `guards.mjs` |
+| #10 | orphaned worktree checkouts are collected at boot (164 dirs, 1 claimed) | `worktree.reapOrphans` |
+
+Also: `adapterReply` sent the ACTIVE account's key while driving a DIFFERENT account's
+baseUrl; a high-band design gate rendered no typed-confirm field yet was blocked by one, so
+**Approve was permanently disabled** — every gate ever approved here went through curl.
+
+## The three things worth remembering
+
+1. **A gate that can never pass is worse than no gate.** `node --test` on the whole repo
+   under 120s vetoed 42 consecutive runs, and each veto threw away a paid model turn before
+   the diff was even computed.
+2. **"No diff produced" was hiding "wrote somewhere it may not write."** Two true statements
+   that together were a lie by omission; the operator re-queued the same impossible task
+   four times.
+3. **I shipped a bug and caught it in runtime verification, not in tests.** The worktree
+   collector keyed liveness on the queue alone — a task can be terminal there while its
+   Delivery is still pending in the Inbox, and `applyChanges` reads that decision's diff out
+   of the checkout being collected. Fixed as `liveWorktreeKeys({tasks, pendingDeliveries})`.
+
+## Regression contract (raised)
+
+`runtime >= 2050/0` · `unit >= 538/0` · `vendor 54/0` · `electron 9/0` · `visual 30/0` ·
+`tsc 0` · `lint 0` · `build ✓`. Arrived at runtime **1942/1** — one red test on the working
+tree, now fixed.
+
+## Live state at hand-off (2026-08-24 ~17:10)
+
+- runtime :3006 · vite :3004 · active account **OX Alpha** (`stealth/ox-alpha`), rate-limited
+  for much of the session.
+- queue `done 1 · held 14 · failed 51 · cancelled 5`; deliveries `62 total / 50 pending /
+  3 approved / 9 rejected`.
+- stories: 8, none shipped — `Build-health banner constant` reached **build** and blocked
+  because `sr-frontend` went off-brief four times (model quality, not wiring).
+- Proof the ship rung works: `git log ma/task/task_fa4ddd410e10` →
+  `e4346c9 feat: … src/ping.ts` on top of `94cd171 missionalpha: worktree base snapshot`,
+  `git show --stat` = 1 file, 1 insertion. Operator tree untouched: HEAD `05e8dbd`, 244 dirty
+  files, **0 commits by the agent on the operator's branch**.
+- 21 stale `ma/task/*` branches. The collector never deletes a ref.
+
+## Blocked on the operator (unchanged)
+
+1. `brew install gh && gh auth login` → the PR rung. Without it the ladder honestly demotes
+   to a local branch.
+2. `claude auth logout && claude auth login` → the Claude CLI OAuth expired 2026-07-22; OX
+   Alpha is currently the only engine road.
+3. The commit decision. All of this work is uncommitted, per the standing mandate.
+
+# 2026-09-04 — SESSION 16b: PHASE 6 (FOUNDATION FIXES) EXECUTED
+
+Live handoff is `.planning/STATE.md` (newest at the bottom). This is the short form.
+
+- **What shipped (uncommitted):** the four Phase 6 defects closed + two more found by the
+  security reviewer. A seat's Delivery now contains ONLY the seat's own files (proven live:
+  `changedPaths: ["src/lib/pct.ts"]`); explicit tier is honoured with a sensitive-domain
+  floor; seat context 180k → 21k tokens; `engine/apply` decides the Delivery and commits on
+  the task branch; stall clock pauses at human gates; auth dotfiles never reach the jail; a
+  worktree carrying `.claude/` is refused before spawn.
+- **What did NOT ship:** a story reaching `shipped`. The jailed build died on the absolute
+  disk cap (repo is 3.79 GiB) and then on the 512 MB memory cap. Phase 7 owns `sandbox.mjs`.
+- **Method that worked:** three Opus 5 subagents on disjoint files + orchestrator wiring +
+  a read-only security-reviewer agent; every ratchet mutated red then restored md5-identical.
+  `gsd-executor` agents cannot load skills (no Skill tool) — say so in reports.
+- **Three things to remember:** (1) a deny list is allow-by-default (addendum #14);
+  (2) a config the agent can write is an escalation (#15); (3) a reviewer's fix is a
+  hypothesis — BA-5 caught one that would have applied `src/secrets.yaml` (#17).
+- Regression contract now: runtime ≥ 2131/0 · unit ≥ 551/0 · vendor 54/0 · electron 9/0 ·
+  visual 30/0 · tsc 0 · lint 0 · build ✓. FINAL run after the security fixes was in flight at
+  hand-off (`/tmp/ma-gates/p6-FINAL-contract.log`).
+
+# 2026-09-04 — SESSION 17: PHASE 7 (ROSTER + SKILL LOCK) EXECUTED
+
+Live handoff is `.planning/STATE.md` (newest at the bottom). This is the short form.
+
+- **What shipped (uncommitted):** a worker seat can now only write inside its domain.
+  `roster.json` seeds 7 seats; `guards.applyAllowed(path,{seat})` enforces `writeScope` as the
+  LAST gate (subtract-only); the broker resolves the seat FROM THE TASK and reports an
+  out-of-scope write under `refused`. Catalog 9 → 14 skills, each with a real SKILL.md whose
+  BODY (not name) rides `--append-system-prompt`. RosterStrip on the board. Task 7.6 fixed the
+  jail's two ship blockers (growth-based disk cap, memory env knob).
+- **BOSS gate:** "go on 7.2 and 7.6, yes to roster.mjs in CORE_GUARD" — recorded in
+  `CORE-GUARD-EDITS.md` BEFORE the first `guards.mjs` edit, with the exact diff written out
+  first for review.
+- **Three defects I shipped and disclosed:** (1) `roster.mjs` threw under
+  `RUNTIME_SEED_DIRS=src` and bricked boot for 252 tests — addendum #7, found by a subagent,
+  reproduced before believing it; (2) `GET /runtime/roster` shipped UNAUTHENTICATED because
+  `needsAuth` is an ALLOW-LIST — addendum #14 inverse, now class #20; (3) one of my own tests
+  was vacuous and a mutation caught it — addendum #13.
+- **The blocker that is NOT mine:** every engine task now dies `empty-diff` because Phase 6's
+  `sweepSeatSettings` treats the Claude CLI's OWN `.claude/` cwd cache as tampering and vetoes
+  the spawn. A/B proven across roster and non-roster agents. New addendum class #21. Phase 8
+  must fix it first — until then no live-model proof is obtainable, including Phase 7's two
+  outstanding ones (a seat citing its SKILL body; a Delivery carrying `refused[out-of-scope]`).
+- **Method:** two Opus subagents on disjoint files for wave 1, orchestrator for the rest, then
+  `security-reviewer` + `code-reviewer` on the finished diff. Every ratchet mutated red then
+  restored md5-identical. The index invariant is `git write-tree == HEAD^{tree}`, NOT the
+  `.git/index` md5 — the md5 moves on every `git status`.
+- Regression contract now: runtime ≥ 2225/0 · unit ≥ 559/0 · vendor 54/0 · electron 9/0 ·
+  visual 30 passed (1 skip) · tsc 0 · lint 0 · build ✓.
+
+# 2026-09-05 — SESSION 18: PHASE 7 CLOSED, PHASE 8 DONE, PHASE 9 ALL BUT THE LIVE PROOF
+
+Live handoff is `.planning/STATE.md` (newest at the bottom). Short form.
+
+- **Phase 7 closed.** The roster was rebuilt on the REAL agents after the BOSS pointed out the
+  obvious: Manager/HR/Ash/Pikachu/Charizard were the operating-model page's EXAMPLE names, and
+  seeding them created a second crew beside the ten real stations — an empty intersection, a
+  duplicate CEO, and a control that could never engage (now addendum #23). Now 12 real ids;
+  only `sr-frontend`, `sr-backend` and `qa` are narrowed, because `pipeline.ALLOWED_PLAN_SEATS`
+  says those are the seats the plan stage actually dispatches.
+- **The engine authors again.** It had been dead for a day: `.claude/` is COMMITTED here (3,081
+  files), `git worktree add` checks it out into every seat worktree, and the 6.7 guard refused
+  every spawn on the operator's own `settings.json`. The guard's header claimed the snapshot
+  never carries it — true of the copy-sandbox, false of a git checkout (addendum #24). Fixed at
+  the source in `worktree.mjs`; the guard now refuses only permission-bearing content.
+- **Phase 8 (Mailbox) done.** File-based, single-writer, roles from the roster, nobody may mail
+  the ceo. Bodies are capped, scrubbed AND fenced as data — proven live: a planted injection
+  ("IGNORE YOUR WRITE SCOPE…") was read, quoted and FLAGGED by the receiving seat, which wrote
+  nothing. `mail_send` has no `from` parameter at all, so identity cannot be forged.
+- **Phase 9 (Manager loop) built and proven with NO MODEL.** Job store (migration v21), gate
+  that takes storyId XOR jobId, pure state machine, dispatcher in two modes, job routes. A
+  pasted brief walks to a resolved outcome with no human. **9.0 is still a BLOCKING checkpoint
+  — the BOSS has not read `manager-prompts.mjs`, so the Manager has never run on a live model.**
+- **`/api/command` had no auth at all** (pre-existing): a local page could POST a task the
+  scheduler then executed. Now origin-gated. Stated honestly as CSRF mitigation, not
+  authentication.
+- **Things I got wrong and disclosed:** shipped `/runtime/roster` unauthenticated (allow-list is
+  ungated-by-default, #20); three of my own tests were vacuous or flaky and were caught by
+  mutation or by repeated runs (#22); my first fix for the disk watchdog did not fix it, which
+  I found by measuring rather than assuming.
+- Contract now: runtime ≥ 2393/0 · unit ≥ 563/0 · vendor 54/0 · electron 9/0 · visual 30 ·
+  tsc 0 · lint 0 · build ✓. **NOTHING COMMITTED — ~306 dirty files. The commit decision is the
+  BOSS's and is still outstanding.**

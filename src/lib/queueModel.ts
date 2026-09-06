@@ -54,6 +54,24 @@ const EVENT_BUCKET: Record<string, QueueBucket> = {
   "task.failed": "failed",
 };
 
+// D7 — the frames that move the queue. App bumps a COUNTER on these (updater form, so a
+// batched SSE burst cannot collapse them) and the strip re-reads authoritative state off
+// that counter. Before it, both the delta and the re-truth hung off a single `lastEvent`
+// value slot: SSE delivers several frames in one chunk, React batches the assignments,
+// and only the last frame of the burst survived — usually `usage.tick`, which the strip
+// ignores. Measured result: `/runtime/engine/runs` fetched twice in twenty minutes of
+// continuous churn while the strip insisted nothing was running.
+//
+// `delivery.*` are here because a mint/decision is the moment a task leaves the queue
+// without any `task.*` frame naming it (the v1 catalog has no success-terminal for HELD).
+const QUEUE_EVENT_NAMES: ReadonlySet<string> = new Set([
+  "task.queued", "task.started", "task.retried", "task.failed", "task.done",
+  "delivery.created", "delivery.decided",
+]);
+
+/** Does this catalog event name change what the queue strip should show? */
+export const isQueueEvent = (name: string): boolean => QUEUE_EVENT_NAMES.has(name);
+
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /**

@@ -7,6 +7,7 @@ import {
   agentChips,
   applyQueueEvent,
   fromSnapshot,
+  isQueueEvent,
   queueCounts,
 } from "../queueModel.ts";
 import type { RuntimeEvent } from "../useRuntimeEvents.ts";
@@ -174,4 +175,39 @@ test("task.done is idempotent — replaying it twice cannot underflow the counts
   s = applyQueueEvent(s, ev("task.done", { taskId: "task_a", agentId: "web-1" }));
   assert.equal(s, once);
   assert.deepEqual(queueCounts(s), { queued: 0, running: 0, retrying: 0, failed: 0, total: 0 });
+});
+
+// ── D7 — WHY THE STRIP READ "0 running" WHILE A TASK WAS CLAIMED ────────────────
+// Reproduced three times on the live install: `GET /runtime/health` reported
+// `inflight 1 · claimed 1` while the Inbox strip rendered "0 running · 0 queued ·
+// 0/6 slots", and `/runtime/engine/runs` had been requested TWICE in twenty minutes of
+// continuous task churn. The server was emitting correctly — sniffing the bus during an
+// enqueue showed `task.queued`, `task.started`, `agent.state` all arriving.
+//
+// The loss is in the client: App keeps the newest frame in ONE state slot
+// (`setLastEvent(e)`), and SSE delivers a burst of frames inside a single chunk. React
+// batches those updates, so a plain value assignment keeps only the LAST frame of the
+// burst — `usage.tick` — while `setPendingDeliveries(p => …)` next to it accumulates
+// correctly because it is an UPDATER. The strip's delta and its debounced re-truth both
+// hang off the dropped value, so neither ever fires.
+//
+// The fix has to be a counter bumped with an updater, which cannot be batched away. This
+// predicate is the shared definition of "a frame the queue cares about", so App and the
+// strip can never drift about which names matter.
+test("isQueueEvent covers exactly the task lifecycle plus the delivery frames that move it", () => {
+  for (const name of ["task.queued", "task.started", "task.retried", "task.failed", "task.done"]) {
+    assert.equal(isQueueEvent(name), true, name);
+  }
+  for (const name of ["delivery.created", "delivery.decided"]) {
+    assert.equal(isQueueEvent(name), true, name);
+  }
+  for (const name of ["usage.tick", "agent.state", "story.changed", "vault.written", ""]) {
+    assert.equal(isQueueEvent(name), false, name);
+  }
+});
+
+test("a burst of task frames raises the nonce once per frame — updaters cannot be batched away", () => {
+  const burst = ["task.queued", "task.started", "usage.tick", "agent.state"];
+  const bumped = burst.reduce((n, name) => (isQueueEvent(name) ? n + 1 : n), 0);
+  assert.equal(bumped, 2, "both task frames counted, even though the last frame of the burst is not one");
 });

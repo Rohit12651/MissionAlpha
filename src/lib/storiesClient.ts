@@ -74,6 +74,15 @@ export interface StoryLogRow {
   event: string;
   ref: string | null;
   ts: number;
+  // SESSION 14 — attribution. OPTIONAL on the wire by design: logRow() OMITS these keys
+  // when the columns are null, so an unattributed transition carries no `byAgent: null`
+  // that a view could render as "from: null → to: null". Absent means "the server did not
+  // record who did this", which is NOT the same as "nobody did it" — the thread renders
+  // such a row as a plain event rather than inventing an author.
+  byAgent?: string;
+  toAgent?: string;
+  /** Structured handback evidence (rejects). Absent unless the sender supplied any. */
+  evidence?: string[];
 }
 
 /** One loop step of a build task — mirrors agent-runtime/loop-steps.mjs list(). */
@@ -325,3 +334,46 @@ export const createStory = (title: string, idea: string) =>
     method: "POST",
     body: JSON.stringify({ title, idea }),
   });
+
+/**
+ * POST /runtime/stories/:id/advance — move the story into its next stage and run that
+ * stage's agent. Approver-gated.
+ *
+ * D6 — the endpoint has existed since S1 and NOTHING in the app called it. A story created
+ * in the UI therefore sat at `idea` forever: the only path that ever advanced one was
+ * approving a design gate in the Inbox, which is stage 3 of 8. Measured live on
+ * 2026-08-24 — `story_7ab7b078ca46d5bf` had to be advanced by curl.
+ *
+ * The runtime answers as soon as the stage is ENTERED, not when the agent finishes (a real
+ * stage takes 2–5 minutes), so the caller renders "running", not "done".
+ */
+export const advanceStory = (id: string) =>
+  authedJson<{ story?: Story; error?: string; code?: number; skipped?: boolean; reason?: string; failed?: boolean }>(
+    `/runtime/stories/${encodeURIComponent(id)}/advance`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+
+/**
+ * Which manual control (if any) a story should offer right now.
+ *
+ * The pipeline drives itself between gates, so a control exists ONLY where the operator is
+ * genuinely the missing input:
+ *   • `idea`   — nothing has started; someone has to say go.
+ *   • blocked  — a stage failed. D5's sweep retries TRANSIENT faults on its own, so this
+ *                button is for the settled ones (auth, config) after the operator has
+ *                fixed the cause — and for not waiting out a backoff.
+ * Anything else returns null: rendering a button that duplicates what the runtime is
+ * already doing invites a second dispatch of a stage that is mid-flight.
+ */
+export function manualAdvance(story: Pick<Story, "stage" | "status"> | null | undefined):
+  { kind: "start" | "retry"; label: string; hint: string } | null {
+  if (!story) return null;
+  if (story.status === "shipped" || story.status === "rejected") return null;
+  if (story.stage === "idea") {
+    return { kind: "start", label: "Start the pipeline", hint: "Hands the story to pm-analyst to write its requirements." };
+  }
+  if (story.status === "blocked") {
+    return { kind: "retry", label: "Retry this stage", hint: "Re-runs the stage that failed. Fix the cause first — a settled failure will fail again." };
+  }
+  return null;
+}

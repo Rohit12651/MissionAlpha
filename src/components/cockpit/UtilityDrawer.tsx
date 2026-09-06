@@ -11,7 +11,7 @@ import type { CommandRequest, CommandResult, AuditEntry, CommandStatusSnapshot, 
 import { tok } from "../../lib/agentMeta";
 import { ControlPlanePanel } from "../ControlPlanePanel";
 import { AuditTrailPanel } from "../audit/AuditTrailPanel";
-import { UsageOverview } from "../workspace/UsageMeter";
+import { UsageOverview, type TranscriptTotals } from "../workspace/UsageMeter";
 import type { UsageTick } from "../../lib/useRuntimeEvents";
 import { BulkActionBar } from "../BulkActionBar";
 import { ConnectorPanel } from "../factory/ConnectorPanel";
@@ -48,6 +48,8 @@ export interface UtilityDrawerProps {
   factoryOpenSignal?: number;
   /** P8 — live usage from the bus (usage.tick), for the UsageOverview panel. */
   usageTicks?: UsageTick[];
+  /** MUNDER-ADOPTION A3 — transcript ground-truth totals (usage.transcript frames). */
+  transcriptTotals?: TranscriptTotals | null;
 }
 
 export function UtilityDrawer(props: UtilityDrawerProps) {
@@ -99,7 +101,7 @@ export function UtilityDrawer(props: UtilityDrawerProps) {
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {tab === "audit" && (
                 <div className="flex flex-col gap-4">
-                  <UsageOverview ticks={props.usageTicks ?? []} />
+                  <UsageOverview ticks={props.usageTicks ?? []} transcripts={props.transcriptTotals} />
                   <ControlPlanePanel getAudit={getAudit} getCommandStatus={getCommandStatus} />
                   <AuditTrailPanel getAudit={getAudit} heartbeats={state.heartbeats} />
                 </div>

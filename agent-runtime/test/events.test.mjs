@@ -34,33 +34,52 @@ function harness(over = {}) {
 
 test("EVENT_NAMES is EXACTLY the program-plan §2 catalog + the documented amendments", () => {
   assert.deepEqual([...EVENT_NAMES].sort(), [
-    // B2 amendment (ADR-052 §Amendment B2) — the five Business-OS names, registered in
-    // ONE catalog change (sorted in, hence scattered): content.changed, lead.moved,
-    // output.created, vault.written, workflow.run. `vault.written` fires from B2; the
-    // other four are RESERVED so B4/B6/B7 emit without touching the closed catalog again.
-    "agent.state", "content.changed", "delivery.created", "delivery.decided",
-    // delivery.expired + delivery.sla_halflife — P6/ADR-053 SLA amendment (2026-07-30).
-    "delivery.expired", "delivery.sla_halflife",
+    // RUFLO-ADOPTION amendment (2026-08-18): doctor.status (LIVE) + run.killed,
+    // worker.deferred, retrieval.hit, selfgrade.changed, trust.changed (RESERVED),
+    // registered in ONE catalog change. Sorted in, hence scattered above.
+    // MUNDER-ADOPTION amendment (2026-08-20): breaker.state (LIVE) + usage.transcript,
+    // vault.condensed, engine.roster, run.output (RESERVED), registered in ONE catalog
+    // change. Sorted in, hence scattered below.
+    // MISSIONALPHA PHASE 7.0b amendment (2026-09-04): roster.changed, job.changed and
+    // mail, RESERVED and registered in ONE catalog change (declared before their
+    // emitters land: 7.1 roster.add, 9 Job store, 8.1 mailbox route). Sorted in,
+    // hence scattered below.
+    "agent.state",
+    "breaker.state",
+    "content.changed",
+    "delivery.created",
+    "delivery.decided",
+    "delivery.expired",
+    "delivery.sla_halflife",
+    "doctor.status",
+    "engine.roster",
+    "job.changed",
     "lead.moved",
-    // loop.step — CC-Primitives P2 amendment (2026-08-04). Sorts between lead.moved
-    // and output.created.
     "loop.step",
-    // memory.changed — CC-Primitives P4 amendment (2026-08-04).
+    "mail",
     "memory.changed",
     "output.created",
     "policy.autoapplied",
-    // skills.changed — CC-Primitives P3 amendment (2026-08-04). Sorts before station.perm.changed.
+    "retrieval.hit",
+    "roster.changed",
+    "run.killed",
+    "run.output",
+    "selfgrade.changed",
     "skills.changed",
-    // station.perm.changed — CC-Primitives P1 amendment (2026-08-03). Sorts between
-    // policy.autoapplied and task.done.
     "station.perm.changed",
-    // story.changed — Story-Pipeline S1 amendment (2026-08-04). Sorts between
-    // station.perm.changed and task.done.
     "story.changed",
-    // task.done — plan amendment 2026-07-30 (program plan §2 / ADR-052 §2). Anything
-    // else here that is not a documented amendment is a contract break.
-    "task.done", "task.failed", "task.queued", "task.retried", "task.started", "usage.tick",
-    "vault.written", "workflow.run",
+    "task.done",
+    "task.failed",
+    "task.queued",
+    "task.retried",
+    "task.started",
+    "trust.changed",
+    "usage.tick",
+    "usage.transcript",
+    "vault.condensed",
+    "vault.written",
+    "worker.deferred",
+    "workflow.run",
   ]);
 });
 
@@ -72,6 +91,29 @@ test("emit() accepts every B2 name and still refuses anything outside the catalo
     }
     assert.throws(() => t.ev.emit("vault.deleted", {}), /unknown event/);
     assert.throws(() => t.ev.emit("vault.written.extra", {}), /unknown event/);
+  } finally { t.cleanup(); }
+});
+
+// Phase 7.0b — the three names are DECLARED here before anything emits them (7.1
+// roster.add, 8.1 mailbox route, 9 Job store). Declaring first is only worth
+// anything if the CLOSED catalog actually takes them, so prove the accept side:
+// each one persists a real row AND reaches a subscribed client, while a near-miss
+// spelling still throws. This is the assertion that would have caught a frame being
+// silently dropped by emit().
+test("emit() accepts the Phase 7.0b reserved names, frames them, and still refuses a near-miss", () => {
+  const t = harness();
+  try {
+    const c = fakeRes();
+    assert.equal(t.ev.subscribe(c, {}), true);
+    for (const name of ["roster.changed", "job.changed", "mail"]) {
+      const seq = t.ev.emit(name, { id: "x" });
+      assert.ok(seq > 0, `${name} persisted`);
+      assert.equal(t.h.db.prepare("SELECT event FROM events_log WHERE seq = ?").get(seq).event, name);
+      assert.ok(c.text().includes(`\nevent: ${name}\ndata: `), `${name} framed to the client, not dropped`);
+    }
+    assert.throws(() => t.ev.emit("job.change", {}), /unknown event/);
+    assert.throws(() => t.ev.emit("mail.changed", {}), /unknown event/);
+    assert.throws(() => t.ev.emit("roster.change", {}), /unknown event/);
   } finally { t.cleanup(); }
 });
 

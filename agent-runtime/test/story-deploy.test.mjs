@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDb } from "../db.mjs";
 import { createStories } from "../stories.mjs";
-import { createStoryDeploy } from "../story-deploy.mjs";
+import { createStoryDeploy, changedPathsForStory } from "../story-deploy.mjs";
 
 const SECRET_RE = /sk-ant-[A-Za-z0-9_-]{6,}/g;
 const scrub = (s) => (typeof s === "string" ? s.replace(SECRET_RE, "[redacted]") : s);
@@ -139,4 +139,38 @@ test("onReleaseDecided ignores a non-release row (design gate routes elsewhere)"
     const out = await t.deploy.onReleaseDecided({ kind: "design-approval", storyId: t.storyId }, { status: "approved" });
     assert.equal(out.skipped, true);
   } finally { t.cleanup(); }
+});
+
+
+// Phase 6.4 — runDeploy hands the story's changed paths to the executor through an injected
+// `changedPathsFor(storyId)` seam (default: none → the executor runs the full command).
+test("6.4: runDeploy passes changedPathsFor(storyId) to the executor", async () => {
+  const calls = [];
+  const stories = { getStory: () => ({ id: "story_x", stage: "deploy-watch", status: "active" }), update: () => {}, advance: () => ({}) };
+  const deliveries = { mintGate: () => ({ id: "g" }), listGates: () => [] };
+  const deployExecutor = { run: async (args) => { calls.push(args); return { deployed: true, healthy: null }; } };
+  const sd = createStoryDeploy({ stories, deliveries, deployExecutor, changedPathsFor: (id) => (id === "story_x" ? ["agent-runtime/a.mjs"] : []) });
+  await sd.runDeploy("story_x");
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].changedPaths, ["agent-runtime/a.mjs"]);
+});
+
+
+// Phase 6.4 — the pure helper server.mjs wires into `changedPathsFor`: the union of
+// changedPaths across the story's APPROVED code Deliveries (matched by the story's task ids
+// from the build aggregate). Pending/rejected rows and other stories' rows never count.
+test("6.4: changedPathsForStory unions approved deliveries of the story's tasks only", () => {
+  const aggregate = (sid) => (sid === "story_x"
+    ? { goals: [{ tasks: [{ taskId: "t1" }, { taskId: "t2" }] }], counts: {}, total: 2 }
+    : { goals: [], counts: {}, total: 0 });
+  const deliveries = { list: ({ status }) => (status === "approved" ? [
+    { id: "d1", taskId: "t1", kind: "code", status: "approved", changedPaths: ["agent-runtime/a.mjs", "src/lib/b.ts"] },
+    { id: "d2", taskId: "t2", kind: "code", status: "approved", changedPaths: ["src/lib/b.ts", "docs/c.md"] },
+    { id: "d3", taskId: "t9", kind: "code", status: "approved", changedPaths: ["src/other.ts"] },
+    { id: "d4", taskId: "t1", kind: "failure", status: "approved", changedPaths: [] },
+  ] : []) };
+  const out = changedPathsForStory("story_x", { aggregate, deliveries });
+  assert.deepEqual(out, ["agent-runtime/a.mjs", "docs/c.md", "src/lib/b.ts"]);
+  assert.deepEqual(changedPathsForStory("story_none", { aggregate, deliveries }), []);
+  assert.deepEqual(changedPathsForStory("story_x", { aggregate: () => { throw new Error("boom"); }, deliveries }), [], "a faulty aggregate yields [] (full command), never throws");
 });

@@ -47,14 +47,17 @@ function advanceToTerminal(s, id) {
 }
 
 // ── migration v15 ─────────────────────────────────────────────────────────────
-test("db reaches v15 and the stories + story_log tables exist with the right columns", () => {
+test("db reaches v19 and the stories + story_log tables exist with the right columns", () => {
   const { h, cleanup } = harness();
   try {
-    assert.ok(h.version() >= 15, `expected >= v15, got ${h.version()}`);
+    assert.ok(h.version() >= 19, `expected >= v19, got ${h.version()}`);
     const scols = h.db.prepare("PRAGMA table_info(stories)").all().map((c) => c.name).sort();
     assert.deepEqual(scols, ["answers", "created_at", "design_ref", "id", "idea", "spec", "stage", "status", "title", "updated_at", "venture"]);
+    // AUTONOMY PHASE 3 (v19) — the four structured-handback columns. ADD COLUMN only, so
+    // every pre-v19 row survives with NULLs, which is the honest value for a transition
+    // that never carried them.
     const lcols = h.db.prepare("PRAGMA table_info(story_log)").all().map((c) => c.name).sort();
-    assert.deepEqual(lcols, ["event", "ref", "seq", "stage", "story_id", "ts"]);
+    assert.deepEqual(lcols, ["by_agent", "event", "evidence", "from_stage", "ref", "seq", "stage", "story_id", "to_agent", "ts"]);
   } finally { cleanup(); }
 });
 

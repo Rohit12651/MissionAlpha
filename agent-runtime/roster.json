@@ -1,0 +1,236 @@
+{
+  "version": 2,
+  "members": [
+    {
+      "id": "ceo",
+      "name": "ceo",
+      "seat": "Chief Executive",
+      "role": "ceo",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "tech-lead",
+      "name": "tech-lead",
+      "seat": "Orchestration",
+      "role": "manager",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "pm-analyst",
+      "name": "pm-analyst",
+      "seat": "Requirements",
+      "role": "station",
+      "skills": [
+        "research-brief"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "architect",
+      "name": "architect",
+      "seat": "System design",
+      "role": "station",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "reviewer",
+      "name": "reviewer",
+      "seat": "Code review",
+      "role": "station",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "devops",
+      "name": "devops",
+      "seat": "CI/CD + deploy",
+      "role": "station",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "sre",
+      "name": "sre",
+      "seat": "Monitor",
+      "role": "station",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "docs-writer",
+      "name": "docs-writer",
+      "seat": "Release notes + memory",
+      "role": "station",
+      "skills": [
+        "research-brief"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "java17-engineer",
+      "name": "java17-engineer",
+      "seat": "Java build seat",
+      "role": "station",
+      "skills": [
+        "repo-read"
+      ],
+      "writeScope": [],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "sr-frontend",
+      "name": "sr-frontend",
+      "seat": "Build frontend",
+      "role": "worker",
+      "skills": [
+        "ui"
+      ],
+      "writeScope": [
+        "src/**"
+      ],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "sr-backend",
+      "name": "sr-backend",
+      "seat": "Build backend",
+      "role": "worker",
+      "skills": [
+        "api",
+        "db"
+      ],
+      "writeScope": [
+        "src/lib/**",
+        "agent-runtime/**"
+      ],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "qa",
+      "name": "qa",
+      "seat": "Testing",
+      "role": "worker",
+      "skills": [
+        "test"
+      ],
+      "writeScope": [
+        "**/__tests__/**",
+        "**/*.test.*"
+      ],
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "createdBy": "seed",
+      "createdAt": "2026-09-05T00:00:00.000Z"
+    }
+  ]
+}

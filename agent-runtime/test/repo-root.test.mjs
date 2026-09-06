@@ -22,7 +22,9 @@ async function loadGuards(env) {
 test("unset env → REPO_ROOT defaults to MissionAlpha repo (zero change)", async () => {
   const g = await loadGuards({});
   assert.ok(g.REPO_ROOT.endsWith("/MissonAlpha") || g.REPO_ROOT.includes("MissonAlpha"));
-  assert.deepEqual(g.SEED_DIRS, ["src", "public"]);
+  // #9 widened the declared default; the point of this assertion is that an UNSET env
+  // yields the module's documented default rather than something derived at runtime.
+  assert.deepEqual(g.SEED_DIRS, ["src", "public", "agent-runtime", "docs"]);
 });
 
 test("RUNTIME_REPO_ROOT points the root at another existing dir", async () => {

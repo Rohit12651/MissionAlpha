@@ -20,14 +20,15 @@ import {
   statusLabel,
   statusTone,
   stageLabel,
-  whenLabel,
   type StoryDetail as StoryDetailData,
   type SpineNode,
 } from "../../lib/storiesClient";
 import { isGate, listInbox, type Delivery } from "../../lib/inboxClient";
 import { useCoalescedNonce } from "../../lib/useCoalescedNonce";
+import { StoryAdvance } from "./StoryAdvance";
 import { StoryBuildPanel } from "./StoryBuildPanel";
 import { StoryGates } from "./StoryGates";
+import { StoryThread } from "./StoryThread";
 
 export interface StoryDetailProps {
   storyId: string;
@@ -202,6 +203,11 @@ export function StoryDetail({ storyId, onClose, liveNonce, restoreFocusTo }: Sto
               ))}
             </ol>
 
+            {/* ── D6 — the pipeline control. Rendered only where the operator is genuinely
+                the missing input (nothing started yet, or a stage failed); the pipeline
+                drives itself everywhere else. */}
+            <StoryAdvance story={story} onAdvanced={() => setRetryNonce((n) => n + 1)} />
+
             {/* ── pending gates (answer / approve inline) ── */}
             {gates.length > 0 && (
               <section className="bos-story-section" aria-label="Pending gates">
@@ -245,22 +251,14 @@ export function StoryDetail({ storyId, onClose, liveNonce, restoreFocusTo }: Sto
               <StoryBuildPanel build={data?.build ?? EMPTY_BUILD} />
             </section>
 
-            {/* ── transition timeline ── */}
-            {(data?.log?.length ?? 0) > 0 && (
-              <section className="bos-story-section" aria-label="Timeline">
-                <h3 className="bos-story-section-h helm-eyebrow">Timeline</h3>
-                <ol className="bos-story-log">
-                  {(data?.log ?? []).map((l) => (
-                    <li key={l.seq} className="bos-story-log-row">
-                      <span className="helm-chip" data-tone="muted">{stageLabel(l.stage)}</span>
-                      <span className="bos-story-log-event helm-mono">{l.event}</span>
-                      {l.ref && <span className="bos-story-log-ref helm-mono">{l.ref}</span>}
-                      <span className="bos-story-log-ts helm-mono">{whenLabel(l.ts)}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            )}
+            {/* ── collaboration thread (S14) — replaces the raw transition log ──
+                The old Timeline listed machine events; this states who handed what to
+                whom, and why, from the SAME rows plus the open gates and the build
+                fan-out. Nothing is dropped — an event nobody mapped renders as itself. */}
+            <section className="bos-story-section" aria-label="Collaboration">
+              <h3 className="bos-story-section-h helm-eyebrow">Collaboration</h3>
+              <StoryThread log={data?.log} gates={gates} build={data?.build} />
+            </section>
           </div>
         )}
       </div>

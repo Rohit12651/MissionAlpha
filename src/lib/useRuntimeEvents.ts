@@ -71,6 +71,35 @@ export const RUNTIME_EVENT_NAMES = [
   // re-fetch the gated GET. Identity-only ({id, stage}). MUST stay byte-identical to
   // agent-runtime/events.mjs EVENT_NAMES.
   "story.changed",
+  // RUFLO-ADOPTION 2026-08-18 — registered in ONE catalog change (see events.mjs for the
+  // per-name contract). `doctor.status` is LIVE (the readiness banner reacts to it); the
+  // other five are RESERVED — subscribed and parseable, emitted by nobody yet, rendered
+  // by nobody yet. MUST stay byte-identical to agent-runtime/events.mjs EVENT_NAMES.
+  "doctor.status",
+  "run.killed",
+  "worker.deferred",
+  "retrieval.hit",
+  "selfgrade.changed",
+  "trust.changed",
+  // MUNDER-ADOPTION 2026-08-20 — registered in ONE catalog change (see events.mjs for the
+  // per-name contract). `breaker.state` is LIVE from P1 (the StatusStrip breaker chip
+  // reacts to it); the other four are RESERVED — subscribed and parseable, emitted by
+  // nobody yet, rendered by nobody yet. MUST stay byte-identical to
+  // agent-runtime/events.mjs EVENT_NAMES.
+  "breaker.state",
+  "usage.transcript",
+  "vault.condensed",
+  "engine.roster",
+  "run.output",
+  // MISSIONALPHA PHASE 7.0b 2026-09-04 — registered in ONE catalog change (see
+  // agent-runtime/events.mjs for the per-name contract). All three are RESERVED:
+  // subscribed and parseable here, emitted by nobody yet, rendered by nobody yet.
+  // roster.changed lands with Phase 7.1 (roster.add), job.changed with Phase 9 (Job
+  // store), mail with Phase 8.1 (mailbox route). MUST stay byte-identical to
+  // agent-runtime/events.mjs EVENT_NAMES.
+  "roster.changed",
+  "job.changed",
+  "mail",
 ] as const;
 
 export type RuntimeEventName = (typeof RUNTIME_EVENT_NAMES)[number];
@@ -78,6 +107,16 @@ export type RuntimeEventName = (typeof RUNTIME_EVENT_NAMES)[number];
 export interface RuntimeEvent {
   name: RuntimeEventName;
   data: Record<string, unknown>;
+  /**
+   * The bus sequence number (the SSE frame's `id:`), when the frame carried one.
+   *
+   * Phase 5 — the activity feed needs a stable identity per event so a reconnect replay
+   * (ADR-052 §3 replays from `lastEventId`) cannot show the operator the same row twice.
+   * The sequence is REAL server data and monotonic, which makes it the honest key; a
+   * client-side counter would restart at zero on every reconnect and dedupe nothing.
+   * Absent on a frame with no `id:` — consumers must tolerate `undefined`.
+   */
+  seq?: number;
 }
 
 const CATALOG = new Set<string>(RUNTIME_EVENT_NAMES);
@@ -270,7 +309,12 @@ export function useRuntimeEvents(opts: UseRuntimeEventsOptions = {}): RuntimeEve
           const m = raw as MessageEvent<string>;
           if (m.lastEventId) lastIdRef.current = m.lastEventId;
           const parsed = parseEvent(name, m.data);
-          if (parsed) onEventRef.current?.(parsed);
+          if (!parsed) return;
+          // Attach the frame's own sequence. Kept OUT of parseEvent so that function
+          // stays a pure (name, json) → event mapping with its existing contract.
+          const seq = Number(m.lastEventId);
+          if (Number.isFinite(seq)) parsed.seq = seq;
+          onEventRef.current?.(parsed);
         });
       }
     };

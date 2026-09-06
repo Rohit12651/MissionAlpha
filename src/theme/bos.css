@@ -2882,6 +2882,108 @@
 [data-skin="helm"] .bos-story-log-ref { font-size: 10px; color: var(--helm-paper-faint); overflow-wrap: anywhere; }
 [data-skin="helm"] .bos-story-log-ts { margin-left: auto; font-size: 9.5px; color: var(--helm-paper-faint); }
 
+/* ── SESSION 14 · collaboration thread ────────────────────────────────────────
+ * Replaces the raw Timeline. Tokens only — no new palette, no new font. The kind
+ * accent is a 2px left rule rather than a filled row: a thread of filled colour
+ * blocks turns every entry into an alert, and then none of them read as one.
+ * `handoff` is the BASELINE (the common case) and carries NO accent at all —
+ * colour is spent only where something needs attention. */
+[data-skin="helm"] .bos-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="helm"] .bos-thread-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  background: var(--helm-well);
+  border: 1px solid var(--helm-line-soft);
+  border-left: 2px solid transparent;
+  border-radius: 8px;
+}
+[data-skin="helm"] .bos-thread-row[data-kind="rework"] { border-left-color: var(--helm-amber); }
+[data-skin="helm"] .bos-thread-row[data-kind="failure"] { border-left-color: var(--helm-red); }
+[data-skin="helm"] .bos-thread-row[data-kind="gate"] { border-left-color: var(--helm-brass); }
+[data-skin="helm"] .bos-thread-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--helm-paper-faint);
+  display: inline-flex;
+}
+[data-skin="helm"] .bos-thread-row[data-kind="rework"] .bos-thread-icon { color: var(--helm-amber); }
+[data-skin="helm"] .bos-thread-row[data-kind="failure"] .bos-thread-icon { color: var(--helm-red); }
+[data-skin="helm"] .bos-thread-row[data-kind="gate"] .bos-thread-icon { color: var(--helm-brass); }
+[data-skin="helm"] .bos-thread-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+[data-skin="helm"] .bos-thread-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+[data-skin="helm"] .bos-thread-seat {
+  font-size: 12px;
+  color: var(--helm-paper);
+  overflow-wrap: anywhere;
+}
+/* An unattributed row says "system" — deliberately quieter than a named seat, so a
+ * real handoff never reads the same as one the server could not attribute. */
+[data-skin="helm"] .bos-thread-seat[data-unattributed="true"] { color: var(--helm-paper-faint); }
+[data-skin="helm"] .bos-thread-arrow { color: var(--helm-paper-faint); font-size: 12px; }
+[data-skin="helm"] .bos-thread-detail {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--helm-paper-soft);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-thread-evidence {
+  margin: 0;
+  padding-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+[data-skin="helm"] .bos-thread-evidence-item {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--helm-paper-soft);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-thread-artifact-actions { margin: 2px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+[data-skin="helm"] .bos-thread-artifact-err { font-size: 11px; color: var(--helm-red); }
+[data-skin="helm"] .bos-thread-artifact {
+  margin: 2px 0 0;
+  padding: 10px 11px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--helm-ink);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--helm-paper-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-thread-artifact:focus-visible { outline: 2px solid var(--helm-brass); outline-offset: 2px; }
+[data-skin="helm"] .bos-thread-ts {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  color: var(--helm-paper-faint);
+  margin-top: 3px;
+}
+/* Mobile: the timestamp stops competing with the seat names for the same row. */
+@media (max-width: 480px) {
+  [data-skin="helm"] .bos-thread-row { flex-wrap: wrap; }
+  [data-skin="helm"] .bos-thread-ts { margin-left: 21px; margin-top: 0; }
+}
+
 /* ── reduced motion — freeze the pulse + spatial transforms (emil rule) ──────── */
 @media (prefers-reduced-motion: reduce) {
   [data-skin="helm"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot { animation: none; }
@@ -2893,3 +2995,196 @@
 }
 [data-reduce-motion="on"] [data-skin="helm"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot,
 [data-skin="helm"][data-reduce-motion="on"] .bos-story-spine-node[data-awaiting="true"] .bos-story-spine-dot { animation: none; }
+
+/* ── D6 — the story pipeline control ──────────────────────────────────────────
+   A band, not a card: this is the one place in the overlay where the operator ACTS, and
+   it sits directly under the spine so "where the story is" and "what I can do about it"
+   read as one thought. The left rule is the same 2px accent language StoryThread uses for
+   a kind marker — a filled panel here would compete with the gates section below it,
+   which is the surface that genuinely needs attention when it is present.
+   Tokens only (--helm-*), no new palette, no new font. */
+[data-skin="helm"] .bos-story-advance {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--helm-rule);
+  border-left: 2px solid var(--helm-brass);
+  border-radius: var(--helm-radius-card, 1rem);
+  background: var(--helm-raised);
+}
+[data-skin="helm"] .bos-story-advance-copy { min-width: 0; }
+[data-skin="helm"] .bos-story-advance-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-story-advance-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-paper-faint);
+}
+/* The live region spans both columns and reserves no height when empty, so an idle
+   control does not push the gates panel down. */
+[data-skin="helm"] .bos-story-advance-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-story-advance-note:empty { display: none; }
+[data-skin="helm"] .bos-story-advance-note[data-tone="red"] { color: var(--helm-stale); }
+@media (max-width: 480px) {
+  [data-skin="helm"] .bos-story-advance { grid-template-columns: 1fr; }
+  [data-skin="helm"] .bos-story-advance button { justify-self: stretch; }
+}
+
+/* ── Phase 12 / 12.2 — the JOB BOARD ─────────────────────────────────────────
+   The board reuses the story kanban's geometry verbatim (.bos-story-board / -col /
+   -card): identical layout, and a second copy of it is a second thing to keep in step.
+   Only what a JOB has and a story does not gets rules here — the task rows and the
+   seat-to-seat thread. No new tokens; every colour below is an existing one. */
+[data-skin="helm"] .bos-job-board-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+[data-skin="helm"] .bos-job-h {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--helm-paper-dim);
+  margin: 14px 0 6px;
+}
+[data-skin="helm"] .bos-job-tasks,
+[data-skin="helm"] .bos-job-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-skin="helm"] .bos-job-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-card);
+  background: color-mix(in srgb, var(--helm-deck) 55%, transparent);
+}
+/* A blocked task earns a rail. Nothing else does: colouring every state is noise, not
+   hierarchy, and the chip already carries the status. */
+[data-skin="helm"] .bos-job-task[data-status="blocked"] {
+  border-color: color-mix(in srgb, var(--helm-red) 34%, var(--helm-line));
+}
+[data-skin="helm"] .bos-job-task-seq {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--helm-paper-faint);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="helm"] .bos-job-task > span.min-w-0 { flex: 1 1 auto; min-width: 0; }
+[data-skin="helm"] .bos-job-task-title {
+  display: block;
+  font-size: 12.5px;
+  color: var(--helm-paper);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-job-task-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--helm-paper-dim);
+  overflow-wrap: anywhere;
+}
+[data-skin="helm"] .bos-job-mail {
+  padding: 8px 10px;
+  border-left: 2px solid var(--helm-line);
+  background: color-mix(in srgb, var(--helm-deck) 40%, transparent);
+  border-radius: 0 var(--helm-r-card) var(--helm-r-card) 0;
+}
+[data-skin="helm"] .bos-job-mail-head {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--helm-paper-faint);
+}
+/* The body is agent-authored. `pre-wrap` keeps the seat's own line breaks; `anywhere`
+   stops a long path from pushing the drawer sideways. */
+[data-skin="helm"] .bos-job-mail-body {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--helm-paper);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@keyframes bos-job-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes bos-job-in { from { opacity: 1; transform: none; } to { opacity: 1; transform: none; } }
+}
+/* the Stories / Jobs tablist in the deck topbar */
+[data-skin="helm"] .bos-job-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-chip);
+}
+[data-skin="helm"] .bos-job-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--helm-paper-dim);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: var(--helm-r-chip);
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+[data-skin="helm"] .bos-job-tab:hover { color: var(--helm-paper); }
+[data-skin="helm"] .bos-job-tab:focus-visible {
+  outline: 2px solid var(--helm-amber);
+  outline-offset: 1px;
+}
+[data-skin="helm"] .bos-job-tab[aria-selected="true"] {
+  color: var(--helm-paper);
+  background: color-mix(in srgb, var(--helm-paper) 10%, transparent);
+}
+/* ── Phase 13 / 13.2 — the Jira picker. Reuses the job-board row geometry; only the
+   query form is new. No new tokens. */
+[data-skin="helm"] .bos-jira-picker { margin-top: 4px; }
+[data-skin="helm"] .bos-jira-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+[data-skin="helm"] .bos-jira-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--helm-paper);
+  background: color-mix(in srgb, var(--helm-deck) 55%, transparent);
+  border: 1px solid var(--helm-line-soft);
+  border-radius: var(--helm-r-card);
+}
+[data-skin="helm"] .bos-jira-input:focus-visible {
+  outline: 2px solid var(--helm-amber);
+  outline-offset: 1px;
+  border-color: color-mix(in srgb, var(--helm-amber) 40%, var(--helm-line));
+}

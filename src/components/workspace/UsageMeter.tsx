@@ -125,7 +125,18 @@ const EstBadge = () => (
   <span className="font-mono text-[9px] uppercase" style={{ color: tok("blocked-amber") }} title="estimated (~chars/4); backend returned no token count">~est</span>
 );
 
-export function UsageOverview({ ticks }: { ticks: UsageTick[] }) {
+// MUNDER-ADOPTION A3 — ground-truth totals mined from Claude Code's own JSONL
+// transcripts (usage.transcript frames). Aggregate-only here; the per-session
+// detail stays behind the gated GET /runtime/usage/transcripts.
+export interface TranscriptTotals {
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** which directory key answered: "current" | "legacy" | "none" */
+  source: string;
+}
+
+export function UsageOverview({ ticks, transcripts }: { ticks: UsageTick[]; transcripts?: TranscriptTotals | null }) {
   const rolls = rollUsage(ticks);
   return (
     <section className="overflow-hidden rounded-panel border border-border bg-panel/60 backdrop-blur-md" aria-label="Usage — tokens and context, today">
@@ -133,6 +144,18 @@ export function UsageOverview({ ticks }: { ticks: UsageTick[] }) {
         <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Usage · today</span>
         <span className="ml-auto font-mono text-[10px] text-muted">tokens + context% · never $</span>
       </div>
+      {/* MUNDER-ADOPTION A3 — the transcript ledger line. Rendered only once a frame has
+          arrived; "source: transcripts" marks these as Claude Code's own numbers, not
+          parsed from our child's stream. */}
+      {transcripts && transcripts.sessions > 0 && (
+        <div className="flex items-center gap-2 border-t border-border/30 px-4 py-2" aria-label={`Transcript ground truth: ${transcripts.sessions} sessions, ${transcripts.inputTokens} input and ${transcripts.outputTokens} output tokens`}>
+          <span className="rounded px-1 py-0.5 font-mono text-[9px] uppercase" style={{ color: tok("done-green"), backgroundColor: `color-mix(in oklch, ${tok("done-green")} 12%, transparent)` }}>source: transcripts</span>
+          <span className="font-mono text-[10px] text-muted">{transcripts.sessions} session{transcripts.sessions === 1 ? "" : "s"}</span>
+          <span className="ml-auto font-mono text-[10px] tabular-nums text-muted" title="cumulative tokens across local Claude Code transcripts (in → out)">
+            {compact(transcripts.inputTokens)}→{compact(transcripts.outputTokens)}
+          </span>
+        </div>
+      )}
       {rolls.length === 0 ? (
         <p className="px-4 pb-4 text-[12px] text-muted">No usage yet. A turn on any agent/thread appears here live.</p>
       ) : (

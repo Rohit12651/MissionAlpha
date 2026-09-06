@@ -135,7 +135,10 @@ export function detectNewDependency(changes) {
 // code-danger — it is needs-you URGENCY: high means they surface in the High-risk filter and
 // draw the fastest SLA window, so a gate is never quietly buried. They never auto-apply
 // (autoApprove refuses non-'code'/failure and every high band), so a high band grants nothing.
-const GATE_KINDS = Object.freeze(new Set(["question", "design-approval", "release-approval"]));
+// Phase 11 — `job-approval` joins them: the ONE yes that ships every task in a job. Its
+// band is needs-you URGENCY, not code danger, for the same reason as the others — and it
+// is the highest-consequence of them, because one approval lands N diffs at once.
+const GATE_KINDS = Object.freeze(new Set(["question", "design-approval", "release-approval", "job-approval"]));
 
 export function classify(input = {}) {
   const reasons = [];

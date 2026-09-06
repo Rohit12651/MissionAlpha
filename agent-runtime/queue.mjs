@@ -38,6 +38,14 @@ export function createQueue(opts = {}) {
   // the SHARED MAX_INFLIGHT in the scheduler; within one agent, one task at a time so
   // an agent never races itself in its own worktree.
   const maxPerAgent = opts.maxPerAgent ?? Number(process.env.RUNTIME_MAX_PER_AGENT || 1);
+  // R14 (a) — per-STORY concurrency. `storyId` has always been persisted but no scheduling
+  // decision read it, so two DIFFERENT agents could build one story at the same time, each
+  // diffing against a base the other was about to move. maxPerAgent does not cover this:
+  // it serializes an agent against itself, not a story against its own steps.
+  //
+  // 0 (or any non-positive value) means UNCAPPED — byte-identical pre-R14 claiming, which
+  // is what every existing direct caller of createQueue gets unless it opts in.
+  const maxPerStory = Math.max(0, Number(opts.maxPerStory ?? process.env.RUNTIME_STORY_MAX_CONCURRENT ?? 0) || 0);
   const leaseMs = opts.leaseMs ?? Number(process.env.RUNTIME_LEASE_MS || 600_000); // 10 min (OQ-027.1)
   const scrub = opts.scrub || ((s) => s);
   // P4 — emit-on-persist (program plan §2 / ADR-052 §2): the SAME function that writes
@@ -200,10 +208,12 @@ export function createQueue(opts = {}) {
   function claimNext() {
     const t = now();
     const claimedPerAgent = new Map();
+    const claimedPerStory = new Map();
     const ready = [];
     for (const rec of index.values()) {
       if (rec.status === "claimed") {
         claimedPerAgent.set(rec.agentId, (claimedPerAgent.get(rec.agentId) || 0) + 1);
+        if (rec.storyId) claimedPerStory.set(rec.storyId, (claimedPerStory.get(rec.storyId) || 0) + 1);
         continue;
       }
       if (rec.status !== "queued") continue;
@@ -215,7 +225,12 @@ export function createQueue(opts = {}) {
     for (const band of PRIORITY_BANDS) {
       const inBand = ready.filter((r) => r.priority === band)
         // exclude agents already at the per-agent concurrent cap
-        .filter((r) => (claimedPerAgent.get(r.agentId) || 0) < maxPerAgent);
+        .filter((r) => (claimedPerAgent.get(r.agentId) || 0) < maxPerAgent)
+        // R14 — and stories already at the per-story cap. A task with NO storyId is not
+        // part of a story and is never capped by it (a null key is not a story that every
+        // story-less task shares). Skipping here DEFERS the step: nothing is written, so
+        // the record stays `queued` and claims on a later pass once the story frees up.
+        .filter((r) => !maxPerStory || !r.storyId || (claimedPerStory.get(r.storyId) || 0) < maxPerStory);
       if (!inBand.length) continue;
       // round-robin: least-recently-served agent first, then oldest createdAt (FIFO).
       inBand.sort((a, b) => {

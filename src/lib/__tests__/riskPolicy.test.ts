@@ -10,6 +10,7 @@ import {
   addDeny,
   removeDeny,
   BEHAVIOR_OPTIONS,
+  clampLimit,
   type PolicyBands,
 } from "../inboxClient.ts";
 import { slaNotificationText } from "../deliveryNotify.ts";
@@ -85,4 +86,18 @@ test("slaNotificationText names the agent + band", () => {
   assert.match(title, /awaiting your decision/i);
   assert.match(body, /web-1/);
   assert.match(body, /high risk/);
+});
+
+// ── PHASE 2 TASK 2.2 — the size ceiling's editor helper ─────────────────────
+// The server REJECTS a ceiling of 0 or below outright: stored, it would be
+// indistinguishable from "unset" on the next load, and "unset" falls back to a more
+// permissive default. The editor must not let the operator type a value that will bounce.
+test("clampLimit never produces a value the server would reject", () => {
+  assert.equal(clampLimit(0, 50), 1);
+  assert.equal(clampLimit(-7, 50), 1);
+  assert.equal(clampLimit(Number.NaN, 50), 1);
+  assert.equal(clampLimit(Number.POSITIVE_INFINITY, 50), 1);
+  assert.equal(clampLimit(3.9, 50), 3);
+  assert.equal(clampLimit(999, 50), 50, "a ceiling of 999 files is an unbounded gate with extra steps");
+  assert.equal(clampLimit(8, 50), 8);
 });

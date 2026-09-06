@@ -3,8 +3,12 @@
   "configurations": [
     {
       "name": "missionalpha",
-      "url": "http://localhost:3004",
-      "port": 3004
+      "port": 3004,
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ]
     }
   ]
 }

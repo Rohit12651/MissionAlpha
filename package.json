@@ -9,16 +9,21 @@
     "build": "tsc && vite build",
     "preview": "vite preview --port 3004",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/lib/__tests__/*.test.ts",
+    "test:unit": "node --experimental-strip-types --test src/lib/__tests__/*.test.ts test/visual/*.test.mjs",
     "test:runtime": "node --test --test-concurrency=1 agent-runtime/__tests__/*.test.mjs agent-runtime/test/*.test.mjs",
     "test:vendor": "node --test scripts/lib/__tests__/*.test.mjs",
     "test:electron": "node --test electron/test/*.test.mjs",
+    "doctor": "node scripts/doctor.mjs",
     "reset:dev": "node scripts/reset-dev.mjs",
     "vendor:skills": "node scripts/vendor-skills.mjs",
     "gen:skills": "node scripts/gen-skills.mjs",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "electron:dev": "concurrently -k \"npm:dev\" \"wait-on tcp:3004 && RUNTIME_BACKEND=cli electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "test:visual": "playwright test test/visual --config=playwright.config.mjs",
+    "test:visual:update": "playwright test test/visual --config=playwright.config.mjs --update-snapshots",
+    "test:visual:record": "VISUAL_RECORD=1 playwright test test/visual/record.spec.mjs --config=playwright.config.mjs",
+    "preview:visual": "vite preview --port 3007 --strictPort"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
@@ -33,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.62.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.169.0",

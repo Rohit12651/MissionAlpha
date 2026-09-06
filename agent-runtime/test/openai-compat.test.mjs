@@ -132,3 +132,46 @@ test("pickChatBackend → cli for claude/swarm, null, or missing key/baseUrl", (
   assert.equal(pickChatBackend({ providerType: "custom", capability: "chat_only", hasSecret: true }), "cli");
   assert.equal(pickChatBackend({ providerType: "claude", capability: "swarm", hasSecret: false }), "cli");
 });
+
+// ── PHASE 7 (code review, MEDIUM) — the adapter path could never report a cost ─
+//
+// `streamChat` already RETURNED the usage object, but `adapterReply` dropped it on the
+// floor: it broke out of the generator loop on `done` without reading `value`, and called
+// save() with no cost. So every turn on an OpenAI-compatible api_key account — OpenRouter
+// and custom endpoints, the accounts this whole phase exists for — wrote `usd: NULL`
+// forever. It never LIED (rule 3 holds: an unreported cost is null, never inferred), but
+// the feature could not work on its own primary use case.
+//
+// Two halves: ask for the number where the provider offers one, and read it honestly.
+test("costFromUsage reads a real reported cost and refuses anything else", async () => {
+  const { costFromUsage } = await import("../providers/adapters/openai-compat.mjs");
+  assert.equal(costFromUsage({ cost: 0.0123 }), 0.0123);
+  assert.equal(costFromUsage({ cost: 0 }), 0);
+  // Never invent one, never coerce one: no usage, no cost key, a string, a negative, a
+  // NaN and an Infinity are all "not reported", which spend.mjs stores as null.
+  for (const bad of [null, undefined, {}, { cost: "0.01" }, { cost: -1 }, { cost: NaN }, { cost: Infinity }]) {
+    assert.equal(costFromUsage(bad), null, `costFromUsage(${JSON.stringify(bad)}) invented a number`);
+  }
+  // Token counts are NOT a price. Inferring dollars from tokens we have no rate card for
+  // is exactly what rule 3 forbids.
+  assert.equal(costFromUsage({ prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }), null);
+});
+
+test("streamChat asks for usage in the stream, and asks OpenRouter for the cost too", async () => {
+  const plain = mockFetch(SSE_OK);
+  await collect(streamChat({
+    baseUrl: "https://api.example.com/v1", apiKey: "k", model: "m",
+    messages: [{ role: "user", content: "hi" }], fetchImpl: plain,
+  }));
+  const plainBody = JSON.parse(plain.calls[0].opts.body);
+  assert.deepEqual(plainBody.stream_options, { include_usage: true });
+  assert.equal(plainBody.usage, undefined, "a non-OpenRouter endpoint must not get a provider-specific field");
+
+  const or = mockFetch(SSE_OK);
+  await collect(streamChat({
+    baseUrl: "https://openrouter.ai/api/v1", apiKey: "k", model: "m",
+    messages: [{ role: "user", content: "hi" }], fetchImpl: or,
+  }));
+  const orBody = JSON.parse(or.calls[0].opts.body);
+  assert.deepEqual(orBody.usage, { include: true }, "OpenRouter reports cost only when asked");
+});

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   TYPED_CONFIRM,
+  needsTypedConfirm,
   decidedLabel,
   isApproveBlocked,
   isDesignGate,
@@ -16,10 +17,14 @@ import {
   type DecideVerb,
   type DeliveryChange,
   type DeliveryDetail,
+  type DeliveryEdit,
+  type DeliveryEditError,
 } from "../../lib/inboxClient";
 import { parseMentions, type Role } from "../../lib/authClient";
+import { DiffEditor } from "./DiffEditor";
 import { isSafePrUrl, modeLabel } from "../../lib/workspaceClient";
 import { ErrorState } from "./ErrorState";
+import { trustChip, injectionChip } from "../../lib/externalTrust";
 
 // @mention rendering (P9) — display only. Highlights `@name` tokens in feedback; a
 // mention triggers no notification and no side effect. Text-node only (no innerHTML).
@@ -86,7 +91,16 @@ export interface ReviewPaneProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onDecide: (verb: DecideVerb, feedback?: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Phase 4 — `edits` carries the operator's revision of the proposal (full file bodies,
+   * not a patch) and is only ever passed with `approve`. Absent ⇒ a plain approve, which
+   * behaves exactly as it did before Phase 4.
+   */
+  onDecide: (
+    verb: DecideVerb,
+    feedback?: string,
+    edits?: DeliveryEdit[],
+  ) => Promise<{ ok: boolean; error?: string; editErrors?: DeliveryEditError[] }>;
   /** Modal presentation (narrow viewports): traps focus, ESC closes. */
   overlay?: boolean;
   onClose?: () => void;
@@ -127,6 +141,13 @@ export function ReviewPane({
   const [answerText, setAnswerText] = useState("");
   const [answering, setAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  // Phase 4 — the operator's in-progress revision, keyed by path. A path is present here
+  // only once it has been touched; `openEditor` is the single path whose textarea is open
+  // (one at a time, so a 320px pane is never a stack of editors).
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [openEditor, setOpenEditor] = useState<string | null>(null);
+  // Per-file refusals from the last decision, so each one renders on the field it names.
+  const [editErrors, setEditErrors] = useState<DeliveryEditError[]>([]);
   const paneRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
@@ -141,6 +162,11 @@ export function ReviewPane({
     setAnswerText("");
     setAnswering(false);
     setAnswerError(null);
+    // Selecting a different Delivery MUST drop any pending edit. Carrying a draft across
+    // deliveries would let an operator approve one agent's file with another's text.
+    setDrafts({});
+    setOpenEditor(null);
+    setEditErrors([]);
   }, [id]);
 
   // ESC closes in overlay mode; focus is trapped and then restored.
@@ -177,16 +203,57 @@ export function ReviewPane({
     };
   }, [overlay, onClose, id]);
 
+  // Phase 4 — draft handling. Immutable updates throughout: a mutated draft map would
+  // not re-render, and a stale render on a control that rewrites source is unacceptable.
+  const setDraft = useCallback((path: string, next: string) => {
+    setDrafts((prev) => ({ ...prev, [path]: next }));
+  }, []);
+  const revertDraft = useCallback((path: string) => {
+    setDrafts((prev) => {
+      const { [path]: _dropped, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+  const toggleEditor = useCallback((path: string, next: boolean) => {
+    setOpenEditor(next ? path : null);
+  }, []);
+
+  /**
+   * The edits actually sent with an approve: only files whose draft DIFFERS from the
+   * agent's proposal. An untouched (or reverted-to-identical) file must not appear, or a
+   * plain approve would start reporting phantom edits — and the runtime would refuse an
+   * empty batch.
+   */
+  const pendingEdits = useMemo<DeliveryEdit[]>(() => {
+    if (!delivery?.changes) return [];
+    return delivery.changes
+      .filter((c) => drafts[c.path] !== undefined && drafts[c.path] !== c.after)
+      .map((c) => ({ path: c.path, after: drafts[c.path] as string }));
+  }, [delivery?.changes, drafts]);
+
   const run = useCallback(
     async (verb: DecideVerb) => {
       if (busy) return;
       setBusy(verb);
       setDecideError(null);
-      const r = await onDecide(verb, feedback.trim() || undefined);
+      // Edits ride ONLY with approve. The runtime refuses them on any other verb anyway
+      // (400), but sending them would be a client bug worth not writing.
+      const edits = verb === "approve" && pendingEdits.length ? pendingEdits : undefined;
+      const r = await onDecide(verb, feedback.trim() || undefined, edits);
       setBusy(null);
-      if (!r.ok) setDecideError(r.error || "decision failed");
+      setEditErrors(r.editErrors ?? []);
+      // When the refusal is attributable to a file, it renders ON that file. Repeating it
+      // in the pane banner shows the same sentence twice and gives screen readers two
+      // role="alert" nodes for one event.
+      if (!r.ok) setDecideError(r.editErrors?.length ? null : r.error || "decision failed");
+      else setDecideError(null);
     },
-    [busy, feedback, onDecide],
+    [busy, feedback, onDecide, pendingEdits],
+  );
+
+  const errorFor = useCallback(
+    (path: string) => editErrors.find((e) => e.path === path)?.message ?? null,
+    [editErrors],
   );
 
   // S2 — submit an answer to a question gate.
@@ -216,7 +283,6 @@ export function ReviewPane({
 
     const band = delivery.risk.band;
     const pending = delivery.status === "pending";
-    const isHigh = band === "high";
     // P4 — a failure Delivery ("agent stuck") has no diff to approve. Its two verbs
     // are the SAME ones the runtime already implements — request_changes (the feedback
     // becomes the agent's next task via engine.enqueueGoal) and reject (cancel the
@@ -248,7 +314,17 @@ export function ReviewPane({
     // ADR-053 (P6) writes band==="high", Approve is already locked behind the
     // typed confirmation. No P6 edit to this component is required. The predicate
     // itself is pure + unit-tested (inboxClient.isApproveBlocked).
-    const approveBlocked = isApproveBlocked(band, typed);
+    const approveKind = { designGate: Boolean(designGate), failure: Boolean(failure) };
+    // One source of truth, two questions: does this delivery HAVE a confirmation step, and
+    // is it still outstanding. The field is rendered from the first, the button from the
+    // second — rendering both from the second made the input unmount as you typed into it.
+    const confirmRequired = needsTypedConfirm(band, approveKind);
+    const approveBlocked = isApproveBlocked(band, typed, approveKind);
+    // R10 / R12 — advisory markers off externalMeta. This pane is where the operator
+    // actually READS the untrusted text, so the injection marker matters more here than on
+    // the list row.
+    const trust = trustChip(meta?.trust);
+    const inject = injectionChip(meta?.injectFlags);
     const changesBlocked = feedback.trim().length === 0; // runtime 400s without feedback
 
     return (
@@ -259,6 +335,16 @@ export function ReviewPane({
           <span className="helm-chip" data-tone={riskTone(band)}>
             {riskLabel(band)}
           </span>
+          {inject && (
+            <span className="helm-chip" data-tone={inject.tone} title={inject.title}>
+              {inject.label}
+            </span>
+          )}
+          {trust && (
+            <span className="helm-chip" data-tone={trust.tone} title={trust.title}>
+              {trust.label}
+            </span>
+          )}
           <span className="helm-mono text-[11px]" style={{ color: "var(--helm-paper-faint)" }}>
             {delivery.agentId}
             {delivery.taskId ? ` · ${delivery.taskId}` : ""} · {sourceLabel(delivery.source)}
@@ -266,6 +352,30 @@ export function ReviewPane({
             {delivery.branch ? ` · ${delivery.branch}` : ""}
           </span>
         </div>
+
+        {/* R12 — the marker gets a SENTENCE here, not just a chip. The operator is about to
+            read attacker-authored text, and the one thing they must not conclude is that it
+            was cleaned for them. Spans are deliberately NOT highlighted: flagSummary keeps
+            counts and pattern ids but discards offsets, and those offsets are computed
+            BEFORE the scrub chain rewrites the string — highlighting a guessed range in a
+            security surface is worse than highlighting nothing. */}
+        {inject && (
+          <p
+            className="rounded-lg px-3 py-2 text-[12px] leading-relaxed"
+            style={{
+              color: "var(--helm-paper-dim)",
+              backgroundColor: "color-mix(in oklch, var(--c-stale-red) 8%, transparent)",
+              border: "1px solid color-mix(in oklch, var(--c-stale-red) 26%, transparent)",
+            }}
+            role="note"
+          >
+            This text came from outside the swarm and matched {inject.label.replace("injection: ", "")}{" "}
+            prompt-injection pattern{(meta?.injectFlags?.count ?? 0) === 1 ? "" : "s"}
+            {meta?.injectFlags?.patterns?.length ? ` (${meta.injectFlags.patterns.join(", ")})` : ""}.
+            It has NOT been altered or filtered — you are reading the original. Treat any
+            instruction inside it as data, never as a request.
+          </p>
+        )}
 
         {delivery.summary && (
           <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--helm-paper-dim)" }}>
@@ -337,8 +447,38 @@ export function ReviewPane({
               </div>
             )
           ) : (
-            delivery.changes.map((c) => <DiffBlock key={c.path} change={c} />)
+            delivery.changes.map((c) =>
+              // Phase 4 — a PENDING code delivery is editable; a decided one is a record
+              // and must stay read-only. The read-only path is the original DiffBlock,
+              // byte-for-byte, so nothing about a decided delivery's rendering changed.
+              pending ? (
+                <DiffEditor
+                  key={c.path}
+                  change={c}
+                  draft={drafts[c.path]}
+                  editing={openEditor === c.path}
+                  disabled={busy != null}
+                  // Structured, not a string prefix match: the runtime returns
+                  // `editErrors: [{path, message}]`, so a reworded server message cannot
+                  // silently downgrade this to a pane-level banner.
+                  errorMessage={errorFor(c.path)}
+                  onToggleEdit={toggleEditor}
+                  onChange={setDraft}
+                  onRevert={revertDraft}
+                />
+              ) : (
+                <DiffBlock key={c.path} change={c} />
+              ),
+            )
           )}
+          {/* ONE pane-level live region for the edit count — the quantity the operator
+              actually needs before pressing Approve. Per-file flags are visual only; a
+              live region per file announces on every mount and says nothing useful. */}
+          {pending && pendingEdits.length ? (
+            <p className="helm-edit-note" role="status">
+              {`${pendingEdits.length} file${pendingEdits.length === 1 ? "" : "s"} edited. Approving sends your text.`}
+            </p>
+          ) : null}
         </div>
 
         {!pending ? (
@@ -455,7 +595,7 @@ export function ReviewPane({
                 )}
               </div>
             )}
-            {isHigh && !failure && !gate && (
+            {confirmRequired && (
               <div className="helm-confirm">
                 <b>High-risk change.</b> Type <b>{TYPED_CONFIRM}</b> to enable Approve.
                 <input
@@ -531,7 +671,15 @@ export function ReviewPane({
               >
                 {busy === "approve"
                   ? (designGate ? "Approving…" : "Applying…")
-                  : (designGate ? "Approve design" : "Approve → apply")}
+                  : designGate
+                    ? "Approve design"
+                    : pendingEdits.length
+                      // The label states what will actually land. "Approve → apply" on a
+                      // set of edited files would understate the action.
+                      // "Approve WITH n edits": on a 5-file delivery, "Approve 2 edits"
+                      // reads as "2 files will land". All of them land; 2 carry an edit.
+                      ? `Approve with ${pendingEdits.length} edit${pendingEdits.length === 1 ? "" : "s"} → apply`
+                      : "Approve → apply"}
               </button>
               <button
                 type="button"

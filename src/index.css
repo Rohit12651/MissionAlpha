@@ -1,6 +1,10 @@
 /* Helm skin (P3 Inbox). Additive + scoped to [data-skin="helm"] — contributes no
    unscoped rule, so the existing cockpit is unchanged when the attribute is absent.
    Must sit above the @tailwind directives: CSS requires @import to precede rules. */
+/* Phase 8 — the type ladder. FIRST, so every later sheet can reference --type-*.
+   Unscoped by design: it declares custom properties on :root and no rules, so it changes
+   nothing on its own. The sweep (Phase 9) is what consumes it. */
+@import "./theme/tokens.css";
 @import "./theme/helm.css";
 /* Business-OS shell (B0). Same additive contract, scoped to [data-skin="helm"] .bos-*. */
 @import "./theme/bos.css";
@@ -68,20 +72,26 @@
 */
 :root,
 [data-theme="dark"] {
-  --c-bg: oklch(0.16 0.012 270);
-  --c-panel: oklch(0.2 0.014 270);
-  --c-panel-2: oklch(0.24 0.016 270);
-  --c-text: oklch(0.96 0.005 270);
-  --c-muted: oklch(0.68 0.012 270);
-  --c-border: oklch(0.3 0.014 270);
-  --c-accent-cyan: oklch(0.82 0.14 200);
-  --c-blocked-amber: oklch(0.82 0.15 75);
-  --c-stale-red: oklch(0.66 0.21 25);
-  --c-done-green: oklch(0.78 0.16 150);
-  --c-ceo-gold: oklch(0.84 0.14 90);
-  /* Agent Factory identity — hue 300 (violet), distinct from cyan/gold/amber so
-     it never collides with a status color. ~7.6:1 on panel, ~8.4:1 on bg. */
-  --c-factory-violet: oklch(0.78 0.13 300);
+  /* UI-UNIFICATION 2026-08-20 (BOSS theme) — ONE palette for every skin generation.
+     Values are the BOSS-supplied WhatsApp-style set; token NAMES are unchanged (they
+     are the wire contract of ~4k call sites). "cyan"/"gold" now carry the teal/green
+     identity: --c-accent-cyan = primary teal, --c-ceo-gold = brand CTA green.
+     Surface ladder (dark): bg #0b141a < panel #1f2c34 < panel-2 #26333d (derived
+     midpoint of card→input so borders #2a3942 stay visible on every surface). */
+  --c-bg: #0b141a;
+  --c-panel: #1f2c34;
+  --c-panel-2: #26333d;
+  --c-text: #e9edef;
+  --c-muted: #8696a0;
+  --c-border: #2a3942;
+  --c-accent-cyan: #00a884;
+  --c-blocked-amber: #e9a13b;
+  --c-stale-red: #f28b7d; /* text-red, 4.9:1 on panel-2; pure #ea4335 is bg/decoration only */
+  --c-done-green: #25d366;
+  --c-ceo-gold: #25d366;
+  /* Agent Factory identity — the palette's sky blue (chart-4), distinct from every
+     status color. AA on panel/panel-2 as small text. */
+  --c-factory-violet: #34b7f1;
 
   /* F4 type token — Lato everywhere (bundled woff2 above), graceful system
      fallback while the font swaps in / on any platform without it. */
@@ -95,41 +105,39 @@
 }
 
 [data-theme="light"] {
-  --c-bg: oklch(0.98 0.005 90);
-  --c-panel: oklch(1 0 0);
-  --c-panel-2: oklch(0.96 0.006 90);
-  --c-text: oklch(0.24 0.02 270);
-  --c-muted: oklch(0.52 0.02 270);
-  --c-border: oklch(0.9 0.008 270);
+  /* UI-UNIFICATION 2026-08-20 — the BOSS theme's light half. Same a11y law as the
+     Phase-5 pass this replaces: every accent is used as SMALL TEXT (feed topics,
+     status words, badges), so every value below clears WCAG 4.5:1 on --c-panel
+     (white) — accent 8.2, green 5.8, gold 5.6, amber 5.2, red 5.3, blue 4.9 —
+     and ≥4.3 on --c-bg. The vivid brand greens (#25d366/#00a884) are bg/decoration
+     colors in light mode, never small text (they measure ~1.9:1 on white). */
+  --c-bg: #f0f2f5;
+  --c-panel: #ffffff;
+  --c-panel-2: #f0f2f5;
+  --c-text: #111b21;
+  --c-muted: #667781;
+  --c-border: #e9edef;
+  --c-accent-cyan: #075e54;
+  --c-blocked-amber: #946200;
+  --c-stale-red: #c5221f;
+  --c-done-green: #00754a;
+  --c-ceo-gold: #0b7a53;
+  /* Factory blue — darkened for AA as small text on white. */
+  --c-factory-violet: #0c6f9b;
   /*
-    Phase 5 a11y: the prior light accents (cyan .60, amber .68, green .62,
-    gold .70) failed WCAG 4.5:1 as small TEXT on white panels (gold was worst at
-    2.69:1). They are used as body-size text (feed topic, NEEDS-YOU label, status
-    words, badges), so they must clear 4.5:1. Darkened to ~L.52–.55 — verified
-    cyan 5.04, amber 5.02, green 5.17, gold 4.92, red 5.38 on --c-panel, and all
-    ≥4.45 on --c-bg. Hue/chroma preserved so the palette identity holds.
+    Bright variants kept for non-text decorative glow (globe halos, dots, column
+    wash) where the AA-darkened text accents would look muddy. Components that
+    need glow opt into these; text always uses the AA-safe vars above.
   */
-  --c-accent-cyan: oklch(0.52 0.13 220);
-  --c-blocked-amber: oklch(0.55 0.13 65);
-  --c-stale-red: oklch(0.55 0.2 25);
-  --c-done-green: oklch(0.52 0.14 150);
-  --c-ceo-gold: oklch(0.55 0.13 80);
-  /* Factory violet — darkened to ~L.48 for AA as small text on white (~5.0:1). */
-  --c-factory-violet: oklch(0.48 0.18 300);
-  /*
-    Bright variants kept for non-text decorative glow (globe halos, dots,
-    column wash) where the darkened text accents would look muddy. Components
-    that need glow can opt into these; text always uses the AA-safe vars above.
-  */
-  --c-accent-cyan-bright: oklch(0.62 0.13 220);
-  --c-ceo-gold-bright: oklch(0.72 0.12 85);
+  --c-accent-cyan-bright: #00a884;
+  --c-ceo-gold-bright: #25d366;
 }
 
 /* Dark theme: bright variants are just the base accents (already vivid). */
 :root,
 [data-theme="dark"] {
-  --c-accent-cyan-bright: oklch(0.82 0.14 200);
-  --c-ceo-gold-bright: oklch(0.84 0.14 90);
+  --c-accent-cyan-bright: #00a884;
+  --c-ceo-gold-bright: #25d366;
 }
 
 * {

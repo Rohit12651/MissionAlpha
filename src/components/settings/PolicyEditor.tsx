@@ -8,9 +8,11 @@ import {
   setBand,
   addDeny,
   removeDeny,
+  clampLimit,
   BEHAVIOR_OPTIONS,
   BEHAVIOR_LABEL,
   type PolicyBands,
+  type PolicyLimits,
 } from "../../lib/inboxClient";
 
 /*
@@ -26,9 +28,19 @@ import {
 const BANDS: (keyof PolicyBands)[] = ["low", "medium", "high"];
 const BAND_LABEL: Record<keyof PolicyBands, string> = { low: "Low risk", medium: "Medium risk", high: "High risk" };
 
+// Upper bounds on the CEILINGS themselves. Nothing stops the operator from typing a large
+// number, but a field that offers 100,000 lines is offering an unbounded auto-approve with
+// extra steps, and these caps keep the control honest about what it is for.
+const MAX_FILES_CEILING = 50;
+const MAX_LINES_CEILING = 2000;
+
 export function PolicyEditor() {
   const [bands, setBands] = useState<PolicyBands | null>(null);
   const [deny, setDeny] = useState<string[]>([]);
+  // PHASE 2 TASK 2.2 — the two bounds that make unattended auto-approve safe to leave on.
+  const [limits, setLimits] = useState<PolicyLimits>({ maxFiles: 8, maxLines: 300 });
+  const [allow, setAllow] = useState<string[]>([]);
+  const [newAllow, setNewAllow] = useState("");
   const [valid, setValid] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,7 +50,15 @@ export function PolicyEditor() {
 
   const load = useCallback(() => {
     getPolicy()
-      .then((p) => { setBands(p.bands); setDeny(p.denyList ?? []); setValid(p.valid); setDirty(false); setError(null); })
+      .then((p) => {
+        setBands(p.bands);
+        setDeny(p.denyList ?? []);
+        if (p.limits) setLimits(p.limits);
+        setAllow(p.allowList ?? []);
+        setValid(p.valid);
+        setDirty(false);
+        setError(null);
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "could not read the policy"));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -50,6 +70,15 @@ export function PolicyEditor() {
   };
   const addGlob = () => { const next = addDeny(deny, newGlob); if (next.length !== deny.length) { setDeny(next); setDirty(true); } setNewGlob(""); };
   const dropGlob = (g: string) => { setDeny(removeDeny(deny, g)); setDirty(true); };
+  // The allowlist reuses addDeny/removeDeny: they are pure list ops over globs, and a
+  // second identical pair would be two implementations of "add a glob once" that can drift.
+  const addAllowGlob = () => { const next = addDeny(allow, newAllow); if (next.length !== allow.length) { setAllow(next); setDirty(true); } setNewAllow(""); };
+  const dropAllowGlob = (g: string) => { setAllow(removeDeny(allow, g)); setDirty(true); };
+  const setLimit = (key: keyof PolicyLimits, raw: string) => {
+    const max = key === "maxFiles" ? MAX_FILES_CEILING : MAX_LINES_CEILING;
+    setLimits((cur) => ({ ...cur, [key]: clampLimit(Number(raw), max) }));
+    setDirty(true);
+  };
 
   const doSave = async () => {
     if (!bands) return;
@@ -57,10 +86,12 @@ export function PolicyEditor() {
     setBusy(true);
     setError(null);
     try {
-      const r = await putPolicy({ bands, denyList: deny });
+      const r = await putPolicy({ bands, denyList: deny, limits, allowList: allow });
       if (r.error) { setError(r.error); return; }
       if (r.bands) setBands(r.bands);
       if (r.denyList) setDeny(r.denyList);
+      if (r.limits) setLimits(r.limits);
+      if (r.allowList) setAllow(r.allowList);
       if (typeof r.valid === "boolean") setValid(r.valid);
       setDirty(false);
     } catch (e: unknown) {
@@ -79,8 +110,10 @@ export function PolicyEditor() {
         <h3 className="text-sm font-semibold tracking-tight">Risk policy</h3>
       </div>
       <p className="mb-3 text-[12px] text-muted">
-        Per-band routing for the anti-approval-fatigue engine. Auto-approve is deny-by-default; the
-        deny-list forces a human regardless of band, and high risk can never auto-apply.
+        Per-band routing for the anti-approval-fatigue engine. Auto-approve is deny-by-default and
+        bounded four ways: high risk can never auto-apply, the deny-list forces a human regardless
+        of band, every changed path must be on the allowlist, and the diff must be under the size
+        ceiling. A diff whose size was never measured is refused, not assumed small.
       </p>
 
       {!bands ? (
@@ -139,6 +172,73 @@ export function PolicyEditor() {
             </div>
           </div>
 
+          {/* PHASE 2 TASK 2.2 — the diff-size ceiling. Auto-approve needs a MEASURED size
+              under both numbers; an unmeasured diff is refused rather than assumed small. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px]" style={{ color: tok("muted") }}>
+              Auto-approve size ceiling — a diff over either number waits for you
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 text-[12px] text-text">
+                <span>Max files</span>
+                <input
+                  type="number" min={1} max={MAX_FILES_CEILING}
+                  className="w-20 rounded-md px-2 py-1 font-mono text-[11px] outline-none focus-visible:ring-2"
+                  style={inputStyle}
+                  value={limits.maxFiles}
+                  onChange={(e) => setLimit("maxFiles", e.target.value)}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] text-text">
+                <span>Max changed lines</span>
+                <input
+                  type="number" min={1} max={MAX_LINES_CEILING}
+                  className="w-24 rounded-md px-2 py-1 font-mono text-[11px] outline-none focus-visible:ring-2"
+                  style={inputStyle}
+                  value={limits.maxLines}
+                  onChange={(e) => setLimit("maxLines", e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* The ALLOWLIST — deny-by-default. The deny-list above can only refuse what
+              someone thought to name; this refuses everything nobody named. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px]" style={{ color: tok("muted") }}>
+              Auto-approve path allowlist (deny-by-default — an empty list allows nothing)
+            </span>
+            <div className="flex flex-wrap gap-1.5" role="list" aria-label="Allowlist globs">
+              {allow.length === 0 && (
+                <span className="text-[11px]" style={{ color: tok("blocked-amber") }}>
+                  Empty — nothing can auto-approve. Every delivery waits for you.
+                </span>
+              )}
+              {allow.map((g) => (
+                <span key={g} role="listitem" className="flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[11px]" style={{ backgroundColor: tok("panel-2"), border: `1px solid ${tok("border")}` }}>
+                  {g}
+                  <button type="button" aria-label={`Remove ${g} from the allowlist`} onClick={() => dropAllowGlob(g)} className="outline-none focus-visible:ring-2" style={{ color: tok("muted") }}>
+                    <X size={11} aria-hidden />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                className="flex-1 rounded-md px-2.5 py-1.5 font-mono text-[11px] outline-none focus-visible:ring-2"
+                style={inputStyle}
+                placeholder="src/**"
+                aria-label="New allowlist glob"
+                value={newAllow}
+                onChange={(e) => setNewAllow(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAllowGlob(); } }}
+              />
+              <button type="button" onClick={addAllowGlob} disabled={!newAllow.trim()} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] outline-none focus-visible:ring-2 disabled:opacity-40" style={{ color: tok("accent-cyan"), border: `1px solid color-mix(in oklch, ${tok("accent-cyan")} 30%, transparent)` }}>
+                <Plus size={12} aria-hidden /> Add
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -160,8 +260,8 @@ export function PolicyEditor() {
         title="Save risk policy"
         summary={
           bands && bands.low === "auto_approve"
-            ? "Low-risk deliveries will AUTO-APPLY through the broker without you. The deny-list and high-risk typed confirm still hold."
-            : "Update the per-band routing and deny-list. No band is set to auto-apply."
+            ? `Low-risk deliveries will AUTO-APPLY through the broker without you — but only inside ${allow.length} allowlisted path pattern(s), and only up to ${limits.maxFiles} files / ${limits.maxLines} changed lines. The deny-list and high-risk typed confirm still hold.`
+            : "Update the per-band routing, the deny-list, the allowlist and the size ceiling. No band is set to auto-apply."
         }
         affected={[]}
         confirmLabel="Save policy"

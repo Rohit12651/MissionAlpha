@@ -11,6 +11,7 @@
 // `slaDeadline` are NULL in every P2-minted Delivery, and `auto_approved` is
 // blocked at the engine (deliveries.mjs). This module renders that truth —
 // `unrated`, no countdown — and never fabricates a band or a deadline.
+import type { TrustStamp, InjectFlags } from "./externalTrust.ts";
 import { runtimeToken, runtimeUrl } from "./runtimeBase.ts";
 
 // ── Types — mirror agent-runtime/deliveries.mjs hydrate() exactly ────────────
@@ -20,7 +21,7 @@ export type DeliveryStatus =
   | "rejected"
   | "changes_requested"
   | "auto_approved";
-export type DeliverySource = "swarm" | "claude-code" | "github-pr" | "external";
+export type DeliverySource = "swarm" | "claude-code" | "github-pr" | "slack" | "external";
 /**
  * `failure` (P4 / ADR-051 §9) is the diff-less "agent stuck — needs you" row. `question`,
  * `design-approval` (S2) and `release-approval` (S5) are the diff-less HUMAN-GATE rows a Story
@@ -28,7 +29,7 @@ export type DeliverySource = "swarm" | "claude-code" | "github-pr" | "external";
  * and the release-accept gate the BOSS decides before a deploy executes. Mirrors
  * agent-runtime/deliveries.mjs KINDS exactly.
  */
-export type DeliveryKind = "code" | "doc" | "post" | "command" | "failure" | "question" | "design-approval" | "release-approval";
+export type DeliveryKind = "code" | "doc" | "post" | "command" | "failure" | "question" | "design-approval" | "release-approval" | "job-approval";
 export type RiskBand = "low" | "medium" | "high" | null;
 export type DecideVerb = "approve" | "reject" | "request_changes";
 
@@ -111,6 +112,24 @@ export interface ExternalMeta {
   workspaceSlug?: string;
   files?: number;
   updatedAt?: string;
+  /**
+   * R10 — the behavioural trust stamp for the SOURCE that ingested this row, taken at
+   * ingest time. Advisory: it adds review friction and can never grant permission
+   * (deliveries.mjs refuses auto-apply for any non-swarm source, producer-side).
+   */
+  trust?: TrustStamp | null;
+  /**
+   * R12 — prompt-injection patterns matched in the incoming title + body. A MARKER only:
+   * the content was never filtered, rewritten or rejected.
+   *
+   * NOTE, and this bounds what the UI can honestly do: `inject-detect.flagSummary()`
+   * keeps counts, severity and pattern ids but DISCARDS the character spans. The offsets
+   * would not survive the scrub chain anyway — they are computed pre-scrub, and scrubbing
+   * rewrites the string — so highlighting matched ranges in the review pane is NOT
+   * possible from this payload, and guessing at them in a security surface would be worse
+   * than showing none.
+   */
+  injectFlags?: InjectFlags | null;
 }
 
 /** One reviewable file, rebuilt server-side from the on-disk patch. */
@@ -120,6 +139,24 @@ export interface DeliveryChange {
   before: string | null;
   after: string;
   patch: string;
+  /**
+   * Phase 4 — can this file be edited before approval?
+   *
+   * False when the reviewed text is not the text on disk: the broker truncates at 4000
+   * chars and the scrub layer redacts secrets before anyone sees the diff, and the
+   * runtime fails closed on an edit to such a file. The client MUST honour this rather
+   * than offering an Edit button whose refusal only arrives after Approve is pressed.
+   * Optional so a pre-Phase-4 payload still type-checks; treat `undefined` as editable.
+   */
+  editable?: boolean;
+  /** Why editing is unavailable, in words fit to show the operator. Null when editable. */
+  editableReason?: string | null;
+}
+
+/** Phase 4 — a refusal bound to the file that caused it, for field-level display. */
+export interface DeliveryEditError {
+  path: string;
+  message: string;
 }
 
 /** GET /inbox/:id — a Delivery plus its full change set. */
@@ -151,6 +188,10 @@ export interface DecideResult extends Partial<Delivery> {
   refusedPaths?: string[];
   /** P5 — the ladder itself faulted; the broker apply ran as the fallback. */
   deliverError?: string;
+  /** Phase 4 — paths the operator revised before approving. Absent on a plain approve. */
+  editedPaths?: string[];
+  /** Phase 4 — refusals attributable to a specific file, for field-level display. */
+  editErrors?: DeliveryEditError[];
 }
 
 // ── Filters (the merged mockup's five pills) ────────────────────────────────
@@ -161,7 +202,8 @@ export type InboxFilter = (typeof INBOX_FILTERS)[number];
  * S2/S5 — the diff-less HUMAN-GATE kinds. `question` is answered; `design-approval` and
  * `release-approval` are decided (approve / request-changes / reject). Mirrors deliveries.mjs GATE_KINDS.
  */
-export const GATE_KINDS: readonly DeliveryKind[] = ["question", "design-approval", "release-approval"];
+// Phase 11 — `job-approval` is the JOB gate: ONE decision that ships every task in a job.
+export const GATE_KINDS: readonly DeliveryKind[] = ["question", "design-approval", "release-approval", "job-approval"];
 export const isGate = (d: Delivery): boolean => GATE_KINDS.includes(d.kind);
 export const isQuestion = (d: Delivery): boolean => d.kind === "question";
 export const isDesignGate = (d: Delivery): boolean => d.kind === "design-approval";
@@ -246,6 +288,7 @@ const SOURCE_LABEL: Record<DeliverySource, string> = {
   swarm: "swarm",
   "github-pr": "GitHub PR",
   "claude-code": "Claude Code",
+  slack: "Slack", // MUNDER-ADOPTION A7
   external: "external",
 };
 export const sourceLabel = (s: DeliverySource): string => SOURCE_LABEL[s] ?? String(s);
@@ -256,12 +299,13 @@ const SOURCE_TONE: Record<DeliverySource, string> = {
   swarm: "muted",
   "github-pr": "brass",
   "claude-code": "grey",
+  slack: "green", // MUNDER-ADOPTION A7 — an ingress request, visually distinct from code sources
   external: "muted",
 };
 export const sourceTone = (s: DeliverySource): string => SOURCE_TONE[s] ?? "muted";
 
 /** Read-only sources carry no decide action in v1 (visibility only). */
-export const READ_ONLY_SOURCES: readonly DeliverySource[] = ["claude-code"];
+export const READ_ONLY_SOURCES: readonly DeliverySource[] = ["claude-code", "slack"];
 export const isReadOnlySource = (s: DeliverySource): boolean => READ_ONLY_SOURCES.includes(s);
 export const isReadOnly = (d: Delivery): boolean => isReadOnlySource(d.source);
 
@@ -277,8 +321,42 @@ export const TYPED_CONFIRM = "APPLY";
  * Delivery. It is live code, not a stub: the moment ADR-053 (P6) writes
  * `band: "high"`, Approve is already gated with no component change.
  */
-export function isApproveBlocked(band: RiskBand, typed: string): boolean {
-  return band === "high" && typed !== TYPED_CONFIRM;
+export interface ApproveKind {
+  /** A design-approval gate: advances a story to Plan. Writes nothing. */
+  designGate?: boolean;
+  /** A diff-less "agent is stuck" row. Approving it decides a failure, not a change. */
+  failure?: boolean;
+}
+
+/**
+ * Does the operator still owe a typed confirmation before Approve can fire?
+ *
+ * The confirmation exists to slow down a high-risk ACT. Which deliveries that covers is a
+ * judgement, and it is made once, here:
+ *   • a high-band DIFF          → yes. Approving writes those files.
+ *   • a RELEASE gate            → yes. It carries no diff, but approving it DEPLOYS.
+ *   • a DESIGN gate             → no. It advances a story to Plan and writes nothing.
+ *   • a FAILURE row             → no. Deciding a stuck-agent row changes no code.
+ *
+ * WHY IT TAKES THE KIND AT ALL: ReviewPane rendered the confirm INPUT under
+ * `isHigh && !failure && !gate` while computing this from the band ALONE. On a high-band
+ * design gate that produced a permanently disabled Approve button whose tooltip told the
+ * operator to type APPLY into a field that was not on the page — so no gate on this install
+ * had ever been approved from the UI; every one went through curl. Found by trying to click
+ * it. Both the field and the button now read this one predicate, so they cannot disagree
+ * again, and the release gate KEEPS its friction rather than losing it to the same fix.
+ *
+ * Split in two on purpose: `needsTypedConfirm` says whether this delivery has a confirmation
+ * step at all, and `isApproveBlocked` says whether it is still outstanding. Rendering the
+ * FIELD from the blocked flag made the input vanish the instant the word was typed into it.
+ */
+export function needsTypedConfirm(band: RiskBand, kind: ApproveKind = {}): boolean {
+  if (kind.designGate || kind.failure) return false;
+  return band === "high";
+}
+
+export function isApproveBlocked(band: RiskBand, typed: string, kind: ApproveKind = {}): boolean {
+  return needsTypedConfirm(band, kind) && typed !== TYPED_CONFIRM;
 }
 
 // ── SLA countdown formatter (pure — drift-free, rendered from the absolute deadline) ─
@@ -367,8 +445,53 @@ export const listInbox = (q: ListQuery = {}, signal?: AbortSignal) => authedJson
 export const getDelivery = (id: string) =>
   authedJson<DeliveryDetail & { error?: string }>(`/inbox/${encodeURIComponent(id)}`);
 
-export const decideDelivery = (id: string, verb: DecideVerb, body: { by?: string; feedback?: string } = {}) =>
-  authedJson<DecideResult>(decidePath(id, verb), { method: "POST", body: JSON.stringify(body) });
+/**
+ * Phase 4 — an operator revision of the agent's proposal, sent with an approve.
+ *
+ * `after` is the FULL new body of that file, not a diff. The runtime validates it against
+ * the delivery's own changedPaths, re-runs the broker's path guards, refuses if the text
+ * the reviewer saw was scrubbed or truncated, stages it into the agent's workdir, and
+ * then approves through the completely unchanged apply path.
+ */
+export interface DeliveryEdit {
+  path: string;
+  after: string;
+}
+
+export const decideDelivery = (
+  id: string,
+  verb: DecideVerb,
+  body: { by?: string; feedback?: string; edits?: DeliveryEdit[] } = {},
+) => authedJson<DecideResult>(decidePath(id, verb), { method: "POST", body: JSON.stringify(body) });
+
+/**
+ * Phase 2/3 — POST /inbox/bulk-decide. Decides many deliveries in ONE call.
+ *
+ * This is not a second decision path: the runtime loops the same `deliveries.decide()`
+ * the single route uses, so every policy/broker/audit guard still applies per item.
+ * Two extra server gates apply — a hard cap of 200 ids, and `confirmHighRisk` is
+ * REQUIRED to bulk-approve anything in the high band (the single-delivery UI makes the
+ * human type a confirm phrase; bulk must not become the way around that). Without it the
+ * whole batch is refused and nothing is decided.
+ */
+export interface BulkDecideResult {
+  ok?: boolean;
+  requested?: number;
+  decided?: number;
+  results?: { id: string; ok: boolean; error?: string }[];
+  error?: string;
+  highRiskIds?: string[];
+}
+
+export const bulkDecide = (
+  ids: readonly string[],
+  decision: DecideVerb,
+  body: { feedback?: string; confirmHighRisk?: boolean } = {},
+) =>
+  authedJson<BulkDecideResult>("/inbox/bulk-decide", {
+    method: "POST",
+    body: JSON.stringify({ ids, decision, ...body }),
+  });
 
 /**
  * P9 — POST /inbox/:id/assign {assignee}. Set (or clear, with null) the advisory
@@ -444,9 +567,25 @@ export interface PolicyBands {
   medium: MedBehavior;
   high: HighBehavior;
 }
+/**
+ * PHASE 2 TASK 2.2 — the diff-size ceiling. A band ceiling alone is not a bound: "low
+ * risk" is a classifier's opinion about the KIND of change and says nothing about its
+ * size, and a low-risk rewrite of forty files is still forty files nobody read.
+ */
+export interface PolicyLimits {
+  maxFiles: number;
+  maxLines: number;
+}
 export interface PolicyDoc {
   bands: PolicyBands;
   denyList: string[];
+  limits: PolicyLimits;
+  /**
+   * The auto-approve path ALLOWLIST — deny-by-default, so a path nobody foresaw is
+   * refused rather than permitted. This is the opposite polarity to `denyList`, which can
+   * only ever refuse what someone thought to name. An empty list allows nothing.
+   */
+  allowList: string[];
   /** false ⇒ the file was corrupt and the runtime fell back to all-human. */
   valid: boolean;
   /** Effective SLA windows (ms) after env > policy > default resolution. */
@@ -488,9 +627,22 @@ export function removeDeny(list: readonly string[], glob: string): string[] {
   return list.filter((g) => g !== glob);
 }
 
+/**
+ * Pure: clamp a typed ceiling into something the server will accept.
+ *
+ * The server rejects 0 and negatives outright (a ceiling of 0 is indistinguishable from
+ * "unset" on the next load, and "unset" falls back to a more permissive default). The
+ * editor should not let the operator type a value that will bounce, so this normalises
+ * to the nearest legal one and the field shows what will actually be saved.
+ */
+export function clampLimit(value: number, max: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(1, Math.floor(value)), max);
+}
+
 export const getPolicy = () => authedJson<PolicyDoc>("/runtime/policy");
 
-export const putPolicy = (body: { bands: PolicyBands; denyList?: string[] }) =>
+export const putPolicy = (body: { bands: PolicyBands; denyList?: string[]; limits?: PolicyLimits; allowList?: string[] }) =>
   authedJson<{ ok?: boolean; error?: string } & Partial<PolicyDoc>>("/runtime/policy", {
     method: "POST",
     body: JSON.stringify(body),

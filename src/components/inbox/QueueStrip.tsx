@@ -8,6 +8,7 @@ import {
   queueCounts,
   type QueueState,
 } from "../../lib/queueModel";
+import { useCoalescedNonce } from "../../lib/useCoalescedNonce";
 import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
 
 /*
@@ -35,15 +36,28 @@ export interface QueueStripProps {
   lastEvent: RuntimeEvent | null;
   /** Bumped on every successful (re)connect — forces an authoritative re-read. */
   resyncNonce: number;
+  /**
+   * D7 — monotonic count of queue-moving frames, bumped in App through a state UPDATER.
+   *
+   * `lastEvent` below is a single value slot and SSE delivers bursts inside one chunk, so
+   * React's batching kept only the burst's LAST frame — routinely `usage.tick`, which this
+   * component ignores. Both the optimistic delta and the trailing re-truth hung off that
+   * dropped value, which is why the live strip read "0 running" beside a claimed task and
+   * fetched `/runtime/engine/runs` twice in twenty minutes of churn. A counter cannot be
+   * batched away, so the authoritative re-read now hangs off THIS instead.
+   */
+  liveNonce?: number;
 }
 
-export function QueueStrip({ lastEvent, resyncNonce }: QueueStripProps) {
+export function QueueStrip({ lastEvent, resyncNonce, liveNonce = 0 }: QueueStripProps) {
   const [state, setState] = useState<QueueState>(EMPTY_QUEUE);
   const [maxInflight, setMaxInflight] = useState<number | null>(null);
   const [inflight, setInflight] = useState<number | null>(null);
   const [reachable, setReachable] = useState(true);
   const [retruth, setRetruth] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Coalesced so a burst of frames costs ONE authoritative read, not one per frame.
+  const settledLive = useCoalescedNonce(liveNonce, RETRUTH_DEBOUNCE_MS);
 
   // ── authoritative read ────────────────────────────────────────────────────
   useEffect(() => {
@@ -60,7 +74,7 @@ export function QueueStrip({ lastEvent, resyncNonce }: QueueStripProps) {
         if (live) setReachable(false);
       });
     return () => { live = false; };
-  }, [resyncNonce, retruth]);
+  }, [resyncNonce, retruth, settledLive]);
 
   // ── SSE delta + trailing re-truth ─────────────────────────────────────────
   useEffect(() => {

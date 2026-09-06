@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   INBOX_FILTERS,
+  bulkDecide,
   answerStoryQuestion,
   assignDelivery,
   decideDelivery,
@@ -8,6 +9,8 @@ import {
   listInbox,
   matchesFilter,
   type DecideVerb,
+  type DeliveryEdit,
+  type DeliveryEditError,
   type Delivery,
   type DeliveryDetail,
   type InboxCounts,
@@ -17,6 +20,10 @@ import { useAuth } from "../../lib/useAuth";
 import { listUsers } from "../../lib/authClient";
 import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
 import { DeliveryCard } from "./DeliveryCard";
+import { ClusterCard } from "./ClusterCard";
+import { DeliveryBulkBar } from "./DeliveryBulkBar";
+import { EMPTY_SELECTION, toggle, selectRange, prune, isSelected, selectedCount, selectedIds, type SelectionState } from "../../lib/selectionModel";
+import { groupDeliveries, decisionsSaved } from "../../lib/clusterModel";
 import { ReviewPane } from "./ReviewPane";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
@@ -47,6 +54,8 @@ const LIST_LIMIT = 100;
 export interface InboxPanelProps {
   /** Newest catalog event from the app-wide SSE subscription. */
   lastEvent: RuntimeEvent | null;
+  /** D7 — monotonic count of queue-moving SSE frames (see App.onRuntimeEvent). */
+  queueNonce?: number;
   /** Bumped on every successful (re)connect — triggers an authoritative re-read. */
   resyncNonce: number;
   connected: boolean;
@@ -65,6 +74,7 @@ export interface InboxPanelProps {
 export function InboxPanel({
   lastEvent,
   resyncNonce,
+  queueNonce = 0,
   connected,
   retryAt,
   onReconnectNow,
@@ -188,13 +198,21 @@ export function InboxPanel({
 
   // ── decide ────────────────────────────────────────────────────────────────
   const onDecide = useCallback(
-    async (verb: DecideVerb, feedback?: string): Promise<{ ok: boolean; error?: string }> => {
+    async (
+      verb: DecideVerb,
+      feedback?: string,
+      // Phase 4 — the operator's revision of the proposal, approve-only. The runtime
+      // validates and stages it; nothing about the apply path changes.
+      edits?: DeliveryEdit[],
+    ): Promise<{ ok: boolean; error?: string; editErrors?: DeliveryEditError[] }> => {
       if (!selectedId) return { ok: false, error: "nothing selected" };
       try {
         // No client `by`: the runtime derives the decider from the session when auth
         // is active (unspoofable), and defaults to 'BOSS' in solo mode.
-        const r = await decideDelivery(selectedId, verb, { feedback });
-        if (r.error) return { ok: false, error: r.error };
+        const r = await decideDelivery(selectedId, verb, { feedback, edits });
+        // editErrors travels with the failure so ReviewPane can bind each refusal to the
+        // file it names instead of showing one banner for a multi-file delivery.
+        if (r.error) return { ok: false, error: r.error, editErrors: r.editErrors };
         // The runtime also emits delivery.decided; refreshing here means the pane
         // is correct even when the stream is down (the banner case).
         refreshList();
@@ -255,6 +273,86 @@ export function InboxPanel({
 
   // ── derived ───────────────────────────────────────────────────────────────
   const visible = useMemo(() => deliveries.filter((d) => matchesFilter(d, filter)), [deliveries, filter]);
+
+  // Phase 2 — failure clustering. 97 agent-stuck failures were arriving as ~20
+  // near-identical cards: one root cause, twenty decisions. Grouping is a VIEW over the
+  // same list — every underlying delivery stays individually reachable by expanding the
+  // cluster, and only `kind:"failure"` rows matching the runtime's "<agent> is stuck —
+  // <reason>" shape can ever collapse (clusterModel fails closed on anything else).
+  const groups = useMemo(() => groupDeliveries(visible), [visible]);
+  const saved = useMemo(() => decisionsSaved(groups), [groups]);
+  const [bulkBusyKey, setBulkBusyKey] = useState<string | null>(null);
+
+  // Phase 3 — multi-select on the individual (non-clustered) rows. Selection lives here,
+  // keyed by id, NOT on the delivery objects: the list re-renders constantly off SSE and
+  // a per-row flag would be wiped on every refresh.
+  const [sel, setSel] = useState<SelectionState>(EMPTY_SELECTION);
+  const [confirmHighRisk, setConfirmHighRisk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  // Only PENDING singles are selectable — deciding an already-decided delivery is a
+  // no-op the runtime rejects, so it must not be offerable.
+  const selectableIds = useMemo(
+    () => groups.filter((g) => g.kind === "single" && g.delivery.status === "pending").map((g) => (g as { delivery: Delivery }).delivery.id),
+    [groups],
+  );
+
+  // Anything that left the view must leave the selection with it.
+  useEffect(() => { setSel((cur) => prune(cur, selectableIds)); }, [selectableIds]);
+
+  const selectedHighRisk = useMemo(
+    () => deliveries.filter((d) => isSelected(sel, d.id) && d.risk?.band === "high").length,
+    [deliveries, sel],
+  );
+
+  const onRowSelect = useCallback((id: string, shift: boolean) => {
+    setSel((cur) => (shift ? selectRange(cur, id, selectableIds) : toggle(cur, id)));
+  }, [selectableIds]);
+
+  const runBulk = useCallback(async (decision: "approve" | "reject") => {
+    const ids = selectedIds(sel);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDecide(ids, decision, {
+        confirmHighRisk: decision === "approve" ? confirmHighRisk : undefined,
+        feedback: decision === "reject" ? "Rejected in a bulk decision." : undefined,
+      });
+      if (r.error) {
+        // Never fail silently: before this, a refused batch just flashed "Working…" and
+        // returned to idle with no explanation, which reads as a dead button.
+        setBulkError(
+          r.highRiskIds?.length
+            ? `${r.error} (${r.highRiskIds.length} high-risk in selection)`
+            : r.error,
+        );
+      } else {
+        setBulkError(null);
+        setSel(EMPTY_SELECTION);
+        setConfirmHighRisk(false);
+      }
+      refreshList();
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [sel, confirmHighRisk, refreshList]);
+
+  const dismissCluster = useCallback(async (key: string, ids: string[]) => {
+    setBulkBusyKey(key);
+    try {
+      const r = await bulkDecide(ids, "reject", {
+        feedback: "Dismissed as part of a repeated-failure cluster.",
+      });
+      if (!r.error) {
+        // Optimistic: drop them locally, then resync from the runtime.
+        setDeliveries((prev) => prev.filter((d) => !ids.includes(d.id)));
+      }
+      refreshList();
+    } finally {
+      setBulkBusyKey(null);
+    }
+  }, [refreshList]);
   const pending = counts?.pending ?? deliveries.filter((d) => d.status === "pending").length;
   const autoApproved = counts?.auto_approved ?? 0;
 
@@ -283,7 +381,31 @@ export function InboxPanel({
       {!connected && <div className="mb-4"><SseDisconnectedBanner retryAt={retryAt} onRetryNow={onReconnectNow} /></div>}
 
       {/* P4 — what the swarm is working on right now, push-driven off task.* */}
-      <QueueStrip lastEvent={lastEvent} resyncNonce={resyncNonce} />
+      <QueueStrip lastEvent={lastEvent} resyncNonce={resyncNonce} liveNonce={queueNonce} />
+
+      <DeliveryBulkBar
+        count={selectedCount(sel)}
+        highRiskCount={selectedHighRisk}
+        confirmHighRisk={confirmHighRisk}
+        busy={bulkBusy}
+        error={bulkError}
+        onConfirmHighRiskChange={setConfirmHighRisk}
+        onApprove={() => void runBulk("approve")}
+        onReject={() => void runBulk("reject")}
+        onClear={() => { setSel(EMPTY_SELECTION); setConfirmHighRisk(false); setBulkError(null); }}
+      />
+
+      {/* Phase 2 — make the collapsing legible. Without this the human sees a shorter
+          list with no explanation of where the other rows went. Silent collapsing of
+          decisions would be worse than not collapsing at all. */}
+      {saved > 0 && (
+        <div className="helm-note mb-2.5 text-[12px]" role="status">
+          {saved} duplicate failure{saved === 1 ? "" : "s"} collapsed into{" "}
+          {groups.filter((g) => g.kind === "cluster").length} cluster
+          {groups.filter((g) => g.kind === "cluster").length === 1 ? "" : "s"}. Expand any
+          cluster to decide its deliveries individually.
+        </div>
+      )}
 
       {/* filters */}
       <div className="mb-3.5 flex flex-wrap gap-1.5" role="group" aria-label="Inbox filters">
@@ -312,14 +434,30 @@ export function InboxPanel({
           ) : visible.length === 0 ? (
             <EmptyState filtered={deliveries.length > 0} onClear={() => setFilter("All")} />
           ) : (
-            visible.map((d) => (
-              <DeliveryCard
-                key={d.id}
-                delivery={d}
-                selected={d.id === selectedId}
-                onSelect={setSelectedId}
-              />
-            ))
+            groups.map((g) =>
+              g.kind === "cluster" ? (
+                <ClusterCard
+                  key={g.key}
+                  agentId={g.agentId}
+                  reason={g.reason}
+                  size={g.size}
+                  members={g.members}
+                  busy={bulkBusyKey === g.key}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onDismissAll={() => void dismissCluster(g.key, g.members.map((m) => m.id))}
+                />
+              ) : (
+                <DeliveryCard
+                  key={g.delivery.id}
+                  delivery={g.delivery}
+                  selected={g.delivery.id === selectedId}
+                  onSelect={setSelectedId}
+                  bulkSelected={isSelected(sel, g.delivery.id)}
+                  onBulkToggle={g.delivery.status === "pending" ? onRowSelect : undefined}
+                />
+              ),
+            )
           )}
 
           {/* P6 / ADR-053 — auto-applied deliveries live here (collapsed), with the full

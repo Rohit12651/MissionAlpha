@@ -10,8 +10,14 @@
 // Account = { id, providerType, label, identifier?, authMethod, baseUrl?, model?,
 //             hasSecret, capability, createdAt }. `model` is an optional OpenAI-
 //             compatible chat model id (custom/openai only; metadata, not a secret).
-//             capability is DERIVED from the provider type
-//             (claude → swarm, everything else → chat_only).
+//             capability is NOT stored and NOT derived from the provider type. It is
+//             computed on every read by resolveCapability() from a real tool-capability
+//             PROBE of this account's CURRENT model, and falls back to chat_only when
+//             nothing has been measured. (This comment used to say "derived from the
+//             provider type (claude → swarm, everything else → chat_only)" — that was the
+//             deleted table, and leaving the sentence here would have made a
+//             security-relevant read path describe a rule the code no longer follows.)
+//             `toolProbe` holds the cached verdict; see providers/capability-probe.mjs.
 //
 // snapshot() returns accounts WITHOUT secrets. getActiveSecret() decrypts the active
 // account's api_key on demand (subscription/none → null). Every mutation validates the
@@ -21,11 +27,12 @@ import { readFileSync, writeFileSync, existsSync, chmodSync, renameSync } from "
 import { join } from "node:path";
 
 import { providerTypePreset } from "./registry.mjs";
+import { resolveCapability } from "./capability-probe.mjs";
 import { sealSecret, openSecret, ensureKey } from "./crypto.mjs";
 
 const ACCOUNTS_FILE = (dir) => join(dir, "accounts.json");
 const ENC_FILE = (dir) => join(dir, "credentials.enc");
-const DEFAULT_STATE = () => ({ accounts: [], activeAccountId: null });
+const DEFAULT_STATE = () => ({ accounts: [], activeAccountId: null, chatAccountId: null });
 
 const LABEL_MAX = 80;
 const IDENTIFIER_MAX = 256;
@@ -61,6 +68,10 @@ function loadMeta(dir) {
     return {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
       activeAccountId: typeof parsed.activeAccountId === "string" ? parsed.activeAccountId : null,
+      // Which account answers CHAT. Separate from activeAccountId on purpose: the engine
+      // and the chat seat are different jobs and one key can be right for one, wrong for
+      // the other. `null` means the operator has not chosen — chat-route.mjs then ASKS.
+      chatAccountId: typeof parsed.chatAccountId === "string" ? parsed.chatAccountId : null,
     };
   } catch {
     return DEFAULT_STATE();
@@ -98,7 +109,6 @@ function validateInput(input = {}) {
     label,
     authMethod,
     hasSecret: false,
-    capability: preset.capability,
     createdAt: Date.now(),
   };
   if (identifier != null) {
@@ -125,6 +135,16 @@ function validateInput(input = {}) {
   return { account, preset };
 }
 
+// PHASE 1 — capability is DERIVED on the way out, never trusted from storage.
+//
+// It used to be stamped onto the record at creation from a hardcoded per-type table, so any
+// value still sitting in an older persisted account is stale by construction. It is
+// overwritten here rather than read. resolveCapability() answers for THIS account and THIS
+// model, from a real probe, and fails closed when nothing has been measured.
+function publicAccount(a) {
+  return { ...a, capability: resolveCapability(a) };
+}
+
 export function createStore(dir) {
   ensureKey(dir);
   let meta = loadMeta(dir);
@@ -142,8 +162,32 @@ export function createStore(dir) {
 
   return {
     // Metadata-only view — safe to serialize to any HTTP response.
+    /** Which account the operator picked for CHAT, or null (→ the caller asks). */
+    getChatAccountId() {
+      return meta.chatAccountId ?? null;
+    },
+
+    /**
+     * Record the operator's chat choice. `null` CLEARS it, which puts the app back into
+     * "ask" — a deliberate way to change your mind, not an error state.
+     * Throws on an unknown id: silently accepting one would recreate the exact bug this
+     * feature fixes (chat answering from a model nobody selected).
+     */
+    setChatAccountId(id) {
+      if (id === null || id === undefined) {
+        meta.chatAccountId = null;
+        persistMeta();
+        return { chatAccountId: null };
+      }
+      const wanted = String(id);
+      if (!meta.accounts.some((a) => a.id === wanted)) throw new Error(`unknown account: ${wanted}`);
+      meta.chatAccountId = wanted;
+      persistMeta();
+      return { chatAccountId: wanted };
+    },
+
     snapshot() {
-      return { accounts: meta.accounts.map((a) => ({ ...a })), activeAccountId: meta.activeAccountId };
+      return { accounts: meta.accounts.map(publicAccount), activeAccountId: meta.activeAccountId, chatAccountId: meta.chatAccountId ?? null };
     },
 
     // Add an account. api_key seals the secret into the enc sidecar under the new
@@ -161,7 +205,93 @@ export function createStore(dir) {
       meta.accounts.push(account);
       if (meta.activeAccountId === null) meta.activeAccountId = account.id;
       persistMeta();
-      return { ...account };
+      return publicAccount(account);
+    },
+
+    // Edit an existing account (Phase 1, excellence program).
+    //
+    // Metadata-only by default. `secret`, when present and non-empty, re-seals a NEW
+    // secret over the old one; omitting it leaves the sealed secret untouched — that is
+    // the whole point of this method. Before it existed, the runtime told users to "edit
+    // the account and add a model id" while the UI offered only delete + re-add, which
+    // destroyed the sealed secret.
+    //
+    // providerType is deliberately IMMUTABLE: the capability tier (swarm vs chat_only)
+    // and the secret's meaning were both derived from it at add time, so changing it in
+    // place would silently invalidate both. Callers must delete + re-add instead.
+    // ATOMICITY (fixed after adversarial review): this method VALIDATES THE ENTIRE PATCH
+    // FIRST and only then applies it. The first version mutated the live account object
+    // field-by-field as it went, so `updateAccount(id, {label:"X", model:123})` threw on
+    // model — but the label was already changed in memory, and the next unrelated
+    // persistMeta() (e.g. from setActive) wrote that half-applied patch to disk. Proven
+    // with a PoC. Validate-then-apply is the only ordering that makes a throw a no-op.
+    //
+    // It also enforces the SAME rules as addAccount/validateInput — LABEL_MAX, MODEL_MAX,
+    // MODEL_TYPES, preset.needsBaseUrl — because an edit path that is more permissive than
+    // the create path is just a slower way to reach an invalid account.
+    updateAccount(id, patch = {}) {
+      const account = requireAccount(id);
+      const preset = providerTypePreset(account.providerType);
+
+      if ("providerType" in patch && patch.providerType !== account.providerType) {
+        throw new Error("providerType cannot be changed; delete and re-add the account");
+      }
+
+      // ── validate everything into `next`; touch nothing live until it all passes ──
+      const next = {};
+
+      if ("label" in patch && patch.label !== undefined) {
+        if (typeof patch.label !== "string" || patch.label.trim().length === 0 || patch.label.length > LABEL_MAX) {
+          throw new Error(`label is required (1-${LABEL_MAX} chars)`);
+        }
+        next.label = patch.label.trim();
+      }
+
+      if ("model" in patch) {
+        if (!MODEL_TYPES.has(account.providerType)) {
+          throw new Error(`provider type '${account.providerType}' does not take a model id`);
+        }
+        if (patch.model !== null && typeof patch.model !== "string") {
+          throw new Error("model must be a string or null");
+        }
+        if (typeof patch.model === "string" && patch.model.length > MODEL_MAX) {
+          throw new Error(`model is too long (max ${MODEL_MAX} chars)`);
+        }
+        next.model = typeof patch.model === "string" && patch.model.trim().length > 0 ? patch.model : null;
+      }
+
+      if ("baseUrl" in patch && patch.baseUrl !== undefined) {
+        if (!preset?.needsBaseUrl) {
+          throw new Error(`provider type '${account.providerType}' does not take a baseUrl`);
+        }
+        if (typeof patch.baseUrl !== "string" || !/^https?:\/\//i.test(patch.baseUrl)) {
+          throw new Error(`provider type '${account.providerType}' requires an http(s) baseUrl`);
+        }
+        next.baseUrl = patch.baseUrl;
+      }
+
+      const replacingSecret = "secret" in patch && patch.secret !== undefined && patch.secret !== "";
+      if (replacingSecret) {
+        if (typeof patch.secret !== "string") throw new Error("secret must be a string");
+        if (account.authMethod !== "api_key") throw new Error(`account ${id} is not api_key mode`);
+      }
+
+      // ── all validation passed; APPLY ──
+      if ("label" in next) account.label = next.label;
+      if ("model" in next) {
+        if (next.model === null) delete account.model;
+        else account.model = next.model;
+      }
+      if ("baseUrl" in next) account.baseUrl = next.baseUrl;
+
+      if (replacingSecret) {
+        enc[id] = sealSecret(dir, patch.secret);
+        account.hasSecret = true;
+        persistEnc();
+      }
+
+      persistMeta();
+      return publicAccount(account);
     },
 
     // Remove an account and its sealed secret. If it was active, active clears to null.
@@ -170,6 +300,9 @@ export function createStore(dir) {
       meta.accounts = meta.accounts.filter((a) => a.id !== id);
       if (enc[id]) { delete enc[id]; persistEnc(); }
       if (meta.activeAccountId === id) meta.activeAccountId = null;
+      // Same for the chat pick — a dangling id would send chat back to "ask" anyway, but
+      // clearing it here keeps the stored state honest rather than merely recoverable.
+      if (meta.chatAccountId === id) meta.chatAccountId = null;
       persistMeta();
     },
 
@@ -182,7 +315,34 @@ export function createStore(dir) {
       a.hasSecret = true;
       persistEnc();
       persistMeta();
-      return { ...a };
+      return publicAccount(a);
+    },
+
+    /**
+     * PHASE 1 — record a tool-capability PROBE result against an account.
+     *
+     * Stored rather than recomputed because a probe is a real billed request. It is keyed
+     * to the model it measured, so `resolveCapability` ignores it the moment the operator
+     * changes the model — a measurement of a different thing is not evidence about this one.
+     */
+    setToolProbe(id, probe) {
+      const a = requireAccount(id);
+      if (!probe || typeof probe !== "object") throw new Error("probe result is required");
+      const capability = probe.capability === "swarm" ? "swarm" : "chat_only";
+      a.toolProbe = {
+        capability,
+        capable: capability === "swarm",
+        reason: typeof probe.reason === "string" ? probe.reason.slice(0, 500) : null,
+        model: a.model ?? null,
+        // P1-D — did this endpoint report a per-call `usage.cost`? That, and only that, is
+        // what the maxUsd ceiling is enforced from. Anything that is not a real boolean is
+        // NOT a measurement and stays null: a coerced value here would tell the operator
+        // their spend is capped when nothing ever measured it.
+        reportsCost: typeof probe.reportsCost === "boolean" ? probe.reportsCost : null,
+        probedAt: Number.isFinite(probe.probedAt) ? probe.probedAt : Date.now(),
+      };
+      persistMeta();
+      return publicAccount(a);
     },
 
     setActive(id) {
@@ -193,7 +353,9 @@ export function createStore(dir) {
 
     // The active Account (metadata incl. capability), or null.
     getActive() {
-      return meta.activeAccountId ? (findAccount(meta.activeAccountId) ? { ...findAccount(meta.activeAccountId) } : null) : null;
+      if (!meta.activeAccountId) return null;
+      const active = findAccount(meta.activeAccountId);
+      return active ? publicAccount(active) : null;
     },
 
     // Decrypted secret for the ACTIVE account IF it is api_key mode; else null.

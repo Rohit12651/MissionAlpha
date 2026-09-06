@@ -218,6 +218,25 @@ export const getVaultRecord = (id: string) =>
 
 export const getVaultStats = (venture?: string | null) => authedJson<VaultStats>(statsQuery(venture));
 
+// MUNDER-ADOPTION A4 — condenser status (GET /runtime/vault/reflect): config + last sweep.
+export interface VaultReflectLaneResult {
+  venture: string;
+  node: string;
+  aborted: boolean;
+  reason?: string;
+  evicted?: number;
+  bytesBefore?: number;
+  bytesAfter?: number;
+}
+export interface VaultReflectStatus {
+  keepK: number;
+  budgetBytes: number;
+  minCoverage: number;
+  coldRoot: string;
+  last: { at: number; results: VaultReflectLaneResult[] } | null;
+}
+export const getVaultReflect = () => authedJson<VaultReflectStatus>("/runtime/vault/reflect");
+
 /**
  * POST /runtime/vault/record. Approver-gated server-side when auth is active — a
  * viewer gets 403 with a readable body, which the caller surfaces rather than

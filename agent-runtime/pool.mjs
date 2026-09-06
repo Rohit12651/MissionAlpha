@@ -5,6 +5,21 @@
 // real capability stays governed by the runtime's TOOLS mode + sandbox. No new exec path.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+// R8 — the persona cap is a BUDGET, and a budget with a dishonest edge is a bug. See below.
+import { truncateAtBoundary, resolveBudget } from "./system-prompt.mjs";
+
+/**
+ * R8 — character budget for one pool persona. Same number as before (the factory persona
+ * max); what changed is the EDGE.
+ *
+ * The previous cap was `body.slice(0, 6000)` — a hard mid-character cut. On this install
+ * twelve of 27 pool agents landed on exactly 6000 characters, every one severed mid-token
+ * ("…RETURNED_FOR_DB", "…mcp__plugin_claude-mem_", "…on new auth/API sur"). A persona cut
+ * through an open code fence or a half-written instruction corrupts everything after it in
+ * the prompt, and the model cannot tell the sentence it is reading was amputated. Cutting
+ * on a line boundary and DECLARING the drop costs the same tokens and does not lie.
+ */
+export const PERSONA_BUDGET = resolveBudget(process.env.RUNTIME_PERSONA_BUDGET, 6000);
 
 // Governance docs in the pool dir that are NOT agents.
 const POOL_DOCS = new Set(["ORCHESTRATION.md", "PROTOCOL.md", "SCHEDULER.md"]);
@@ -36,7 +51,7 @@ export function parsePoolAgent(md, filename) {
   const description = field("description");
   // role = first sentence of the description (or the id), capped.
   const role = (description.split(/[.\n]/)[0] || id).trim().slice(0, 80) || id;
-  const persona = (body || description).slice(0, 6000); // cap = factory persona max
+  const persona = truncateAtBoundary(body || description, PERSONA_BUDGET);
   if (persona.length < 20) return null;
   return { id, role, persona, tools: mapTools(field("tools")) };
 }

@@ -48,13 +48,27 @@ test("reviewer PASS + QA skip + PR skip → advance to deploy-watch, honestly lo
   assert.ok(w.vaultWrites.some((v) => v.id.startsWith("review-")), "verdict artifact landed");
 });
 
-test("reviewer BLOCK bounces to build and mints per-blocker fix goals", async () => {
+// CORRECTED IN AUTONOMY PHASE 3, not preserved. This test asserted that the reviewer gate
+// ENQUEUES the fix goals itself. That was the specification of the defect: the gate was the
+// only route in the system that dispatched rework, so a reject arriving any other way (the
+// HTTP route, an operator, another agent) bounced a story nobody then picked up. Dispatch is
+// now `stories.reject()`'s job for EVERY caller — keeping the gate's private enqueue would
+// pay for the same fix twice. What the gate owes is a STRUCTURED bounce; that is asserted
+// here, and the dispatch it triggers is proven in story-handback-roundtrip.test.mjs.
+test("reviewer BLOCK bounces to build with a STRUCTURED handback — and enqueues nothing itself", async () => {
   const w = world({ reviewerDispatch: async () => ({ verdict: "block", blockers: ["no error handling", "missing test"] }) });
   const r = await w.rq.run("story_1");
   assert.equal(r.pass, false);
   assert.equal(w.story.stage, "build", "story bounced back to build");
-  assert.equal(w.goalsEnqueued.length, 1, "one fix goal minted");
-  assert.equal(w.goalsEnqueued[0].steps.length, 2, "one step per blocker");
+  assert.equal(w.goalsEnqueued.length, 0, "the gate must not double-dispatch what reject() dispatches");
+  assert.equal(w.rejects.length, 1);
+  const hb = w.rejects[0];
+  assert.equal(hb.toStage, "build");
+  assert.equal(hb.byAgent, "reviewer", "who sent it back");
+  assert.equal(hb.toAgent, "sr-backend", "who is expected to pick it up");
+  assert.ok(hb.evidence.includes("no error handling"), "the blockers travel as evidence, not as prose");
+  assert.ok(hb.evidence.includes("missing test"));
+  assert.match(hb.reason, /round 1/);
   assert.equal(w.advances.length, 0, "did not advance on a block");
 });
 

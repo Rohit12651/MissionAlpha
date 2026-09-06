@@ -5,7 +5,7 @@
 // real prior-window number exists (never a fabricated +0%).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tile, hasTrend, venturesEmptyState, kpiQuery, type VentureKpi } from "../kpiClient.ts";
+import { prNote, tile, hasTrend, venturesEmptyState, kpiQuery, type VentureKpi } from "../kpiClient.ts";
 
 // ── tile(value, {pending}) ────────────────────────────────────────────────────
 test("tile formats a real integer, and renders 0 honestly", () => {
@@ -66,4 +66,22 @@ test("kpiQuery drops a non-slug venture rather than sending it to the server", (
 test("kpiQuery falls back to a safe window when handed a malformed one", () => {
   assert.equal(kpiQuery(null, "bogus"), "/runtime/bos/kpis?window=1d");
   assert.equal(kpiQuery(null, "999d"), "/runtime/bos/kpis?window=999d");
+});
+
+// ── Phase 14 · task 14.2 — the milestone tile's note ──────────────────────────
+test("PRNOTE-1: a branch-only remainder is NAMED, not folded into the PR count", () => {
+  assert.equal(prNote({ jobsShipped: 5, prsShipped: 3 } as never, false), "+2 branch-only");
+});
+
+test("PRNOTE-2: with every ship a PR the note is the ordinary scope label", () => {
+  assert.equal(prNote({ jobsShipped: 4, prsShipped: 4 } as never, false), "all ventures");
+});
+
+test("PRNOTE-3: a failed fetch never invents a remainder", () => {
+  assert.equal(prNote(null, true), "all ventures");
+  assert.equal(prNote({ jobsShipped: 9, prsShipped: 0 } as never, true), "all ventures");
+});
+
+test("PRNOTE-4: prsShipped above jobsShipped cannot produce a negative note", () => {
+  assert.equal(prNote({ jobsShipped: 1, prsShipped: 3 } as never, false), "all ventures");
 });

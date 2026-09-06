@@ -32,6 +32,7 @@ import {
 import { BosTopbar } from "./BosTopbar";
 import { StationCard } from "./StationCard";
 import { StationModal } from "./StationModal";
+import { AgentLedgerPanel } from "./AgentLedger";
 
 export interface CommandDeckProps {
   agents: readonly AgentState[];
@@ -186,6 +187,12 @@ export function CommandDeck({ agents, pending, venture, vaultNonce, onOpenFactor
           ))}
         </div>
       )}
+
+      {/* Phase 6 — the per-agent ledger. It lives on the deck because this is where an
+          operator already asks "how are my agents doing"; a separate page would be a
+          second place to look. `pending` doubles as the refresh nonce here exactly as it
+          does for the scoreboard above: a decision moves it, so the table re-reads. */}
+      <AgentLedgerPanel refreshNonce={pending} />
 
       <div className="bos-deck-foot">
         <button type="button" className="bos-deck-cta" onClick={onOpenFactory}>

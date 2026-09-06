@@ -11,6 +11,7 @@ import {
   type Delivery,
 } from "../../lib/inboxClient";
 import { RiskChip } from "./RiskChip";
+import { trustChip, injectionChip } from "../../lib/externalTrust";
 import { SlaTimer } from "./SlaTimer";
 
 /*
@@ -28,15 +29,24 @@ export function DeliveryCard({
   selected,
   onSelect,
   animate = true,
+  bulkSelected = false,
+  onBulkToggle,
 }: {
   delivery: Delivery;
   selected: boolean;
   onSelect: (id: string) => void;
   animate?: boolean;
+  /** Phase 3 — multi-select state. Undefined `onBulkToggle` = row not selectable. */
+  bulkSelected?: boolean;
+  onBulkToggle?: (id: string, shift: boolean) => void;
 }) {
   const pending = isPending(delivery);
   const stat = diffstatLabel(delivery);
   const band = delivery.risk.band;
+
+  // R10 / R12 — both are advisory markers off `externalMeta`; a swarm row has neither.
+  const trust = trustChip(delivery.externalMeta?.trust);
+  const inject = injectionChip(delivery.externalMeta?.injectFlags);
 
   return (
     <button
@@ -48,9 +58,39 @@ export function DeliveryCard({
       // accent so it reads as a gate in the list, matching its amber chip. Inset box-shadow,
       // so there is no layout shift against the 1px border.
       data-gate={isGate(delivery) && pending ? "true" : undefined}
-      onClick={() => onSelect(delivery.id)}
+      data-bulk-selected={bulkSelected ? "true" : undefined}
+      onClick={(e) => {
+        // Phase 3 — cmd/ctrl or shift click multi-selects instead of opening the review
+        // pane. Plain click keeps its shipped meaning (open the delivery), so the
+        // existing single-decision flow is untouched.
+        if (onBulkToggle && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+          e.preventDefault();
+          onBulkToggle(delivery.id, e.shiftKey);
+          return;
+        }
+        onSelect(delivery.id);
+      }}
     >
       <span className="flex flex-wrap items-center gap-2.5">
+        {onBulkToggle && (
+          <span
+            role="checkbox"
+            aria-checked={bulkSelected}
+            aria-label={`Select ${delivery.title} for bulk decision`}
+            tabIndex={0}
+            className="helm-bulkbox"
+            data-checked={bulkSelected ? "true" : undefined}
+            onClick={(e) => { e.stopPropagation(); onBulkToggle(delivery.id, e.shiftKey); }}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault(); e.stopPropagation();
+                onBulkToggle(delivery.id, e.shiftKey);
+              }
+            }}
+          >
+            {bulkSelected ? "✓" : ""}
+          </span>
+        )}
         <span className="helm-avatar" aria-hidden>
           {avatarFor(delivery.agentId)}
         </span>
@@ -77,6 +117,21 @@ export function DeliveryCard({
         {delivery.source !== "swarm" && (
           <span className="helm-chip" data-tone={sourceTone(delivery.source)}>
             {sourceLabel(delivery.source)}{isReadOnly(delivery) ? " · read-only" : ""}
+          </span>
+        )}
+        {/* R12 — injection FIRST, because it is about THIS row's content, while trust is
+            about the source in general. A specific finding outranks a standing reputation.
+            FLAG ONLY: nothing was filtered; the operator reads the original. */}
+        {inject && (
+          <span className="helm-chip" data-tone={inject.tone} title={inject.title}>
+            {inject.label}
+          </span>
+        )}
+        {/* R10 — LAW 4 in pixels: the BEST tier is the QUIETEST chip. A green badge beside
+            an Approve button is a recommendation, and trust may only add friction. */}
+        {trust && (
+          <span className="helm-chip" data-tone={trust.tone} title={trust.title}>
+            {trust.label}
           </span>
         )}
         <span className="helm-mono text-[11px]" style={{ color: "var(--helm-paper-faint)" }}>

@@ -26,6 +26,14 @@ import { BosTopbar } from "./BosTopbar";
 import { StatTiles } from "./StatTiles";
 import { VenturesPanel } from "./VenturesPanel";
 import { NeedsYouPanel } from "./NeedsYouPanel";
+import { ActivityStream } from "./ActivityStream";
+import { EngineReadinessBanner } from "./EngineReadinessBanner";
+import { DoctorStrip } from "./DoctorStrip";
+import { SelfGradeTile } from "./SelfGradeTile";
+import { getSelfGrade, type SelfGrade, type SelfGradeFrame } from "../../lib/selfGrade";
+import { getDoctorReport, type DoctorReport } from "../../lib/doctorStatus";
+import { getEngineReadiness, type EngineReadiness } from "../../lib/engineReadiness";
+import type { ActivityRow } from "../../lib/activityStream";
 
 /** How many pending deliveries the "needs you" panel shows before the Inbox takes over. */
 const NEEDS_LIMIT = 5;
@@ -39,8 +47,31 @@ export interface CommandCenterProps {
   workflowNonce: number;
   /** Bumped on SSE resync — re-baseline after a reconnect. */
   resyncNonce: number;
+  /** Bumped by every `doctor.status` frame — the report is re-READ, never reconstructed. */
+  doctorNonce: number;
+  /** Bumped by every `selfgrade.changed` frame — the grade is re-READ from the route. */
+  selfGradeNonce: number;
+  /** The last frame itself. Kept because `delta` exists ONLY on the wire, not on the route. */
+  selfGradeFrame: SelfGradeFrame | null;
   /** Deep-link into the Inbox with a delivery selected (B3 initialSelectedId plumb). */
   onOpenDelivery: (id: string) => void;
+  /**
+   * Phase 2 — take the operator to Accounts, where the capability probe lives. The
+   * readiness banner names a missing MEASUREMENT as the blocker; this is the control that
+   * takes it. Offering a remedy the operator cannot reach is the same defect as offering
+   * one that cannot succeed.
+   */
+  onOpenAccounts: () => void;
+  /**
+   * Phase 5 — the activity feed. The buffer is owned by App, which holds the app's ONE
+   * SSE subscription; this page only renders it. Keeping the state up there means the
+   * feed keeps filling while the operator is on another page, so the rail shows history
+   * instead of starting empty every time they come back.
+   */
+  activity: ActivityRow[];
+  activityConnected: boolean;
+  activityOpen: boolean;
+  onToggleActivity: () => void;
 }
 
 /** A titled panel placeholder for the ventures column while loading / on error. */
@@ -55,7 +86,21 @@ function PanelMsg({ title, msg }: { title: string; msg: string }) {
   );
 }
 
-export function CommandCenter({ pending, vaultNonce, workflowNonce, resyncNonce, onOpenDelivery }: CommandCenterProps) {
+export function CommandCenter({
+  pending,
+  vaultNonce,
+  workflowNonce,
+  resyncNonce,
+  doctorNonce,
+  selfGradeNonce,
+  selfGradeFrame,
+  onOpenDelivery,
+  onOpenAccounts,
+  activity,
+  activityConnected,
+  activityOpen,
+  onToggleActivity,
+}: CommandCenterProps) {
   // The app-wide scope — read here, and WRITTEN by the ventures panel (scopes everything).
   const { venture, setVenture } = useVenture();
   const [retryNonce, setRetryNonce] = useState(0);
@@ -89,6 +134,47 @@ export function CommandCenter({ pending, vaultNonce, workflowNonce, resyncNonce,
     return () => { live = false; };
   }, [pending, resyncNonce, retryNonce]);
 
+  // ── Phase 2 — engine readiness. Re-read on the same nonces the rest of this page uses,
+  // because an operator who probes an account in another tab must not have to reload to
+  // see the banner clear. A transport failure is its own state: "we could not ask" is
+  // never rendered as "the engine cannot run".
+  const [readiness, setReadiness] = useState<EngineReadiness | null>(null);
+  const [readinessError, setReadinessError] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setReadinessError(false);
+    getEngineReadiness()
+      .then((r) => { if (live) setReadiness(r); })
+      .catch(() => { if (live) { setReadiness(null); setReadinessError(true); } });
+    return () => { live = false; };
+  }, [pending, resyncNonce, workflowNonce, retryNonce]);
+
+  // ── Phase 1 / R4 — the doctor report. Re-read on the doctor frame AND on this page's own
+  // nonces, so a fault fixed in another tab clears here without a reload.
+  //
+  // A transport failure sets NO state. Unlike readiness — which renders "we could not ask"
+  // as its own honest line — a doctor strip that cannot read is simply silent: painting a
+  // red strip from a failed fetch would report the network as an install fault.
+  const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
+  useEffect(() => {
+    let live = true;
+    getDoctorReport()
+      .then((r) => { if (live) setDoctorReport(r); })
+      .catch(() => { if (live) setDoctorReport(null); });
+    return () => { live = false; };
+  }, [doctorNonce, pending, resyncNonce, retryNonce]);
+
+  // ── Phase 3 / R9 — the configuration self-grade. Same read-on-frame shape as the
+  // doctor: the frame says the number moved, the gated route says what it now is.
+  const [selfGrade, setSelfGrade] = useState<SelfGrade | null>(null);
+  useEffect(() => {
+    let live = true;
+    getSelfGrade()
+      .then((g) => { if (live) setSelfGrade(g); })
+      .catch(() => { if (live) setSelfGrade(null); });
+    return () => { live = false; };
+  }, [selfGradeNonce, pending, resyncNonce, retryNonce]);
+
   const scopeName = venture ? (kpis?.ventures.find((v) => v.id === venture)?.name || venture) : null;
   const scopeLabel = scopeName ?? "All ventures";
 
@@ -104,6 +190,26 @@ export function CommandCenter({ pending, vaultNonce, workflowNonce, resyncNonce,
           </span>
         }
       />
+
+      {/* Phase 2 — ABOVE the tiles: whether the swarm can act at all outranks what it did
+          today. An operator who reads the numbers first and the blocker second has already
+          queued work that cannot run. */}
+      <EngineReadinessBanner
+        readiness={readiness}
+        error={readinessError}
+        onOpenAccounts={onOpenAccounts}
+        onRetry={retry}
+      />
+
+      {/* Directly UNDER the readiness banner, and excluding the check that banner already
+          owns. Two stacked lines both saying "no active account" is how an operator learns
+          to skip the whole region — see doctorStatus.ts READINESS_OWNED. */}
+      <DoctorStrip report={doctorReport} onRecheck={retry} />
+
+      {/* Posture sits with health, above the activity numbers: "can this install be
+          trusted to act" outranks "what did it do today", the same ordering argument the
+          readiness banner already makes against the KPI tiles. */}
+      <SelfGradeTile grade={selfGrade} lastFrame={selfGradeFrame} />
 
       <StatTiles kpis={kpis} error={kpiError} ventureLabel={scopeLabel} />
       {kpiError && (
@@ -124,6 +230,19 @@ export function CommandCenter({ pending, vaultNonce, workflowNonce, resyncNonce,
           <VenturesPanel ventures={kpis.ventures} current={venture} onChoose={setVenture} />
         )}
         <NeedsYouPanel deliveries={needs} error={needsError} onOpen={onOpenDelivery} onRetry={retry} />
+      </div>
+
+      {/* Phase 5 — the activity rail. A collapsible row under the columns rather than a
+          fixed side rail: .bos-center is a single scrolling column, and a third grid
+          track would collapse to unusable width at 768px, where this page already
+          stacks. Collapsed state persists in settings (App owns the key). */}
+      <div className="bos-center-activity">
+        <ActivityStream
+          rows={activity}
+          connected={activityConnected}
+          open={activityOpen}
+          onToggle={onToggleActivity}
+        />
       </div>
     </div>
   );

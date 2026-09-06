@@ -2,5 +2,17 @@
   "testCmd": ["node", "--test"],
   "e2eCmd": null,
   "timeoutMs": 120000,
-  "workdir": null
+  "workdir": null,
+  "scope": {
+    "enabled": true,
+    "testDirs": [
+      "agent-runtime/test",
+      "agent-runtime/__tests__",
+      "src/lib/__tests__",
+      "scripts/lib/__tests__",
+      "electron/test",
+      "test/visual"
+    ],
+    "maxTargets": 12
+  }
 }

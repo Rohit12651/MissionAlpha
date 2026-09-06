@@ -97,12 +97,26 @@ test("engine turn produces persisted, ordered, scrubbed loop steps", async () =>
     const r = await fetch(`${BASE}/runtime/engine/steps?taskId=${taskId}`, { headers: auth() });
     assert.equal(r.status, 200);
     steps = (await r.json()).steps;
-    if (steps.some((s) => s.kind === "result")) break;
+    // Wait for the thing this test asserts about. The model's OWN `result` boundary lands
+    // at seq 4, before the post-edit gate has even started its container, so breaking on
+    // "any result" raced the gate and made the receipt assertion below flaky on a fast
+    // machine. Break on the receipt itself, and fall back to the model result once the
+    // poll budget is nearly spent so a genuinely absent receipt still fails loudly.
+    if (steps.some((s) => s.tool === "unit-test-gate")) break;
+    if (i >= 30 && steps.some((s) => s.kind === "result")) break;
   }
   const kinds = steps.map((s) => s.kind);
-  assert.deepEqual(kinds, ["think", "tool", "observe", "result"], "all four boundaries, in order");
+  // R1 (post-edit quality gate) appends its OWN receipt after the model's four boundaries:
+  // the gate is a real event in the turn and the replay must not hide it. The guarantee
+  // this test was written for is the MODEL's four boundaries, in order, at seq 1..4 — a
+  // literal whole-sequence equality turned a legitimate feature into a false alarm, the
+  // same way a hardcoded cadence count did earlier in this program.
+  assert.deepEqual(kinds.slice(0, 4), ["think", "tool", "observe", "result"], "all four boundaries, in order");
   assert.equal(steps[1].tool, "Edit");
-  assert.deepEqual(steps.map((s) => s.seq), [1, 2, 3, 4]);
+  assert.deepEqual(steps.slice(0, 4).map((s) => s.seq), [1, 2, 3, 4]);
+  const gateStep = steps.find((s) => s.tool === "unit-test-gate");
+  assert.ok(gateStep, `the post-edit gate must leave a receipt; kinds were ${JSON.stringify(kinds)}`);
+  assert.ok(steps.indexOf(gateStep) >= 4, "and it must come AFTER the model's own steps");
   const observe = steps[2];
   assert.doesNotMatch(observe.summary, /ghp_/, "secret-shaped token never lands at rest");
   assert.match(observe.summary, /\[redacted-secret\]/);

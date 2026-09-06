@@ -34,6 +34,9 @@ export function createDeterministicSpawner(deps = {}) {
   const seedSandbox = typeof deps.seedSandbox === "function" ? deps.seedSandbox : null;
   const loopSteps = deps.loopSteps && typeof deps.loopSteps.record === "function" ? deps.loopSteps : null;
   const failFirstSeat = String(deps.failFirstSeat || "").trim();
+  // Injected: the harness must write where the SEAT may write, or the broker drops the
+  // canned diff and the no-model loop cannot reach `held`. Absent ⇒ pre-Phase-7 behaviour.
+  const writeScopeFor = typeof deps.writeScopeFor === "function" ? deps.writeScopeFor : () => [];
   const write = typeof deps.writeFile === "function" ? deps.writeFile : writeFile;
   const mkdirp = typeof deps.mkdir === "function" ? deps.mkdir : mkdir;
   // The factory audit sink (wired to factory.audit in server.mjs). It fires ONLY when this
@@ -42,11 +45,40 @@ export function createDeterministicSpawner(deps = {}) {
   // action audits. Absent/no-op by default; observational, never in the dispatch's failure path.
   const audit = typeof deps.audit === "function" ? deps.audit : () => {};
 
-  // Namespaced, PLAIN-SAFE relative path under src/ (auto-apply eligible). The seat id is
-  // sanitized so nothing an agent controls can escape src/ or reach an exec extension.
+  /**
+   * Namespaced, PLAIN-SAFE relative path. The seat id is sanitized so nothing an agent
+   * controls can escape or reach an exec extension.
+   *
+   * IT MUST LAND INSIDE THE SEAT'S writeScope, and that is a correction rather than a
+   * refinement. This harness predates Phase 7: it always wrote `src/build-<seat>.txt`, while
+   * `sr-backend` is scoped to `src/lib/**`. The broker therefore filtered the entire canned
+   * diff away, the seat reported `empty-diff`, and the task terminal-failed — so the
+   * "whole loop with no model" could not reach `held` for ANY seat with a narrow scope. The
+   * harness was proving a system nobody runs. (Addendum #37 is the same shape from the other
+   * side: there a HIRE was scoped to a directory its work could never touch.)
+   *
+   * The directory is derived from the seat's FIRST glob by taking its literal prefix — the
+   * segments before any wildcard. `src/lib/**` → `src/lib`. A scope with no literal prefix
+   * (`**` / `**\/*.test.*`) yields `src`, the original behaviour. Nothing here widens
+   * anything: the path still flows through the UNCHANGED broker, policy gate and jail, and a
+   * path outside the scope would be filtered exactly as it is today.
+   */
   function fileFor(agentId) {
     const safe = String(agentId || "seat").replace(/[^a-z0-9-]/gi, "").slice(0, 40) || "seat";
-    return `src/build-${safe}.txt`;
+    return `${dirForScope(writeScopeFor(agentId))}/build-${safe}.txt`;
+  }
+
+  /** PURE. The literal directory prefix of a glob, or "src" when it has none. */
+  function dirForScope(scope) {
+    const first = Array.isArray(scope) ? String(scope[0] ?? "") : "";
+    const segs = [];
+    for (const seg of first.split("/")) {
+      if (!seg || seg.includes("*") || seg.includes("?") || seg === "." || seg === "..") break;
+      segs.push(seg.replace(/[^a-z0-9._-]/gi, ""));
+    }
+    // Only ever under a real, wildcard-free prefix; anything else falls back to `src`, which
+    // is where this harness has always written.
+    return segs.length ? segs.join("/") : "src";
   }
 
   async function dispatch(ctx = {}) {

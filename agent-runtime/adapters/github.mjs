@@ -20,9 +20,12 @@
 //     silent vanish and never a crash.
 
 import { defaultRunner, isSafePrUrl } from "../pr.mjs";
+import { scan as scanInjection, flagSummary as injectFlagSummary } from "../inject-detect.mjs";
 
 // gh pr list --json fields we request. Kept minimal; each is read as data.
-const PR_FIELDS = "number,title,author,headRefName,headRefOid,url,updatedAt,state,isDraft,mergedAt";
+// `body` is requested because R12 scans it for injection shapes; without it the scan
+// would only ever see the title, which is the least interesting half of the surface.
+const PR_FIELDS = "number,title,body,author,headRefName,headRefOid,url,updatedAt,state,isDraft,mergedAt";
 const MAX_PRS = 100;
 const MAX_BODY = 4000;
 const DEFAULT_POLL_MS = 60_000;
@@ -106,6 +109,9 @@ export function createGithubAdapter(opts = {}) {
   if (!deliveries) throw new Error("createGithubAdapter: deliveries required");
   const runner = opts.runner || defaultRunner();
   const log = opts.log || (() => {});
+  // R10: optional trust recorder. A null trust seam changes nothing.
+  const trust = opts.trust || null;
+  const rec = (kind, payload) => { try { trust?.record?.("github-pr", kind, payload); } catch { /* bookkeeping never blocks ingestion */ } };
   const cfg = opts.config || {};
   const config = {
     botAuthors: Array.isArray(cfg.botAuthors) ? cfg.botAuthors.filter(Boolean).slice(0, 50) : [],
@@ -132,10 +138,12 @@ export function createGithubAdapter(opts = {}) {
       if (config.repo) listArgs.push("--repo", config.repo);
       const r = await gh(listArgs);
       if (!r.ok) {
+        rec("polls", { ok: false });
         state.lastError = ghErr(r);
         state.authenticated = notAuthed(state.lastError) ? false : state.authenticated;
         return { minted: 0, reconciled: 0, error: state.lastError };
       }
+      rec("polls", { ok: true });
       state.authenticated = true;
       let prs;
       try { prs = JSON.parse(r.stdout || "[]"); } catch { state.lastError = "gh returned unparseable JSON"; return { minted: 0, reconciled: 0, error: state.lastError }; }
@@ -194,6 +202,22 @@ export function createGithubAdapter(opts = {}) {
     if (!d.ok) { state.lastError = `gh pr diff #${number}: ${ghErr(d)}`; return false; }
     const changes = parsePrDiff(d.stdout).slice(0, 200);
     if (!changes.length) return false; // no reviewable diff
+    // Phase 3 / R12 — scan the UNTRUSTED PR text for prompt-injection shapes. Anyone who
+    // can open a PR against a watched repo can write text a downstream model will read;
+    // that is the surface. The scan FLAGS and can only RAISE the risk band — it never
+    // rejects, never strips, never rewrites. The operator sees the original content with
+    // the suspicious spans marked, because filtering would hide the attack from the only
+    // party able to judge it.
+    const injectScan = scanInjection(`${pr?.title || ""}\n\n${pr?.body || ""}`);
+    const injectFlags = injectFlagSummary(injectScan);
+    // A detected injection shape is a THREAT SIGNAL for this source. Downgrades are
+    // instant by design — one hit zeroes the score regardless of prior history.
+    if (injectFlags) rec("threats", { patterns: injectFlags.patterns });
+    // Guarded like rec(): a trust store that throws must cost a STAMP, never the
+    // ingest. An unguarded call here would let bookkeeping veto a real PR.
+    let trustStamp = null;
+    try { trustStamp = trust?.stampFor ? trust.stampFor("github-pr") : null; }
+    catch { trustStamp = null; }
     try {
       const out = deliveries.mintExternal({
         source: "github-pr",
@@ -209,6 +233,11 @@ export function createGithubAdapter(opts = {}) {
           url: safeUrl(pr?.url), branch: String(pr?.headRefName || "").slice(0, 200),
           author: String(pr?.author?.login || "").slice(0, 80), updatedAt: String(pr?.updatedAt || "").slice(0, 40),
           readOnly: false,
+          // R12: the flag summary rides in externalMeta (already-persisted JSON) rather
+          // than a new column — a migration for an advisory marker would be heavier than
+          // the marker. Counts + pattern ids only; never the attacker's prose.
+          injectFlags,
+          trust: trustStamp,
         },
       });
       return out && !out.deduped;

@@ -99,13 +99,15 @@ test("every account mutation requires the token → 401", async () => {
 });
 
 // ── list (empty) ─────────────────────────────────────────────────────────────
-test("GET /runtime/accounts → empty accounts + null active + 5 providerTypes", async () => {
+test("GET /runtime/accounts → empty accounts + null active + 6 providerTypes", async () => {
   const r = await get("/runtime/accounts");
   assert.equal(r.status, 200);
   const b = await r.json();
   assert.deepEqual(b.accounts, []);
   assert.equal(b.activeAccountId, null);
-  assert.equal(b.providerTypes.length, 5);
+  // 6 since Phase 13 added `jira`. Counted rather than listed here because
+  // providers-credentials.test.mjs pins the exact list.
+  assert.equal(b.providerTypes.length, 6);
   assert.ok(b.providerTypes.find((p) => p.type === "custom").needsBaseUrl);
 });
 
@@ -196,7 +198,12 @@ test("two claude accounts coexist; setActive a chat_only account → warning + h
   assert.equal(r.status, 200);
   const b = await r.json();
   assert.equal(b.ok, true);
-  assert.match(b.warning, /chat/i);
+  // PHASE 1 — the warning no longer says "saved for chat". Under Principle 0 the reason an
+  // account cannot run the engine is that it has NOT DEMONSTRATED TOOL SUPPORT, not that it
+  // is the wrong brand, and the fix offered must be the probe rather than "switch to Claude".
+  assert.match(b.warning, /tool support/i);
+  assert.match(b.warning, /probe/i);
+  assert.doesNotMatch(b.warning, /claude/i, "the refusal must not name a brand as the remedy");
   const h = await (await fetch(`${BASE}/runtime/health`, { headers: H() })).json();
   assert.equal(h.activeAccount.id, z.id);
   assert.equal(h.activeAccount.capability, "chat_only");
@@ -256,5 +263,76 @@ test("GET /runtime/providers alias still returns the providerTypes catalog", asy
   const r = await get("/runtime/providers");
   assert.equal(r.status, 200);
   const b = await r.json();
-  assert.equal(b.providerTypes.length, 5);
+  // 6 since Phase 13 added `jira`. Counted rather than listed here because
+  // providers-credentials.test.mjs pins the exact list.
+  assert.equal(b.providerTypes.length, 6);
+});
+
+// ── PATCH /runtime/accounts/:id (Phase 1, excellence program) ────────────────
+// The route that closes the "edit the account" defect. Invariants pinned here:
+// the secret is never echoed, the SSRF guard applies to edits exactly as it does to
+// creates, auth/Host gating is identical to every sibling route, and providerType
+// stays immutable.
+const patch = (path, body, headers) =>
+  fetch(`${BASE}${path}`, { method: "PATCH", headers: headers ?? auth(), body: JSON.stringify(body || {}) });
+
+test("PATCH sets a model and never echoes the secret", async () => {
+  const created = await (await post("/runtime/accounts", {
+    providerType: "custom", label: "or-patch", authMethod: "api_key",
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions", secret: "sk-or-v1-nevershown",
+  })).json();
+  assert.ok(created.account?.id, "setup: account created");
+
+  const res = await patch(`/runtime/accounts/${created.account.id}`, { model: "nvidia/nemotron-nano-9b-v2:free" });
+  const text = await res.text();
+  assert.equal(res.status, 200);
+  assert.ok(!text.includes("sk-or-v1-nevershown"), "SECURITY: secret leaked in PATCH response");
+  assert.equal(JSON.parse(text).account.model, "nvidia/nemotron-nano-9b-v2:free");
+
+  // and it persisted — a subsequent GET must show it
+  const listed = await (await get("/runtime/accounts")).json();
+  const found = listed.accounts.find((a) => a.id === created.account.id);
+  assert.equal(found.model, "nvidia/nemotron-nano-9b-v2:free", "edit did not persist");
+});
+
+test("PATCH without a token is 401", async () => {
+  const res = await patch("/runtime/accounts/00000000-0000-4000-8000-000000000000", { model: "x" }, H());
+  assert.equal(res.status, 401);
+});
+
+test("PATCH from an evil Host is 403", async () => {
+  // MUST use raw(): fetch() treats Host as a forbidden header and silently rewrites it,
+  // so a fetch-based "evil Host" test never actually reaches the hostOk gate. The sibling
+  // GET evil-Host test above uses raw() for exactly this reason.
+  const r = await raw("PATCH", "/runtime/accounts/00000000-0000-4000-8000-000000000000",
+    { Host: "evil.com", "Content-Type": "application/json", "x-runtime-token": TOK },
+    JSON.stringify({ model: "x" }));
+  assert.equal(r.status, 403);
+});
+
+test("PATCH rejects an SSRF baseUrl (link-local metadata endpoint)", async () => {
+  const created = await (await post("/runtime/accounts", {
+    providerType: "custom", label: "or-ssrf", authMethod: "api_key",
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions", secret: "k",
+  })).json();
+  const res = await patch(`/runtime/accounts/${created.account.id}`, { baseUrl: "http://169.254.169.254/latest/meta-data/" });
+  assert.equal(res.status, 400, "SECURITY: SSRF guard bypassed via edit");
+});
+
+test("PATCH refuses a providerType change", async () => {
+  const created = await (await post("/runtime/accounts", {
+    providerType: "custom", label: "or-type", authMethod: "api_key",
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions", secret: "k",
+  })).json();
+  const res = await patch(`/runtime/accounts/${created.account.id}`, { providerType: "claude" });
+  assert.equal(res.status, 400);
+});
+
+test("PATCH with a malformed id is 400, and an empty patch is 400", async () => {
+  assert.equal((await patch("/runtime/accounts/not-a-uuid", { model: "m" })).status, 400);
+  const created = await (await post("/runtime/accounts", {
+    providerType: "custom", label: "or-empty", authMethod: "api_key",
+    baseUrl: "https://openrouter.ai/api/v1/chat/completions", secret: "k",
+  })).json();
+  assert.equal((await patch(`/runtime/accounts/${created.account.id}`, {})).status, 400);
 });

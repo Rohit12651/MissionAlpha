@@ -31,6 +31,8 @@ import {
   type VaultRecord,
   type VaultRecordMeta,
   type VaultStats,
+  getVaultReflect,
+  type VaultReflectStatus,
 } from "../../lib/vaultClient";
 import { BosTopbar } from "./BosTopbar";
 import { MemoryGraph } from "./MemoryGraph";
@@ -94,6 +96,18 @@ export function VaultPage({ venture, liveNonce, memoryLiveNonce }: VaultPageProp
     return () => { live = false; };
   }, [venture, liveNonce, retryNonce]);
 
+  // ── MUNDER-ADOPTION A4 — condenser status (re-read on the same live nonce; a
+  // vault.condensed frame bumps it, so the chip reflects the sweep that just ran).
+  // A fetch failure renders NOTHING here — the stats row already owns the error UI.
+  const [reflect, setReflect] = useState<VaultReflectStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    getVaultReflect()
+      .then((r) => { if (live) setReflect(r); })
+      .catch(() => { if (live) setReflect(null); });
+    return () => { live = false; };
+  }, [liveNonce, retryNonce]);
+
   // ── the record list for the current node / search / scope ─────────────────
   useEffect(() => {
     let live = true;
@@ -148,9 +162,26 @@ export function VaultPage({ venture, liveNonce, memoryLiveNonce }: VaultPageProp
         eyebrow={`SHARED MEMORY · ${scopeLabel}`}
         title="The log"
         chips={
-          <span className="helm-chip" data-tone={total > 0 ? "green" : "muted"}>
-            ● {statsError ? "—" : recordCountLabel(total)}
-          </span>
+          <>
+            <span className="helm-chip" data-tone={total > 0 ? "green" : "muted"}>
+              ● {statsError ? "—" : recordCountLabel(total)}
+            </span>
+            {/* MUNDER-ADOPTION A4 — condensation state. Shown only once the status route
+                answered; an aborted lane reads amber with its reason in the title. */}
+            {reflect && reflect.last && reflect.last.results.length > 0 && (
+              <span
+                className="helm-chip"
+                data-tone={reflect.last.results.some((r) => r.aborted) ? "amber" : "green"}
+                title={reflect.last.results
+                  .map((r) => (r.aborted ? `${r.venture}/${r.node}: ABORTED — ${r.reason}` : `${r.venture}/${r.node}: ${r.evicted} evicted`))
+                  .join(" · ")}
+              >
+                ◆ condensed {reflect.last.results.filter((r) => !r.aborted).length} lane
+                {reflect.last.results.filter((r) => !r.aborted).length === 1 ? "" : "s"}
+                {reflect.last.results.some((r) => r.aborted) ? " · 1+ aborted" : ""}
+              </span>
+            )}
+          </>
         }
       />
 

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SKILL_CATALOG, validateSpec, isFactoryAgent } from "../factory.mjs";
 const ALLOWED_TOOLS_SET = new Set(["Read", "Write", "Run"]); // mirrors factory's internal ALLOWED_TOOLS
-import { SEED_DIRS, CONFIG_GUARD } from "../guards.mjs";
+import { SEED_DIRS, CONFIG_GUARD, applyAllowed } from "../guards.mjs";
 
 // ── G4: code-implement-* dev skills in catalog ────────────────────────────────
 test("G4: code-implement-go skill exists in catalog with correct constraints", () => {
@@ -108,7 +108,15 @@ test("G6: minted dev agent with empty integrations cannot post (authorizePost fa
 
 // ── G4: SEED_DIRS and CONFIG_GUARD must be unchanged by dev skills ────────────
 test("G4: guards.mjs SEED_DIRS unchanged — dev skills do not extend seed scope", () => {
-  assert.deepEqual(SEED_DIRS, ["src", "public"], "SEED_DIRS must remain [src, public]");
+  // The guarantee here is that the FACTORY cannot widen the appliable scope, not that the
+  // scope is frozen at one historical value. #9 deliberately widened the default to
+  // `agent-runtime` + `docs` (see guards.mjs CORE_GUARD) because on this repo the product
+  // IS the runtime, and the old scope made most self-directed work unappliable. What must
+  // still hold — and what this test is really for — is that the widening is DECLARED in
+  // guards.mjs and that the boundary itself stays out of reach of any scope at all.
+  assert.deepEqual(SEED_DIRS, ["src", "public", "agent-runtime", "docs"]);
+  assert.equal(applyAllowed("agent-runtime/guards.mjs"), false, "no scope may reach the guard itself");
+  assert.equal(applyAllowed("agent-runtime/broker.mjs"), false, "nor the only write path");
 });
 
 test("G4: guards.mjs CONFIG_GUARD unchanged — dev skills do not relax exec-key guard", () => {

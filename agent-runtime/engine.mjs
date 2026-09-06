@@ -12,7 +12,9 @@
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, openSync, fsyncSync, closeSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { classify, shouldRetry, backoffMs } from "./self-heal.mjs";
+import { classify, classifyDispatchError, shouldRetry, backoffMs } from "./self-heal.mjs";
+// 6.5 — the CLOSED set of tier names a caller may be recorded as having REQUESTED.
+import { TIER_BY_NAME } from "./router-tier.mjs";
 
 const TERMINAL = new Set(["done", "failed", "cancelled"]);
 
@@ -28,6 +30,12 @@ export function createEngine(deps = {}) {
   const now = deps.now || (() => Date.now());
   let watchdogMs = deps.watchdogMs ?? 0; // 0 = no watchdog (tests)
   const jitter = deps.jitter || (() => 0);
+  // #8 — a FLOOR under every retry delay, in milliseconds. The engine's own backoff is
+  // about THIS task; the provider breaker's hold is about EVERY caller sharing one
+  // endpoint. Taking only the former is what let a full queue re-knock on a rate-limited
+  // provider every few seconds while six stories did the same on their own timers.
+  // Optional and FAIL-OPEN: unset, or throwing, means the historical backoff exactly.
+  const retryFloorMs = typeof deps.retryFloorMs === "function" ? deps.retryFloorMs : null;
   const goalsDir = deps.goalsDir;
   // ADR-051 §4 — Delivery mint point. Called at the DIFFED→GATING transition with
   // the diff the engine ALREADY computed via broker.listChanges, so no second diff
@@ -52,6 +60,13 @@ export function createEngine(deps = {}) {
   // landed. Optional: unset ⇒ pre-B2 behavior exactly.
   const onDone = deps.onDone || null;
   const fireDone = (task, info) => { if (onDone) { try { onDone(task, info); } catch { /* observational — the work already landed */ } } };
+  // Phase 9 — HELD is a TERMINAL outcome for whoever is waiting on this task: the diff exists
+  // and the next move is a human's. Without this seam a Manager-planned job sat in `building`
+  // forever, because `onDone` only fires on the AUTO-APPLY branch and most work is held.
+  // Observational like its siblings: a listener fault must never strand a task whose diff is
+  // already recorded.
+  const onHeld = deps.onHeld || null;
+  const fireHeld = (task, info) => { if (onHeld) { try { onHeld(task, info); } catch { /* observational */ } } };
   // S4 — the UNIT-TEST GATE. Injected (deterministic tests) with a real hardened execFile
   // path in production. Called POST-diff, BEFORE the delivery is minted/applied, ONLY for
   // story-build tasks (a task carrying a storyId). Returns { pass, tail } — a fail drives the
@@ -110,19 +125,59 @@ export function createEngine(deps = {}) {
     renameSync(tmp, file);
   }
 
+  // ── Phase 6 / 6.5 — requestedTier: "did a caller CHOOSE this, or is it the default?" ──
+  //
+  // `tier` has defaulted to "sonnet" here since ADR-024, so on the wire an explicit
+  // `tier:"sonnet"` is byte-identical to an omitted one. That is why the tier router could
+  // "override" a request on 2026-09-02 without ever seeing one: there was nothing to see.
+  //
+  // requestedTier records the CALLER'S value and nothing else — a valid tier name when one
+  // was supplied, null when it was omitted or unusable. It is ADDITIVE metadata (default
+  // null), exactly like S3's storyId: `tier` keeps its default so every existing caller,
+  // test and persisted record behaves identically.
+  //
+  // The recognised names are the providers registry's own (router-tier.mjs TIER_BY_NAME),
+  // via hasOwnProperty, so a prototype key ("toString", "constructor") can never be recorded
+  // as a request. An unrecognised name is NOT a request — recording it would let a typo
+  // ("Sonnet", "gpt-5") short-circuit the router into a tier nothing can resolve.
+  const requestedTierOf = (raw) => (typeof raw === "string" && Object.prototype.hasOwnProperty.call(TIER_BY_NAME, raw) ? raw : null);
+
+  // The task record is built field-by-field inside queue.enqueue (it does not spread its
+  // input), and queue.mjs is out of scope for this task, so the value is written with the
+  // queue's own persist path immediately after the enqueue returns. queue.update() spreads
+  // the patch over the record and re-runs the atomic tmp→fsync→rename write, so the field
+  // lands in the task JSON on disk and survives a restart. It is NOT part of computeIdemKey
+  // (the key is computed before this runs) — a task's identity is its work unit, not the
+  // tier someone asked for. A DEDUPED enqueue is left alone: that task already carries the
+  // request its own caller made, and overwriting it would silently re-tier live work.
+  function tagRequestedTier(r, requestedTier) {
+    if (!r || r.error || r.deduped || !r.taskId) return;
+    try { queue.update(r.taskId, { requestedTier }); } catch { /* metadata — never strand a queued task */ }
+  }
+
   // Enqueue a goal as an ordered chain of steps. Step 0 is enqueued now; each next
   // step is enqueued only when its predecessor reaches DONE (ADR-024 §3).
-  function enqueueGoal({ agentId, tier = "sonnet", priority = "normal", steps, storyId = null }) {
+  // NB: `tier` is read off the raw options object rather than through a destructuring
+  // default. The default is the whole problem — `{tier = "sonnet"}` fires before any code
+  // can see that the caller said nothing, which is precisely how an omission became
+  // indistinguishable from a choice. The fallback below is byte-identical to the old
+  // default (undefined ⇒ "sonnet"; an explicit null still passes through as null), so
+  // `tier` itself is unchanged for every existing caller.
+  function enqueueGoal(opts = {}) {
+    const { agentId, priority = "normal", steps, storyId = null } = opts;
+    const tier = opts.tier === undefined ? "sonnet" : opts.tier;
     if (!Array.isArray(steps) || !steps.length) throw new Error("enqueueGoal: steps[] required");
+    const requestedTier = requestedTierOf(opts.tier);
     const goalId = `goal_${randomBytes(6).toString("hex")}`;
     // S3 — storyId is ADDITIVE goal metadata (default null): it is written into the persisted
     // goal plan and carried onto every task record the chain produces, so the Story's Build
     // panel can find the goal by story. It never touches computeIdemKey (task identity is the
     // work unit, not its owning story). Sanitized to a safe id charset.
     const sid = storyId ? String(storyId).replace(/[^a-z0-9_-]/gi, "").slice(0, 80) || null : null;
-    const plan = { goalId, agentId, tier, priority, storyId: sid, steps: steps.map((s) => String(s).slice(0, 4000)) };
+    const plan = { goalId, agentId, tier, requestedTier, priority, storyId: sid, steps: steps.map((s) => String(s).slice(0, 4000)) };
     const r = queue.enqueue({ goalId, stepIndex: 0, attempt: 0, agentId, tier, priority, storyId: sid, task: plan.steps[0] });
     if (r.error) return { error: r.error }; // backlog full → do NOT persist a goal that can't start
+    tagRequestedTier(r, requestedTier);
     goalPlans.set(goalId, plan);
     persistGoal(plan);
     tick();
@@ -208,6 +263,10 @@ export function createEngine(deps = {}) {
       escalateFn(plan.agentId, "chain-stalled", task.attempts ?? 0, `cannot enqueue step ${nextIndex}: ${r.error}`);
       return;
     }
+    // 6.5 — the request belongs to the GOAL, so every chained step carries it. A plan
+    // persisted before this field existed has no requestedTier: that reads as null, which is
+    // exactly right (nobody recorded a choice), never as a fabricated "sonnet".
+    tagRequestedTier(r, requestedTierOf(plan.requestedTier ?? null));
     tick();
   }
 
@@ -255,7 +314,11 @@ export function createEngine(deps = {}) {
         // S4 — the red→green feedback: the scrubbed test-output tail becomes the fixer's brief.
         ? `\n\n(The unit-test gate FAILED on the prior attempt. Change the code so the tests pass — do NOT edit the tests to hide a real failure. Test output (tail):\n${String(reason).slice(0, 1500)})`
         : "";
-    const delay = backoffMs(attempts, { jitter });
+    let delay = backoffMs(attempts, { jitter });
+    if (retryFloorMs) {
+      try { delay = Math.max(delay, Number(retryFloorMs()) || 0); }
+      catch { /* an optimisation that throws must not change the retry */ }
+    }
     queue.enqueue({
       goalId: task.goalId, stepIndex: task.stepIndex,
       attempt: attempts,   // idemKey differentiator (distinct attempt → distinct task)
@@ -289,17 +352,42 @@ export function createEngine(deps = {}) {
       // EDITING — dispatch the agent (writes into the worktree), watchdog-guarded.
       let res;
       try {
-        const ctx = { taskId: id, agentId: task.agentId, tier: task.tier, task: task.task, workdir, registerKill: (fn) => { handle.kill = fn; } };
+        // `storyId` rides along so a dispatch-level hook can tell a STORY-BUILD task (whose
+        // quality gate runs below, inside this function) from everything else (which has
+        // never had one). Without it a post-edit gate would run the container twice per
+        // story turn to reach one verdict.
+        const ctx = { taskId: id, agentId: task.agentId, tier: task.tier, requestedTier: task.requestedTier ?? null, task: task.task, storyId: task.storyId ?? null, workdir, registerKill: (fn) => { handle.kill = fn; } };
         res = await withWatchdog(dispatchFn(ctx), watchdogMs, () => { handle.kill?.(); });
       } catch (e) {
         return handleRetryable(task, e.__timeout ? "timeout" : "spawn", e.message);
       }
       if (handle.killed) return; // cancelled mid-edit — cancel() already cleaned up
-      if (res && res.error) return handleRetryable(task, "spawn", String(res.error));
+      // D4 — a dispatch that REFUSED (a hook veto, an account that cannot drive the loop,
+      // a backend with no model) has already given its final answer. Folding those into
+      // the transient `spawn` bucket spent three live model turns and three container runs
+      // per goal to re-derive the same verdict, and labelled a quality-gate veto "spawn".
+      // classifyDispatchError leaves an UNKNOWN/absent code exactly as retryable as before;
+      // shouldRetry then makes the terminal kinds terminal on the first attempt.
+      if (res && res.error) return handleRetryable(task, classifyDispatchError(res.code).kind, String(res.error));
 
       // DIFFED — compute the diff from the worktree via the shared broker.
-      const changes = await broker.listChanges(id);
-      if (!changes.length) return handleRetryable(task, "empty-diff", "no diff produced");
+      //
+      // `refused` is reporting only (the appliable set is unchanged): an agent that wrote
+      // OUTSIDE the broker's scope produced no diff for a completely different reason than
+      // one that wrote nothing, and telling the operator "no diff produced" for both sent
+      // them round the same impossible task three times on a live model. Older/injected
+      // brokers without the detailed call keep the historical message exactly.
+      const detailed = typeof broker.listChangesDetailed === "function"
+        ? await broker.listChangesDetailed(id)
+        : { changes: await broker.listChanges(id), refused: [] };
+      const changes = detailed.changes;
+      if (!changes.length) {
+        const refused = detailed.refused || [];
+        const why = refused.length
+          ? `no appliable diff — the agent wrote ${refused.length} path(s) OUTSIDE the appliable scope, so nothing can be applied: ${refused.slice(0, 5).join(", ")}${refused.length > 5 ? ", …" : ""}`
+          : "no diff produced";
+        return handleRetryable(task, "empty-diff", why);
+      }
       queue.update(id, { engineState: "DIFFED" });
 
       // S4 — UNIT-TEST GATE. Post-diff, PRE-mint/PRE-apply, INSIDE this worktree. Only for
@@ -330,6 +418,7 @@ export function createEngine(deps = {}) {
       if (!decision.autoApply) {
         // HELD — keep the worktree so the operator can /apply from it; chain pauses.
         queue.update(id, { status: "held", engineState: "HELD", heldReason: decision.heldReason });
+        fireHeld(queue.get(id) || task, { heldReason: decision.heldReason, changedPaths: paths });
         return;
       }
 
@@ -437,10 +526,41 @@ export function createEngine(deps = {}) {
     armNextWake(); // a backoff that outlived the crash still gets its wake
   }
 
+  // ── PHASE 2 TASK 2.4 — THE HEARTBEAT ────────────────────────────────────────
+  //
+  // The gap this closes, and it was written down as a comment above rather than fixed:
+  // reclaimExpiredLeases ran in exactly TWO places — the boot reconcile, and the backoff
+  // wake timer. The wake only arms when some task carries a `notBefore`, so on a queue with
+  // no pending retry nothing re-armed it, and a lease whose holder DIED was never reclaimed
+  // for as long as the process stayed up. A task claimed and never settled was orphaned
+  // until the next restart.
+  //
+  // Called from the runtime's ONE existing periodic timer (the SLA/cadence interval in
+  // server.mjs). Deliberately NOT its own timer: ADR-025 says the dispatch scheduler owns
+  // no wall-clock, and a second heartbeat is a second thing that can drift, keep the
+  // process alive, or fire during a test teardown.
+  //
+  // The `running` veto is the load-bearing part. A task this process is STILL EXECUTING is
+  // not a dead one however long it has been going — re-queuing it would put a second writer
+  // on one worktree and orphan the first child, whose kill handle would be gone from
+  // `running`. Killing a genuinely hung step is the WATCHDOG's job (withWatchdog), not the
+  // sweep's; these two mechanisms answer different questions and must not be merged.
+  //
+  // Returns how many leases were freed, so the caller can log a real number.
+  function sweep() {
+    let n = 0;
+    try { n = queue.reclaimExpiredLeases((taskId) => running.has(taskId)); } catch { /* best-effort */ }
+    // A requeue nobody picks up is not a recovery. Ticking here means the freed work runs
+    // now rather than waiting for the next enqueue to happen along.
+    tick();
+    armNextWake();
+    return n;
+  }
+
   function start() {
     booted = true; // reconcile's claimed→requeue branch is boot-only from here on
     scheduler.start(runStep);
   }
 
-  return { enqueueGoal, runStep, tick, start, cancel, onOperatorApplied, reconcile, _goalPlans: goalPlans };
+  return { enqueueGoal, runStep, tick, start, cancel, onOperatorApplied, reconcile, sweep, _goalPlans: goalPlans };
 }

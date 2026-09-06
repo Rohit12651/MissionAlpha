@@ -24,6 +24,8 @@ import {
 } from "../../lib/storiesClient";
 import { useCoalescedNonce } from "../../lib/useCoalescedNonce";
 import { BosTopbar } from "./BosTopbar";
+import { JobBoard } from "../board/JobBoard";
+import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
 import { StoryDetail } from "./StoryDetail";
 
 export interface StoriesPageProps {
@@ -32,6 +34,11 @@ export interface StoriesPageProps {
   venture: string | null;
   /** Bumped on every story.changed frame + SSE resync — triggers the authoritative re-read. */
   liveNonce: number;
+  /** 12.2 — bumped on every job.changed frame + SSE resync. Separate from `liveNonce` on
+   *  purpose: a story frame must not re-read the job board, and vice versa. */
+  jobNonce?: number;
+  /** 12.2 — forwarded to the board's RosterStrip, which reacts to `roster.changed` (a hire). */
+  lastEvent?: RuntimeEvent | null;
 }
 
 // Memoized so a single story's frame (one changed card) does not re-render every other card in
@@ -124,7 +131,11 @@ function NewStoryForm({ onCreated, onCancel }: { onCreated: (id: string) => void
   );
 }
 
-export function StoriesPage({ venture, liveNonce }: StoriesPageProps) {
+export function StoriesPage({ venture, liveNonce, jobNonce = 0, lastEvent = null }: StoriesPageProps) {
+  // 12.2 — two boards, one deck. Stories are the SDLC pipeline; Jobs are what Ash creates and
+  // the Manager runs. They are separate lifecycles with separate stores and separate columns,
+  // so they are separate tabs rather than one merged board that would mean neither.
+  const [tab, setTab] = useState<"stories" | "jobs">("stories");
   const [stories, setStories] = useState<Story[] | null>(null);
   const [error, setError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -175,19 +186,58 @@ export function StoriesPage({ venture, liveNonce }: StoriesPageProps) {
         title="Stories"
         chips={
           <>
-            {stories !== null && <span className="helm-chip" data-tone={total ? "green" : "muted"}>{total} in flight</span>}
-            <button
-              type="button"
-              className="bos-story-new"
-              aria-expanded={formOpen}
-              onClick={() => setFormOpen((o) => !o)}
-            >
-              <Plus size={13} aria-hidden /> New story
-            </button>
+            {/* A tablist, not two buttons: arrow keys and the aria roles are what make this
+                usable without a mouse, and the deck is an operator surface. */}
+            <span role="tablist" aria-label="Board" className="bos-job-tabs">
+              {(["stories", "jobs"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  id={`bos-tab-${t}`}
+                  aria-selected={tab === t}
+                  aria-controls={`bos-panel-${t}`}
+                  tabIndex={tab === t ? 0 : -1}
+                  className="bos-job-tab"
+                  onClick={() => setTab(t)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                    e.preventDefault();
+                    const next = tab === "stories" ? "jobs" : "stories";
+                    setTab(next);
+                    document.getElementById(`bos-tab-${next}`)?.focus();
+                  }}
+                >
+                  {t === "stories" ? "Stories" : "Jobs"}
+                </button>
+              ))}
+            </span>
+            {tab === "stories" && stories !== null && (
+              <span className="helm-chip" data-tone={total ? "green" : "muted"}>{total} in flight</span>
+            )}
+            {tab === "stories" && (
+              <button
+                type="button"
+                className="bos-story-new"
+                aria-expanded={formOpen}
+                onClick={() => setFormOpen((o) => !o)}
+              >
+                <Plus size={13} aria-hidden /> New story
+              </button>
+            )}
           </>
         }
       />
 
+      {tab === "jobs" ? (
+        <div role="tabpanel" id="bos-panel-jobs" aria-labelledby="bos-tab-jobs">
+          {/* There is no "New job" button on purpose: a Job is created by describing it to Ash
+              in chat, which is the whole point of the one-door design. A second way in would be
+              a second thing to keep honest. */}
+          <JobBoard liveNonce={jobNonce} lastEvent={lastEvent} />
+        </div>
+      ) : (
+      <div role="tabpanel" id="bos-panel-stories" aria-labelledby="bos-tab-stories">
       {formOpen && <NewStoryForm onCreated={onCreated} onCancel={() => setFormOpen(false)} />}
 
       {error ? (
@@ -223,8 +273,10 @@ export function StoriesPage({ venture, liveNonce }: StoriesPageProps) {
         </div>
       )}
       </div>
+      )}
+      </div>
 
-      {openId && <StoryDetail key={openId} storyId={openId} liveNonce={liveNonce} onClose={closeDetail} restoreFocusTo={launcherRef.current} />}
+      {tab === "stories" && openId && <StoryDetail key={openId} storyId={openId} liveNonce={liveNonce} onClose={closeDetail} restoreFocusTo={launcherRef.current} />}
     </div>
   );
 }

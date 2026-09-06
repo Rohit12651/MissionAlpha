@@ -5,6 +5,7 @@ import { tok } from "../lib/agentMeta";
 import { PermissionGate } from "./PermissionGate";
 import type { CommandRequest, CommandResult, CommandType } from "../data/types";
 import { runtimeToken, runtimeUrl } from "../lib/runtimeBase";
+import { summarizeDispatch, type RunOutcome } from "../lib/dispatchOutcome";
 
 // A single Tech-Lead-proposed dispatch directive parsed from a ```dispatch``` block.
 interface Directive {
@@ -163,20 +164,51 @@ export function BossConsole({
     //    drawer for operator review+apply. Fire-and-forget; runs stream server-side.
     const token = await runtimeToken();
     const taskDirs = dirs.filter((d) => d.type === "task");
-    void Promise.all(
-      taskDirs.map((d) =>
-        fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-runtime-token": token },
-          body: JSON.stringify({ task: d.body || "see tech-lead directive" }),
-        }).catch(() => {}),
-      ),
+    // AWAITED, and the RESPONSE IS READ. The previous version fired these off with
+    // `.catch(() => {})` and reported success from the audit call above — but a 400
+    // RESOLVES, so the catch saw nothing and the refusal was discarded. With RUNTIME_TOOLS
+    // unset every one of these answered 400 "runtime not in write mode" while the console
+    // said "N agent(s) running". Claiming work started without checking whether it did is
+    // how an operator ends up waiting on agents that were never dispatched.
+    const runs: RunOutcome[] = await Promise.all(
+      taskDirs.map(async (d): Promise<RunOutcome> => {
+        try {
+          const r = await fetch(runtimeUrl(`/runtime/${encodeURIComponent(d.target)}/run`), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-runtime-token": token },
+            body: JSON.stringify({ task: d.body || "see tech-lead directive" }),
+          });
+          if (r.ok) return { target: d.target, ok: true };
+          // Prefer the runtime's own words — they name the exact gate that refused.
+          // The body is NOT always JSON: this endpoint streams SSE, so a run that starts
+          // and then dies (expired CLI OAuth, provider 401) returns text frames, and the
+          // reason the operator needs is inside them. Falling back to "HTTP 400" there
+          // would re-hide the cause this whole fix exists to surface.
+          let detail = `HTTP ${r.status}`;
+          const raw = await r.text().catch(() => "");
+          try {
+            const j = JSON.parse(raw) as { error?: string };
+            if (j?.error) detail = j.error;
+          } catch {
+            const m = /"((?:[^"\\]|\\.)*(?:error|expired|denied|unauthor|failed)(?:[^"\\]|\\.)*)"/i.exec(raw);
+            if (m) detail = m[1].replace(/\\"/g, '"');
+            else if (raw.trim()) detail = `HTTP ${r.status}: ${raw.trim().slice(0, 160)}`;
+          }
+          return { target: d.target, ok: false, error: detail };
+        } catch (e) {
+          return { target: d.target, ok: false, error: (e as Error).message };
+        }
+      }),
     );
+    const summary = summarizeDispatch({ recorded: ok, total: dirs.length, runs });
     setDispatchMsg(
-      `dispatched ${ok}/${dirs.length}` +
-        (taskDirs.length ? ` · ${taskDirs.length} agent(s) running — review diffs in their drawers` : ""),
+      summary.tone === "ok" && runs.some((r) => r.ok)
+        ? `${summary.message} — review diffs in their drawers`
+        : summary.message,
     );
-    window.setTimeout(() => setDispatchMsg(""), 8000);
+    // A failure stays on screen longer than a success: it is the one the operator has to
+    // read, and an 8s banner is how a refusal goes unnoticed.
+    window.setTimeout(() => setDispatchMsg(""), summary.tone === "ok" ? 8000 : 20000);
   }, [gateForMsg, msgs, onCommand]);
 
   const gold = tok("ceo-gold");

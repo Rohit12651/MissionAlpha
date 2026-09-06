@@ -26,6 +26,7 @@
 //     neither run a command nor green-light a build.
 
 import { execFile } from "node:child_process";
+import { validateScope, DEFAULT_SCOPE } from "./test-scope.mjs";
 import { readFileSync, existsSync } from "node:fs";
 
 // The CLOSED allow-list of test-runner binaries a quality.json may name. Bare names only
@@ -72,6 +73,7 @@ export const DEFAULT_QUALITY = Object.freeze({
   e2eCmd: null,
   timeoutMs: DEFAULT_TIMEOUT_MS,
   workdir: null,
+  scope: DEFAULT_SCOPE,
 });
 
 /**
@@ -138,12 +140,19 @@ export function validateQuality(obj) {
   if (e.error) return { error: e.error };
   const w = validateWorkdir(obj.workdir);
   if (w.error) return { error: w.error };
+  // D1 — which tests the gate narrows to. Absent ⇒ the safe default (scoping ON). A
+  // malformed block FAILS CLOSED like every other field here: a config that cannot be
+  // understood must never be half-applied, because the half that survives silently
+  // changes what the gate does or does not run.
+  const s = validateScope(obj.scope);
+  if (s.error) return { error: s.error };
   return {
     config: {
       testCmd: t.cmd,
       e2eCmd: e.cmd,
       timeoutMs: validateTimeout(obj.timeoutMs),
       workdir: w.workdir,
+      scope: s.scope,
     },
   };
 }

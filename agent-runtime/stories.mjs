@@ -98,6 +98,11 @@ const MAX_REF = 512;    // an artifact ref / reason line — a pointer, never a 
 const DEFAULT_VENTURE = "waahyu";
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
+// PHASE 3 — handback caps. Untrusted agent text, so bounded in BOTH dimensions: a long
+// array of long strings is the same unbounded-paste problem as one long string.
+const MAX_AGENT_ID = 64;
+const MAX_EVIDENCE = 10;
+const MAX_EVIDENCE_ITEM = 200;
 
 // Strip C0/C1 control chars (preserving tab/newline/CR — an idea is a document) before
 // scrub+cap, exactly as vault.mjs does — a stray control char corrupts what a human reads.
@@ -124,6 +129,11 @@ export function createStories(deps = {}) {
   const scrub = typeof deps.scrub === "function" ? deps.scrub : (s) => s;
   const emit = typeof deps.emit === "function" ? deps.emit : () => {};
   const now = typeof deps.now === "function" ? deps.now : () => Date.now();
+  // PHASE 3 TASK 3.1 — the rework-dispatch seam. Fired after a reject COMMITS, with the
+  // structured handback. Optional: unset ⇒ pre-Phase-3 behaviour exactly (the story bounces
+  // and nothing is dispatched), which is what every existing unit test builds.
+  const onHandback = typeof deps.onHandback === "function" ? deps.onHandback : null;
+  const log = typeof deps.log === "function" ? deps.log : (m) => console.warn(m);
 
   // SHARED scrub, then cap — scrub-at-rest AND on egress, exactly like vault.mjs. A
   // secret-shaped idea is redacted before it lands, and a re-emitted secret cannot
@@ -144,11 +154,22 @@ export function createStories(deps = {}) {
     "UPDATE stories SET status = ?, spec = ?, design_ref = ?, answers = ?, updated_at = ? WHERE id = ?",
   );
   const maxSeqStmt = db.prepare("SELECT MAX(seq) s FROM story_log WHERE story_id = ?");
+  // PHASE 3 (migration v19) — the structured handback rides the SAME row. A second log
+  // would be a second story about one transition, and the two would eventually disagree.
   const insLog = db.prepare(
-    "INSERT INTO story_log(story_id, seq, stage, event, ref, ts) VALUES(?, ?, ?, ?, ?, ?)",
+    `INSERT INTO story_log(story_id, seq, stage, event, ref, ts, from_stage, by_agent, to_agent, evidence)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const listLogStmt = db.prepare(
-    "SELECT seq, stage, event, ref, ts FROM story_log WHERE story_id = ? ORDER BY seq ASC",
+    `SELECT seq, stage, event, ref, ts, from_stage, by_agent, to_agent, evidence
+     FROM story_log WHERE story_id = ? ORDER BY seq ASC`,
+  );
+  // PHASE 3 TASK 3.2 — the rework counter is READ FROM THE LOG, not held in memory. The
+  // review gate's existing budget lives in a Map that empties on restart, so a story could
+  // bounce forever across restarts and the cap would never bite. The log is durable and is
+  // already the record of every transition, so counting it is both honest and free.
+  const countReworkStmt = db.prepare(
+    "SELECT COUNT(*) n FROM story_log WHERE story_id = ? AND event = 'reject' AND stage = ?",
   );
 
   const newId = () => `story_${randomBytes(8).toString("hex")}`;
@@ -174,14 +195,54 @@ export function createStories(deps = {}) {
   }
 
   function logRow(r) {
-    return { seq: r.seq, stage: r.stage, event: r.event, ref: out(r.ref), ts: r.ts };
+    // PHASE 3 TASK 3.3 — the handback fields are OPTIONAL on the wire: a pre-v19 row, and
+    // every non-reject transition, genuinely has none. Emitting `null`s for them would
+    // invite the UI to render "from: null → to: null" on an ordinary advance.
+    const base = { seq: r.seq, stage: r.stage, event: r.event, ref: out(r.ref), ts: r.ts };
+    const handback = {};
+    if (r.from_stage) handback.fromStage = r.from_stage;
+    if (r.by_agent) handback.byAgent = out(r.by_agent);
+    if (r.to_agent) handback.toAgent = out(r.to_agent);
+    if (r.evidence) {
+      // Stored as JSON. A corrupt value is dropped rather than thrown on: the transition
+      // itself is the record that matters, and a bad evidence blob must not make an entire
+      // story thread unreadable.
+      try {
+        const arr = JSON.parse(r.evidence);
+        if (Array.isArray(arr) && arr.length) handback.evidence = arr.map((e) => out(e));
+      } catch { /* unreadable evidence is no evidence */ }
+    }
+    return Object.keys(handback).length ? { ...base, ...handback } : base;
+  }
+
+  /** How many times this story has already been bounced BACK to `stage`. Durable (task 3.2). */
+  function reworkCount(storyId, stage) {
+    return Number(countReworkStmt.get(String(storyId ?? ""), String(stage ?? ""))?.n || 0);
   }
 
   // Append ONE monotonic-seq log row for a story. Caller runs it inside the same txn as
   // the story write, so the log can never describe a transition that did not persist.
-  function appendLog(storyId, stage, event, ref, ts) {
+  // SESSION 14 — normalise optional forward-transition attribution into the SAME shape
+  // appendLog already accepts for handbacks, so there is ONE attribution path, not two.
+  // Returns null when neither is supplied, which keeps the columns NULL and the wire clean.
+  // Agent ids are server-supplied, but they are capped + scrubbed at rest anyway: this
+  // store caps and scrubs everything it writes, and a value that skips that rule today is
+  // a value someone routes caller input into tomorrow.
+  function attribution(byAgent, toAgent) {
+    const by = byAgent ? clean(byAgent, MAX_AGENT_ID) : null;
+    const to = toAgent ? clean(toAgent, MAX_AGENT_ID) : null;
+    return by || to ? { byAgent: by, toAgent: to } : null;
+  }
+
+  function appendLog(storyId, stage, event, ref, ts, handback = null) {
     const seq = Number(maxSeqStmt.get(storyId)?.s || 0) + 1;
-    insLog.run(storyId, seq, stage, event, ref, ts);
+    insLog.run(
+      storyId, seq, stage, event, ref, ts,
+      handback?.fromStage ?? null,
+      handback?.byAgent ?? null,
+      handback?.toAgent ?? null,
+      handback?.evidence ?? null,
+    );
     return seq;
   }
 
@@ -257,7 +318,7 @@ export function createStories(deps = {}) {
   // terminal stage or when the id is unknown (a 404). Landing on `accept` sets status
   // `shipped`; every other landing is `active`. Logs the transition (event defaults to
   // `advance`) with an optional artifact ref.
-  function advance(id, { event, ref } = {}) {
+  function advance(id, { event, ref, byAgent, toAgent } = {}) {
     const row = getStoryStmt.get(String(id ?? ""));
     if (!row) throw missing(`unknown story: ${id}`);
     const i = STORY_STAGES.indexOf(row.stage);
@@ -269,9 +330,14 @@ export function createStories(deps = {}) {
     const ev = clean(event, MAX_EVENT).trim() || "advance";
     const refv = ref === undefined || ref === null || ref === "" ? null : clean(ref, MAX_REF);
     const ts = now();
+    // SESSION 14 — WHO handed this on, and to WHOM. Recorded, never inferred: the UI must
+    // not guess an author from a stage→seat lookup and present the guess as fact. Both are
+    // OPTIONAL — absent leaves the columns NULL and logRow omits the keys entirely, so an
+    // unattributed transition is byte-identical to pre-S14 (pinned by ATTR-3).
+    const attrib = attribution(byAgent, toAgent);
     db.transaction(() => {
       updStageStmt.run(next, status, ts, row.id);
-      appendLog(row.id, next, ev, refv, ts);
+      appendLog(row.id, next, ev, refv, ts, attrib);
     })();
     emitChanged(row.id, next);
     return getStory(row.id);
@@ -282,7 +348,25 @@ export function createStories(deps = {}) {
   // A reject to any other stage — including a forward one or an unlisted earlier one —
   // is a 409. The story RESUMES (status `active`); a reject is a bounce-for-rework, not
   // a kill. Logs the transition (event `reject`) with the reason as its ref.
-  function reject(id, { toStage, reason } = {}) {
+  /**
+   * Bounce a story back to an ENUMERATED earlier stage for rework.
+   *
+   * PHASE 3 TASKS 3.1/3.3/3.4 — this is now the ONE handback choke point.
+   *
+   * What it used to be: a stage change plus a bare `reason` string. The story bounced and
+   * NOBODY PICKED IT UP — the reviewer gate had its own private enqueue, and a reject that
+   * arrived through the HTTP route (an operator, or any other agent) moved the stage and
+   * stopped there. "Communicate continuously without human intervention" died at exactly
+   * that seam.
+   *
+   * What it is now: the transition persists a STRUCTURED handback in the same row and the
+   * same transaction — who sent it back, from where, who is expected to pick it up, why,
+   * and what evidence they were looking at — and then fires `onHandback` so the rework is
+   * actually dispatched. The seam runs AFTER the transaction commits, so a dispatch fault
+   * can never roll back a transition that already happened, and it is isolated for the
+   * same reason every other emit-on-persist seam in this codebase is.
+   */
+  function reject(id, { toStage, reason, byAgent, toAgent, evidence } = {}) {
     const row = getStoryStmt.get(String(id ?? ""));
     if (!row) throw missing(`unknown story: ${id}`);
     const targets = STORY_BACK[row.stage] || [];
@@ -293,12 +377,47 @@ export function createStories(deps = {}) {
       throw illegal(`illegal reject from '${row.stage}' to '${String(toStage ?? "").slice(0, 32)}'`);
     }
     const refv = reason === undefined || reason === null || reason === "" ? null : clean(reason, MAX_REF);
+    // Untrusted reviewer/agent text: scrubbed and capped at rest exactly like `ref`, and
+    // the evidence list is bounded in BOTH dimensions — a long array of long strings is the
+    // same unbounded-paste problem as one long string.
+    const evList = Array.isArray(evidence)
+      ? evidence.map((e) => clean(e, MAX_EVIDENCE_ITEM)).filter(Boolean).slice(0, MAX_EVIDENCE)
+      : [];
+    const handback = {
+      fromStage: row.stage,
+      byAgent: byAgent ? clean(byAgent, MAX_AGENT_ID) : null,
+      toAgent: toAgent ? clean(toAgent, MAX_AGENT_ID) : null,
+      evidence: evList.length ? JSON.stringify(evList) : null,
+    };
     const ts = now();
     db.transaction(() => {
       updStageStmt.run(toStage, "active", ts, row.id);
-      appendLog(row.id, toStage, "reject", refv, ts);
+      appendLog(row.id, toStage, "reject", refv, ts, handback);
     })();
     emitChanged(row.id, toStage);
+    // AFTER the commit. A handback the rework loop never receives is the defect this task
+    // exists to close; a handback that rolls back the transition it describes would be a
+    // worse one.
+    if (onHandback) {
+      try {
+        onHandback({
+          storyId: row.id,
+          fromStage: row.stage,
+          toStage,
+          byAgent: handback.byAgent,
+          toAgent: handback.toAgent,
+          reason: refv,
+          evidence: evList,
+          // Durable, and counted AFTER this row landed — so the first bounce reads 1.
+          round: reworkCount(row.id, toStage),
+        });
+      } catch (e) {
+        // The bounce is already durable; a dispatch fault must not un-bounce it. It is
+        // logged rather than swallowed, because a story that bounced and was never picked
+        // up is exactly the silence this phase is removing.
+        log(`[stories] handback dispatch failed for ${row.id} (${row.stage} → ${toStage}): ${e?.message || e}`);
+      }
+    }
     return getStory(row.id);
   }
 
@@ -316,7 +435,7 @@ export function createStories(deps = {}) {
   // minted REFS (a vault record id), `answers` holds the clarify-Q&A JSON — all scrubbed at
   // rest, all capped, so an agent-authored artifact ref or a BOSS answer can neither balloon
   // the row nor persist a secret.
-  function update(id, { status, spec, designRef, answers, event, ref } = {}) {
+  function update(id, { status, spec, designRef, answers, event, ref, byAgent, toAgent } = {}) {
     const row = getStoryStmt.get(String(id ?? ""));
     if (!row) throw missing(`unknown story: ${id}`);
     let nextStatus = row.status;
@@ -330,9 +449,10 @@ export function createStories(deps = {}) {
     const ev = clean(event, MAX_EVENT).trim() || "update";
     const refv = ref === undefined || ref === null || ref === "" ? null : clean(ref, MAX_REF);
     const ts = now();
+    const attrib = attribution(byAgent, toAgent); // S14 — see advance()
     db.transaction(() => {
       updFieldsStmt.run(nextStatus, nextSpec, nextDesign, nextAnswers, ts, row.id);
-      appendLog(row.id, row.stage, ev, refv, ts);
+      appendLog(row.id, row.stage, ev, refv, ts, attrib);
     })();
     emitChanged(row.id, row.stage);
     return getStory(row.id);
@@ -345,5 +465,17 @@ export function createStories(deps = {}) {
     try { emit("story.changed", { id, stage }); } catch { /* observational */ }
   }
 
-  return { createStory, getStory, getLog, getStoryWithLog, listStories, advance, reject, update, StoryError };
+  // Phase 8 — the mailbox router appends ONE row per delivered (or refused) message so the
+  // thread shows the conversation, not just the stage transitions. Deliberately narrow: it
+  // can only write `mail` / `mail-refused`, and it reuses appendLog so mail rows share the
+  // per-story monotonic seq with every other transition rather than opening a second story.
+  function appendMailLog(storyId, { event, byAgent, toAgent, ref, ts }) {
+    if (!storyId) return null;
+    if (event !== "mail" && event !== "mail-refused") return null;
+    try { if (!getStory(storyId)) return null; } catch { return null; }
+    const row = getStory(storyId);
+    return appendLog(storyId, row.stage, event, ref ?? null, ts || Date.now(), { byAgent, toAgent });
+  }
+
+  return { createStory, getStory, getLog, getStoryWithLog, listStories, advance, reject, update, reworkCount, appendMailLog, StoryError };
 }

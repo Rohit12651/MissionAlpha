@@ -12,43 +12,51 @@ import {
 // ── the closed catalog (program plan §2 / ADR-052 §2) ───────────────────────
 test("the catalog is P2's names plus the documented amendments, no more, no less", () => {
   assert.deepEqual([...RUNTIME_EVENT_NAMES].sort(), [
+    // RUFLO-ADOPTION amendment (2026-08-18): doctor.status (LIVE) + run.killed,
+    // worker.deferred, retrieval.hit, selfgrade.changed, trust.changed (RESERVED),
+    // registered in ONE catalog change. Sorted in, hence scattered above.
+    // MUNDER-ADOPTION amendment (2026-08-20): breaker.state (LIVE) + usage.transcript,
+    // vault.condensed, engine.roster, run.output (RESERVED), registered in ONE catalog
+    // change. Sorted in, hence scattered below.
+    // MISSIONALPHA PHASE 7.0b amendment (2026-09-04): roster.changed, job.changed and
+    // mail, RESERVED and registered in ONE catalog change (declared before their
+    // emitters land: 7.1 roster.add, 9 Job store, 8.1 mailbox route). Sorted in,
+    // hence scattered below.
     "agent.state",
-    // B2 amendment (ADR-052 §Amendment B2) — the five Business-OS names, registered in
-    // ONE catalog change (sorted in, hence scattered through this list):
-    // content.changed, lead.moved, output.created, vault.written, workflow.run.
-    // `vault.written` fires from B2; the other four are RESERVED so B4/B6/B7 emit
-    // without a second catalog change.
+    "breaker.state",
     "content.changed",
     "delivery.created",
     "delivery.decided",
-    // delivery.expired + delivery.sla_halflife — P6/ADR-053 SLA amendment (2026-07-30).
     "delivery.expired",
     "delivery.sla_halflife",
+    "doctor.status",
+    "engine.roster",
+    "job.changed",
     "lead.moved",
-    // loop.step — CC-Primitives P2 amendment (2026-08-04), sorts here.
     "loop.step",
-    // memory.changed — CC-Primitives P4 amendment (2026-08-04), sorts here.
+    "mail",
     "memory.changed",
     "output.created",
     "policy.autoapplied",
-    // skills.changed — CC-Primitives P3 amendment (2026-08-04), sorts here.
+    "retrieval.hit",
+    "roster.changed",
+    "run.killed",
+    "run.output",
+    "selfgrade.changed",
     "skills.changed",
-    // station.perm.changed — CC-Primitives P1 amendment (2026-08-03), sorts here.
     "station.perm.changed",
-    // story.changed — Story-Pipeline S1 amendment (2026-08-04), sorts between
-    // station.perm.changed and task.done.
     "story.changed",
-    // task.done — plan amendment 2026-07-30. MUST stay in lockstep with
-    // agent-runtime/events.mjs EVENT_NAMES: a name here that the server does not
-    // emit is dead, and a name the server emits that is missing here is dropped by
-    // parseEvent and never subscribed to.
     "task.done",
     "task.failed",
     "task.queued",
     "task.retried",
     "task.started",
+    "trust.changed",
     "usage.tick",
+    "usage.transcript",
+    "vault.condensed",
     "vault.written",
+    "worker.deferred",
     "workflow.run",
   ]);
 });

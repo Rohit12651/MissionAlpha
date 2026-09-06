@@ -23,6 +23,7 @@ import { loadAgentModel, saveAgentModel } from "../lib/agentModel";
 import { type ModelTier } from "../lib/modelTiers";
 import type { RuntimeEvent } from "../lib/useRuntimeEvents";
 import { LoopStream } from "./station/LoopStream";
+import { RunOutputPane } from "./station/RunOutputPane";
 import { PermModeToggle } from "./station/PermModeToggle";
 import { SkillsChips } from "./station/SkillsChips";
 import { HooksCard } from "./station/HooksCard";
@@ -222,6 +223,11 @@ function StationSections({ agentId, lastEvent }: { agentId: string; lastEvent?: 
     <>
       <Section icon={<Activity size={13} />} title="Loop">
         <LoopStream agentId={agentId} lastEvent={lastEvent} />
+        {/* MUNDER-ADOPTION A6 — the raw-stream window under the structured loop.
+            Closed by default; read-only by construction. */}
+        <div className="mt-2">
+          <RunOutputPane agentId={agentId} lastEvent={lastEvent} />
+        </div>
       </Section>
       <Section icon={<Shield size={13} />} title="Permissions">
         <PermModeToggle agentId={agentId} />

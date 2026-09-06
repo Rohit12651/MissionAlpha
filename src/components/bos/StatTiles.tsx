@@ -13,7 +13,7 @@
 //
 // dataviz treatment: calm, no gridlines, tabular-nums, one number per tile.
 
-import { tile, type Kpis } from "../../lib/kpiClient";
+import { prNote, tile, type Kpis } from "../../lib/kpiClient";
 
 export interface StatTilesProps {
   kpis: Kpis | null;
@@ -56,6 +56,22 @@ function tilesFrom(kpis: Kpis | null, error: boolean, ventureLabel: string): Til
       value: v(kpis?.deliveriesApproved ?? 0),
       note: "all ventures",
       title: "Deliveries you approved in the last 24h (across every venture)",
+    },
+    {
+      // 14.2 — THE MILESTONE'S NUMBER. M2-LIVE is "≥ 5 jobs shipped as PRs in one week", and
+      // it was not readable off the running system anywhere.
+      //
+      // The tile shows PRs, and the note carries the total shipped when the two DISAGREE —
+      // which is exactly the case that matters: with no `gh` the ship ladder stops at a local
+      // branch and says so, so "3 PRs" with "5 shipped" is the honest reading of a week where
+      // the work landed and the PRs did not. Collapsing them into one number would report a
+      // branch as a PR.
+      key: "prs",
+      label: "PRs shipped",
+      value: v(kpis?.prsShipped ?? 0),
+      note: prNote(kpis, error),
+      title: "Jobs shipped as a pull request in the window. A job that shipped to a local "
+        + "branch (no gh) is counted in the note, never as a PR.",
     },
   ];
 }

@@ -1,3 +1,4 @@
+import type { SelfGradeFrame } from "./lib/selfGrade.ts";
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
 import { Users, LayoutDashboard, MessageSquare, PanelRightOpen, GripVertical, Maximize2, X } from "lucide-react";
 import { useAgentState } from "./data/useAgentState";
@@ -8,6 +9,7 @@ import { RightPanel } from "./components/cockpit/RightPanel";
 import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDrawer";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ViewToggle, ShellToggle, type BoardView, type ShellView } from "./components/ViewToggle";
+import { RosterStrip } from "./components/board/RosterStrip";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
 import { SkillPalette } from "./components/skills/SkillPalette";
@@ -26,6 +28,11 @@ import { clampDockPos } from "./lib/swarmGraph";
 import { tok, TIER_ACCENT, TIER_LABEL } from "./lib/agentMeta";
 import { reconstructAt, countsFrom } from "./lib/replay";
 import { useRuntimeEvents, applyBadge, applyUsageTick, type RuntimeEvent, type UsageByKey } from "./lib/useRuntimeEvents";
+import { isQueueEvent } from "./lib/queueModel";
+import { applyActivity, type ActivityRow, fallbackSeq } from "./lib/activityStream";
+
+/** Phase 5 — the activity rail's open/closed state survives a reload. */
+const ACTIVITY_OPEN_KEY = "ma.activity.open.v1";
 import { listInbox, type InboxCounts } from "./lib/inboxClient";
 // B2 — only the PURE helpers + the stats fetcher are imported here. VaultPage (the
 // graph, the viewer, the markdown parser) stays behind React.lazy so the main index
@@ -40,6 +47,10 @@ import { emitDeliveryNotification, emitSlaNotification, syncTitleBadge } from ".
 // below keeps the card chip and the drawer toggle reconciled; no Context provider.
 import { applyPermFrame } from "./components/station/permStore";
 import { AuthProvider, useAuth } from "./lib/useAuth";
+// MUNDER-ADOPTION A2 — the breaker ladder's client model (shared with StatusStrip).
+import { BREAKER_ORDER, type BreakerLevel, type BreakerSummary } from "./lib/breakerModel";
+// MUNDER-ADOPTION A3 — transcript ground-truth totals shape (UsageOverview footer).
+import type { TranscriptTotals } from "./components/workspace/UsageMeter";
 import { LoginGate } from "./components/auth/LoginGate";
 import { BosSidebar } from "./components/bos/BosSidebar";
 import { BOS_NAV, type BosNavEntry, type BosPage } from "./components/bos/bosNav";
@@ -509,6 +520,22 @@ function AppInner() {
   // Bumped on every `vault.written` frame — the Vault page re-reads authoritative
   // state instead of polling, so a record another station wrote appears with no refresh.
   const [vaultNonce, setVaultNonce] = useState(0);
+  // Phase 5 — the activity feed's bounded ring buffer (500 rows, newest first). It fills
+  // from the SSE subscription below whether or not the panel is open, so opening the rail
+  // shows history rather than an empty box.
+  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  // Identity for frames that arrive without a bus sequence. Counts DOWN so it can never
+  // collide with a real (positive, monotonic) sequence and defeat replay dedupe.
+  const [activityOpen, setActivityOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem(ACTIVITY_OPEN_KEY) !== "0"; } catch { return true; }
+  });
+  const toggleActivity = useCallback(() => {
+    setActivityOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem(ACTIVITY_OPEN_KEY, next ? "1" : "0"); } catch { /* storage blocked */ }
+      return next;
+    });
+  }, []);
   // CC-Primitives P6 — bumped on every `memory.changed` frame, mirroring vaultNonce
   // above: the Vault's station memory panel re-reads rather than polling or trying to
   // reconstruct the new text from the (identity-only) frame.
@@ -519,34 +546,122 @@ function AppInner() {
   // S6 — bumped on every `story.changed` frame so the Stories board + open detail re-read
   // authoritative story/stage/build state (the frame is identity-only {id, stage}) without polling.
   const [storyNonce, setStoryNonce] = useState(0);
+  // 12.2 — the Job board's own nonce (see the job.changed branch below).
+  const [jobNonce, setJobNonce] = useState(0);
   const [pendingDeliveries, setPendingDeliveries] = useState(0);
   const [lastEvent, setLastEvent] = useState<RuntimeEvent | null>(null);
   const [resyncNonce, setResyncNonce] = useState(0);
+  // D7 — monotonic count of queue-moving frames (see onRuntimeEvent).
+  const [queueNonce, setQueueNonce] = useState(0);
+  // Phase 1 / R4 — bumped on every `doctor.status` frame; the Command Center re-reads.
+  const [doctorNonce, setDoctorNonce] = useState(0);
+  // Phase 3 / R9 — the grade is re-READ on this nonce; the FRAME is kept for its delta.
+  const [selfGradeNonce, setSelfGradeNonce] = useState(0);
+  const [selfGradeFrame, setSelfGradeFrame] = useState<SelfGradeFrame | null>(null);
   // P8 (ADR-030) — live usage from the bus (usage.tick), keyed thread×tier. Feeds the
   // UsageOverview panel. Tokens + context% only — never $.
   const [usageByThread, setUsageByThread] = useState<UsageByKey>({});
   const notifiedRef = useRef<Set<string>>(new Set());
   const slaNotifiedRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef(0);
+  // MUNDER-ADOPTION A2 — the breaker ladder, folded from `breaker.state` frames. The
+  // frame is the WHOLE truth the strip needs (agentId + level), so unlike the nonce
+  // patterns above there is no re-read: the map accumulates levels and the chip renders
+  // the worst + how many agents are degraded. In-memory like the runtime's own ladder —
+  // a reload starts all-healthy until the next change frame (the gated GET has the rest).
+  const breakerMapRef = useRef<Map<string, BreakerLevel>>(new Map());
+  const [breakerSummary, setBreakerSummary] = useState<BreakerSummary | null>(null);
+  // MUNDER-ADOPTION A3 — transcript ground-truth totals (usage.transcript frames).
+  // Aggregate-only, kept as-is: the frame IS the summary; detail stays behind the GET.
+  const [transcriptTotals, setTranscriptTotals] = useState<TranscriptTotals | null>(null);
   useEffect(() => { pendingRef.current = pendingDeliveries; }, [pendingDeliveries]);
 
   const onRuntimeEvent = useCallback((e: RuntimeEvent) => {
     setLastEvent(e);
+    // D7 — `lastEvent` is a single VALUE slot, and SSE hands us several frames in one
+    // chunk. React batches the assignments, so a burst of `task.queued` + `task.started`
+    // + `usage.tick` leaves `lastEvent` holding only the tick and the queue strip never
+    // learns anything happened — measured live as "0 running" beside a claimed task, with
+    // two authoritative re-reads in twenty minutes. A counter bumped through an UPDATER
+    // survives the same batching, which is exactly why applyBadge below never lost a
+    // delivery. The strip re-reads authoritative state off this, so no frame is load-
+    // bearing on its own.
+    if (isQueueEvent(e.name)) setQueueNonce((n) => n + 1);
     setPendingDeliveries((p) => applyBadge(p, e));
+    // Phase 5 — the activity feed. Folded HERE, in the app's single SSE subscription,
+    // rather than in the panel: a second EventSource would double the runtime's fan-out
+    // for a read-only surface, and the feed must keep filling while the panel is closed.
+    // `seq` is the bus sequence and is what makes a reconnect replay idempotent. A frame
+    // without one gets a DETERMINISTIC id derived from its own content (fallbackSeq) —
+    // the previous decrementing counter handed the same redelivered frame a different id
+    // each time, so the dedupe never matched and a reconnect could render it twice.
+    setActivity((rows) => applyActivity(rows, e, typeof e.seq === "number" ? e.seq : fallbackSeq(e), Date.now()));
     if (e.name === "usage.tick") setUsageByThread((m) => applyUsageTick(m, e));
+    // MUNDER-ADOPTION A3 — the transcript ledger moved. Change-only frames; kept whole.
+    if (e.name === "usage.transcript") {
+      const d = e.data as { sessions?: number; inputTokens?: number; outputTokens?: number; source?: string };
+      setTranscriptTotals({
+        sessions: Number(d?.sessions) || 0,
+        inputTokens: Number(d?.inputTokens) || 0,
+        outputTokens: Number(d?.outputTokens) || 0,
+        source: typeof d?.source === "string" ? d.source : "none",
+      });
+    }
     // B2 — a record landed somewhere in the vault. The frame is identity-only, so the
     // page re-READS rather than trying to reconstruct a record from the payload.
     if (e.name === "vault.written") setVaultNonce((n) => n + 1);
+    // MUNDER-ADOPTION A4 — a lane was condensed (records evicted into the rolling
+    // summary). Same re-read contract as vault.written: the page refetches.
+    if (e.name === "vault.condensed") setVaultNonce((n) => n + 1);
     // CC-Primitives P6 — a station's memory changed. Identity-only frame; the panel
     // re-READS rather than trying to reconstruct memory text from the payload.
     if (e.name === "memory.changed") setMemoryNonce((n) => n + 1);
     if (e.name === "workflow.run") setWorkflowNonce((n) => n + 1);
+    // Phase 1 / R4 — a doctor verdict CHANGED. The frame is {status, fails, warns} and
+    // deliberately carries no checks: a health report enumerates this install's weaknesses
+    // and the bus is a broadcast. So it is a signal to re-READ the token-gated route — the
+    // same shape as `memory.changed` above, for the same reason.
+    if (e.name === "doctor.status") setDoctorNonce((n) => n + 1);
+    // Phase 3 / R9 — the self-grade moved. Unlike every other identity-only frame here,
+    // this one is KEPT rather than only counted: `delta`/`appeared`/`cleared` come from the
+    // runtime's own diffGrades and exist NOWHERE else — the route has no notion of "since
+    // when". Re-deriving the arrow client-side could disagree with the server about why the
+    // number moved, which is the one thing this tile must not do.
+    if (e.name === "selfgrade.changed") {
+      const d = e.data as { delta?: number; appeared?: string[]; cleared?: string[] };
+      setSelfGradeFrame({
+        delta: Number(d?.delta) || 0,
+        appeared: Array.isArray(d?.appeared) ? d.appeared : [],
+        cleared: Array.isArray(d?.cleared) ? d.cleared : [],
+      });
+      setSelfGradeNonce((n) => n + 1);
+    }
     // S6 — a story was created or changed stage. Identity-only frame ({id, stage}); the board
     // and any open detail re-READ authoritative state rather than reconstructing from the frame.
     if (e.name === "story.changed") setStoryNonce((n) => n + 1);
+    // 12.2 — the Job board. Separate from storyNonce so a story frame does not re-read the
+    // job board and vice versa. `job.changed` fires on create, on a status move and (since
+    // 12.2) on every task move, which is what makes a card's CONTENTS live and not just
+    // its column.
+    if (e.name === "job.changed") setJobNonce((n) => n + 1);
     // P5 — a station's interactive permission override moved. Identity + mode only;
     // the store reconciles the card chip and the drawer toggle from the same frame.
     if (e.name === "station.perm.changed") applyPermFrame(e.data);
+    // MUNDER-ADOPTION A2 — an agent's runaway-ladder level changed. Change-only frames;
+    // the map is the strip's whole data source (see breakerMapRef above).
+    if (e.name === "breaker.state") {
+      const d = e.data as { agentId?: string; level?: string };
+      if (d?.agentId && typeof d.level === "string" && BREAKER_ORDER[d.level as BreakerLevel] !== undefined) {
+        breakerMapRef.current.set(d.agentId, d.level as BreakerLevel);
+        let worst: BreakerLevel = "healthy";
+        let degraded = 0;
+        for (const l of breakerMapRef.current.values()) {
+          if (BREAKER_ORDER[l] > 0) degraded += 1;
+          if (BREAKER_ORDER[l] > BREAKER_ORDER[worst]) worst = l;
+        }
+        setBreakerSummary({ worst, degraded });
+      }
+    }
     if (e.name === "delivery.created") {
       emitDeliveryNotification(e.data, pendingRef.current + 1, notifiedRef.current);
     }
@@ -725,7 +840,15 @@ function AppInner() {
               vaultNonce={vaultNonce}
               workflowNonce={workflowNonce}
               resyncNonce={resyncNonce}
+              doctorNonce={doctorNonce}
+              selfGradeNonce={selfGradeNonce}
+              selfGradeFrame={selfGradeFrame}
               onOpenDelivery={openDelivery}
+              onOpenAccounts={() => setBosPage("accounts")}
+              activity={activity}
+              activityConnected={liveConnected}
+              activityOpen={activityOpen}
+              onToggleActivity={toggleActivity}
             />
           </main>
         </Suspense>
@@ -738,7 +861,12 @@ function AppInner() {
           }
         >
           <main id="ma-main" aria-label="Stories" className="relative z-10 flex min-h-0 flex-1">
-            <StoriesPage venture={venture} liveNonce={storyNonce + resyncNonce} />
+            <StoriesPage
+              venture={venture}
+              liveNonce={storyNonce + resyncNonce}
+              jobNonce={jobNonce + resyncNonce}
+              lastEvent={lastEvent}
+            />
           </main>
         </Suspense>
       ) : BOS_ENABLED && bosPage === "deck" ? (
@@ -866,6 +994,7 @@ function AppInner() {
             <InboxPanel
               lastEvent={lastEvent}
               resyncNonce={resyncNonce}
+              queueNonce={queueNonce}
               connected={liveConnected}
               retryAt={retryAt}
               onReconnectNow={reconnectNow}
@@ -904,6 +1033,8 @@ function AppInner() {
                 <h2 className="text-sm font-medium">Squad missions</h2>
                 <ViewToggle view={kanbanMode} onChange={setKanbanMode} />
               </div>
+              {/* Phase 7 / 7.4 — who is on the team and what each seat may write. */}
+              <RosterStrip lastEvent={lastEvent} />
               <div className="min-h-0 flex-1 overflow-auto p-4" style={{ overscrollBehavior: "contain" }}>
                 <KanbanBoard agents={viewAgents} view={kanbanMode} onSelect={replaying ? undefined : openAgent} />
               </div>
@@ -970,6 +1101,7 @@ function AppInner() {
         preflight={preflight}
         pendingDeliveries={INBOX_ENABLED ? pendingDeliveries : undefined}
         liveConnected={INBOX_ENABLED ? liveConnected : undefined}
+        breaker={INBOX_ENABLED ? (breakerSummary ?? undefined) : undefined}
       />
 
       {/* overlays */}
@@ -985,6 +1117,7 @@ function AppInner() {
           feedForReplay={state.feed}
           factoryOpenSignal={factoryOpenSignal}
           usageTicks={Object.values(usageByThread)}
+          transcriptTotals={transcriptTotals}
         />
       )}
       {state && (

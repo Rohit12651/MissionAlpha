@@ -15,7 +15,8 @@
 //
 // All pass → advance `review-qa → deploy-watch`. Pure orchestration over injected seams; it
 // owns no storage/transport. Read-only over the build; its only writes are the verdict
-// artifact, story-log events, fix goals, and the stage transition.
+// artifact, story-log events, and the stage transition (whose handback seam dispatches the
+// rework).
 //
 // SECURITY: the reviewer verdict is AGENT-AUTHORED (untrusted) — it is validated to a closed
 // contract ({verdict∈{pass,block}, blockers:string[]}), scrubbed + capped; a malformed/hostile
@@ -27,6 +28,9 @@
 // eslint-disable-next-line no-control-regex
 const CTRL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 const REVIEW_QA_STAGE = "review-qa";
+// The single stage a review block bounces to. It is `STORY_BACK["review-qa"]`'s only entry;
+// naming it here keeps the durable round count and the reject target reading the same value.
+const REWORK_STAGE = "build";
 const MAX_BLOCKERS = 20;
 const MAX_BLOCKER_TEXT = 500;
 const DEFAULT_MAX_REVIEW_ROUNDS = 2;
@@ -36,7 +40,6 @@ export function createStoryReviewQa(deps = {}) {
   const vault = deps.vault || null;
   const reviewerDispatch = typeof deps.reviewerDispatch === "function" ? deps.reviewerDispatch : null;
   const aggregate = typeof deps.aggregate === "function" ? deps.aggregate : () => ({ goals: [], counts: {}, total: 0 });
-  const enqueueGoal = typeof deps.enqueueGoal === "function" ? deps.enqueueGoal : null;
   const mintAlert = typeof deps.mintAlert === "function" ? deps.mintAlert : null;
   // ADR-056 remediation — the QA/e2e gate runs agent-affected code, so it executes INSIDE the
   // SAME Docker jail (sandbox.mjs) as the unit-test gate and the tool-loop: `--network none`,
@@ -115,9 +118,17 @@ export function createStoryReviewQa(deps = {}) {
     if (verdict === "pass") { reviewRounds.delete(storyId); return { pass: true, ref }; }
 
     // BLOCK. Bounded rounds — like the test gate's red→green, but at story granularity.
-    const round = (reviewRounds.get(storyId) || 0) + 1;
+    //
+    // AUTONOMY PHASE 3 TASK 3.2 — the round is read from the DURABLE story_log when the
+    // store can answer, and only falls back to the in-memory Map when it cannot. The Map
+    // empties on restart, so a story could bounce indefinitely across restarts and this cap
+    // would never bite — a budget that resets is not a budget. `reworkCount` counts the
+    // `reject` rows already written for this story's bounces back to `build`, so a restart
+    // resumes the count instead of starting it over.
+    const durable = typeof stories.reworkCount === "function" ? stories.reworkCount(storyId, REWORK_STAGE) : null;
+    const round = (durable === null ? (reviewRounds.get(storyId) || 0) : durable) + 1;
     reviewRounds.set(storyId, round);
-    if (round > maxReviewRounds || !enqueueGoal) {
+    if (round > maxReviewRounds) {
       try { stories.update(storyId, { status: "blocked", event: "review-blocked", ref: `${blockers.length} blocker(s) after ${round - 1} round(s)` }); }
       catch (e) { log(`[reviewqa] review block write skipped for ${storyId}: ${e?.message}`); return { pass: false }; }
       if (mintAlert) {
@@ -126,13 +137,27 @@ export function createStoryReviewQa(deps = {}) {
       }
       return { pass: false, blocked: true, blockers };
     }
-    // Mint per-blocker fix goals for the fixer seat, then bounce the story back to build so
-    // the fixes re-enter the pipeline and the reviewer re-runs when they complete.
-    const steps = blockers.map((b) => `Reviewer blocker to resolve: ${b}`);
-    try { enqueueGoal({ agentId: fixSeat, tier: "sonnet", priority: "high", storyId, steps }); }
-    catch (e) { log(`[reviewqa] fix goal enqueue skipped for ${storyId}: ${e?.message}`); }
-    try { stories.reject(storyId, { toStage: "build", reason: `reviewer requested fixes (round ${round})` }); }
-    catch (e) { log(`[reviewqa] review bounce skipped for ${storyId}: ${e?.message}`); }
+    // AUTONOMY PHASE 3 TASK 3.1 — ONE HANDBACK PATH, not two.
+    //
+    // This used to enqueue the fix goals itself and then bounce the stage. That made the
+    // reviewer the only route in the system that actually dispatched rework: a reject
+    // arriving any other way (the HTTP route, an operator, another agent) moved the stage
+    // and stopped, and the story sat there. `stories.reject()` is now the choke point and
+    // fires the dispatcher for EVERY caller, so the private enqueue here is deleted —
+    // keeping it would double-dispatch the same rework and pay for it twice.
+    //
+    // The blockers travel as structured EVIDENCE rather than as pre-composed step text, so
+    // the fixer receives what the reviewer actually said and the Story thread can render
+    // "reviewer → sr-backend: X" instead of an untyped note.
+    try {
+      stories.reject(storyId, {
+        toStage: REWORK_STAGE,
+        reason: `reviewer requested fixes (round ${round}): ${blockers.slice(0, 3).join("; ")}`,
+        byAgent: reviewerSeat,
+        toAgent: fixSeat,
+        evidence: [...blockers, ...(ref ? [ref] : [])],
+      });
+    } catch (e) { log(`[reviewqa] review bounce skipped for ${storyId}: ${e?.message}`); }
     return { pass: false, bounced: true, blockers, ref };
   }
 

@@ -33,6 +33,34 @@ const CTRL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 const MAX_NOTES = 32_000;
 const MAX_GATE_BODY = 4_000;
 
+
+/**
+ * Phase 6.4 — which repo paths a story's APPROVED work touched. Pure: takes the build
+ * aggregate (task ids per story) and the Delivery store, returns a sorted, de-duplicated
+ * list. Only `code` Deliveries with status `approved` whose taskId belongs to this story
+ * count — pending, rejected, failure rows and other stories' rows never do. Any fault yields
+ * [] so the executor falls back to the FULL deploy command (never narrow blindly).
+ */
+export function changedPathsForStory(storyId, { aggregate, deliveries } = {}) {
+  try {
+    const agg = typeof aggregate === "function" ? aggregate(storyId) : null;
+    const taskIds = new Set();
+    for (const g of (agg && Array.isArray(agg.goals)) ? agg.goals : []) {
+      for (const t of Array.isArray(g.tasks) ? g.tasks : []) if (t && t.taskId) taskIds.add(String(t.taskId));
+    }
+    if (!taskIds.size || !deliveries || typeof deliveries.list !== "function") return [];
+    const rows = deliveries.list({ status: "approved", limit: 200 }) || [];
+    const out = new Set();
+    for (const d of rows) {
+      if (!d || d.kind !== "code" || !taskIds.has(String(d.taskId))) continue;
+      for (const p of Array.isArray(d.changedPaths) ? d.changedPaths : []) if (typeof p === "string" && p) out.add(p);
+    }
+    return [...out].sort();
+  } catch {
+    return [];
+  }
+}
+
 export function createStoryDeploy(deps = {}) {
   const stories = deps.stories;
   if (!stories || typeof stories.getStory !== "function") throw new Error("createStoryDeploy: stories store required");
@@ -44,6 +72,10 @@ export function createStoryDeploy(deps = {}) {
   const aggregate = typeof deps.aggregate === "function" ? deps.aggregate : () => ({ goals: [], counts: {}, total: 0 });
   const loadDeployConfig = typeof deps.loadDeployConfig === "function" ? deps.loadDeployConfig : () => ({ config: { network: false, healthUrl: null } });
   const deployRoot = deps.deployRoot || null;
+  // Phase 6.4 — which paths the story's approved work touched, so the executor can scope the
+  // deploy command. Default: none → the executor runs the FULL configured command (never
+  // narrow blindly). server.mjs wires it from the story's decided Deliveries.
+  const changedPathsFor = typeof deps.changedPathsFor === "function" ? deps.changedPathsFor : () => [];
   const mintAlert = typeof deps.mintAlert === "function" ? deps.mintAlert : null;
   const scrub = typeof deps.scrub === "function" ? deps.scrub : (s) => s;
   const log = typeof deps.log === "function" ? deps.log : () => {};
@@ -161,7 +193,9 @@ export function createStoryDeploy(deps = {}) {
     inFlight.add(sid);
     try {
       let res;
-      try { res = await deployExecutor.run({ storyId: sid, deployRoot }); }
+      let changedPaths = [];
+      try { changedPaths = changedPathsFor(sid) || []; } catch (e) { log(`[deploy] changedPathsFor failed for ${sid}: ${e?.message} — running the full command`); }
+      try { res = await deployExecutor.run({ storyId: sid, deployRoot, changedPaths }); }
       catch (e) { res = { deployed: false, healthy: null, tail: `deploy executor error: ${e?.message || e}`, reason: "executor-error" }; }
       // Ship only on a successful deploy AND a health check that is healthy or not-configured.
       const healthOk = res.deployed && res.healthy !== false;

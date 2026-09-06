@@ -336,8 +336,17 @@ test("reject discards the sandbox and never writes the repo", async () => {
 
 test("restart: deliveries survive and Last-Event-ID replays what was missed", async () => {
   const before = await (await get("/inbox?limit=50")).json();
-  assert.equal(before.deliveries.length, 3, "approved + changes_requested + rejected");
-  const beforeStatuses = Object.fromEntries(before.deliveries.map((d) => [d.id, d.status]));
+  // D4 — this file's engine turns run without a swarm-capable account, and a readiness
+  // refusal is now TERMINAL on the first attempt instead of being retried three times.
+  // Terminal means the operator is paged, so the Inbox legitimately also holds a `failure`
+  // row here. The claim under test is that the three DECIDED code rows survive a restart,
+  // so count those — and assert the new row is the honest refusal it should be, rather
+  // than loosening the count and losing the distinction.
+  const decided = before.deliveries.filter((d) => d.kind === "code");
+  assert.equal(decided.length, 3, "approved + changes_requested + rejected");
+  const stuck = before.deliveries.filter((d) => d.kind === "failure");
+  for (const f of stuck) assert.match(f.title, / is stuck — (not-capable|backend|gate-veto|spawn|timeout)/);
+  const beforeStatuses = Object.fromEntries(decided.map((d) => [d.id, d.status]));
 
   // Watermark = the newest event seq this "client" actually saw on the wire.
   const probe = await openSse({ ticket: await newTicket() });
@@ -352,8 +361,9 @@ test("restart: deliveries survive and Last-Event-ID replays what was missed", as
   await boot(); // SAME RUNTIME_DB_PATH
 
   const after = await (await get("/inbox?limit=50")).json();
-  assert.equal(after.deliveries.length, 3, "rows survived the restart");
-  for (const d of after.deliveries) assert.equal(d.status, beforeStatuses[d.id], `status preserved for ${d.id}`);
+  const afterDecided = after.deliveries.filter((d) => d.kind === "code");
+  assert.equal(afterDecided.length, 3, "rows survived the restart");
+  for (const d of afterDecided) assert.equal(d.status, beforeStatuses[d.id], `status preserved for ${d.id}`);
   assert.equal((await (await get("/inbox?status=approved")).json()).deliveries.length, 1);
 
   // A brand-new delivery arrives while the "client" is away.
@@ -368,7 +378,7 @@ test("restart: deliveries survive and Last-Event-ID replays what was missed", as
     const replayed = await waitFrame(reconnect, (f) => f.event === "delivery.created" && f.data?.id === lateId);
     assert.ok(replayed.id > watermark, "replayed frames carry a fresh watermark");
     assert.ok(
-      !reconnect.frames.some((f) => f.event === "delivery.created" && f.data?.id === before.deliveries[0].id),
+      !reconnect.frames.some((f) => f.event === "delivery.created" && f.data?.id === decided[0].id),
       "already-seen events are NOT replayed",
     );
   } finally { reconnect.close(); }
@@ -788,4 +798,78 @@ test("GET /runtime/scoreboard?window=1d carries the additive `decided` count", a
   assert.equal(typeof body.decided, "number");
   assert.ok(body.decided >= body.approved, "decided counts approvals plus rejections/change-requests");
   assert.equal(body.windowMs, 24 * 60 * 60 * 1000);
+});
+
+// ── POST /inbox/bulk-decide (Phase 2/3, excellence program) ──────────────────
+// Added after code review found the route shipped with ZERO tests, and with two real
+// defects a route-level test would have caught: (1) it was missing from
+// routeNeedsApprover, so a viewer-role session could bulk-approve; (2) it treated a
+// null (unrated) risk band as high, which made bulk-approve 400 for every real
+// delivery. Both are pinned below.
+
+test("bulk-decide: rejects an empty id list", async () => {
+  const r = await post("/inbox/bulk-decide", { ids: [], decision: "reject" });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /ids\[\] required/);
+});
+
+test("bulk-decide: enforces the 200-id cap so one call cannot walk the table", async () => {
+  const r = await post("/inbox/bulk-decide", { ids: Array(201).fill("x"), decision: "reject" });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /too many ids/);
+});
+
+test("bulk-decide: rejects an unknown decision verb", async () => {
+  const r = await post("/inbox/bulk-decide", { ids: ["x"], decision: "nuke" });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /approve \| reject \| request-changes/);
+});
+
+test("bulk-decide: requires the runtime token", async () => {
+  const r = await post("/inbox/bulk-decide", { ids: ["x"], decision: "reject" }, H());
+  assert.equal(r.status, 401);
+});
+
+test("bulk-decide: an evil Host is refused", async () => {
+  const r = await raw("POST", "/inbox/bulk-decide",
+    { Host: "evil.com", "Content-Type": "application/json", "x-runtime-token": TOK },
+    JSON.stringify({ ids: ["x"], decision: "reject" }));
+  assert.equal(r.status, 403);
+});
+
+test("bulk-decide: SECURITY — it is inside the approver gate", async () => {
+  // routeNeedsApprover's single-item regex requires an :id segment, so the bulk path
+  // did not match it and role-gating was skipped entirely. Solo mode has no roles, so
+  // this asserts the ROUTE-LEVEL registration rather than a live 403.
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(SERVER, "utf8");
+  assert.match(
+    src,
+    /routeNeedsApprover[\s\S]{0,1200}pathname === "\/inbox\/bulk-decide"/,
+    "bulk-decide must be listed in routeNeedsApprover or a viewer can bulk-approve",
+  );
+});
+
+test("bulk-decide: an UNRATED (null band) delivery does NOT demand confirmHighRisk", async () => {
+  // RiskBand is "low"|"medium"|"high"|null. Treating null as high made ordinary
+  // bulk-approve 400 for every real delivery, silently.
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(SERVER, "utf8");
+  assert.match(src, /band === null \|\| band === undefined\) continue;/,
+    "null/unrated band must be skipped, not swept into highIds");
+  assert.doesNotMatch(src, /band !== "unrated"/,
+    '"unrated" is a display label, never a stored band — comparing against it is dead code');
+});
+
+test("bulk-decide: unknown ids report per-item failure without failing the batch", async () => {
+  const r = await post("/inbox/bulk-decide", {
+    ids: ["01ZZZZZZZZZZZZZZZZZZZZZZZZ", "01YYYYYYYYYYYYYYYYYYYYYYYY"],
+    decision: "reject",
+  });
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.requested, 2);
+  assert.equal(body.decided, 0);
+  assert.equal(body.results.length, 2);
+  assert.ok(body.results.every((x) => x.ok === false), "unknown ids must not report success");
 });

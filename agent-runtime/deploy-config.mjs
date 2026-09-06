@@ -158,6 +158,79 @@ export function validateDeploy(obj) {
   };
 }
 
+// ── Phase 6 / 6.4 — SCOPING the deploy command to what actually changed ───────────────
+//
+// LIVE FAILURE 2026-09-02: every deploy ran the config's full command (`npm run build`).
+// In the `--network none` jail the Vite build blew the /work disk cap
+// (`/work exceeded 268435456 bytes — container killed`), the deploy failed, and the story
+// went `deploy-watch`/`blocked`. No story has ever reached `shipped`.
+//
+// A story that only touched `agent-runtime/**` produces NO build artifact, so running the
+// full bundler for it buys nothing and costs the whole disk budget. The narrow command
+// TYPECHECKS instead — still a real gate, still jailed, still the same allow-list.
+//
+// THE RULE, stated once:
+//   any changed path under `src/**` or `public/**`  → config.deployCmd  (the FULL command)
+//   otherwise, with a KNOWN change set              → SCOPED_TYPECHECK_CMD
+//   an EMPTY or UNKNOWN change set                  → config.deployCmd  (the FULL command)
+//
+// FAIL EXPENSIVE, NEVER FAIL NARROW — the same asymmetry router-tier.mjs uses. Narrowing on
+// ignorance would silently skip the build that proves the ship works; "we do not know what
+// changed" must cost minutes, never coverage.
+//
+// SECURITY: this function picks the argv the JAIL EXECUTES, so it is held to the loader's
+// bar, not a lower one. It re-runs validateDeployCmd on whatever it chose and FAILS CLOSED
+// ({error}) if that does not pass — a poisoned config can never be laundered into a command
+// by taking the narrow branch. It is PURE: no fs, no env, no mutation of its arguments, and
+// the argv it returns is a fresh copy.
+export const SCOPED_TYPECHECK_CMD = Object.freeze(["npm", "run", "typecheck"]);
+
+// Directories whose contents feed the BUILT artifact. Kept explicit and closed — widening it
+// is a reviewed code change, exactly like ALLOWED_DEPLOY_BINS.
+const BUILT_INPUT_DIRS = Object.freeze(["src", "public"]);
+
+// Normalize ONE changed path for prefix matching. Returns null when the path cannot be
+// reduced to a repo-relative form we are sure about (a traversal, a non-string, an empty
+// string) — an unsure path makes the whole set UNKNOWN, which routes to the full command.
+function normalizeChangedPath(raw) {
+  if (typeof raw !== "string") return null;
+  const p = raw.replace(/\\/g, "/").trim();
+  if (!p) return null;
+  if (p.split("/").some((seg) => seg === "..")) return null; // traversal — not ours to classify
+  return p.replace(/^\.\//, "").replace(/^\/+/, "");
+}
+
+/**
+ * deployCmdForChanges(changedPaths, config) → { cmd, scope } | { error }
+ *
+ *   scope: "full"      — the configured deploy command (a built input changed, or we do not know)
+ *          "typecheck" — the narrow command (a known change set that touches no built input)
+ *
+ * Never throws. `config` defaults to DEFAULT_DEPLOY; a garbage config object degrades to that
+ * default rather than to a guess. An INVALID deployCmd is refused on BOTH branches.
+ */
+export function deployCmdForChanges(changedPaths, config) {
+  const cfg = config && typeof config === "object" && !Array.isArray(config) ? config : DEFAULT_DEPLOY;
+  const full = validateDeployCmd(Array.isArray(cfg.deployCmd) ? cfg.deployCmd : DEFAULT_DEPLOY.deployCmd);
+  if (full.error) return { error: full.error };
+
+  if (!Array.isArray(changedPaths) || !changedPaths.length) return { cmd: full.cmd, scope: "full" };
+
+  let touchesBuiltInput = false;
+  for (const raw of changedPaths) {
+    const p = normalizeChangedPath(raw);
+    if (p === null) return { cmd: full.cmd, scope: "full" }; // unknown member ⇒ unknown set ⇒ full
+    if (BUILT_INPUT_DIRS.some((d) => p.startsWith(`${d}/`))) { touchesBuiltInput = true; break; }
+  }
+  if (touchesBuiltInput) return { cmd: full.cmd, scope: "full" };
+
+  // The narrow command is a module constant, but it is validated on the SAME path as the
+  // configured one — nothing reaches a caller without having passed the allow-list.
+  const narrow = validateDeployCmd([...SCOPED_TYPECHECK_CMD]);
+  if (narrow.error) return { error: narrow.error };
+  return { cmd: narrow.cmd, scope: "typecheck" };
+}
+
 /**
  * Load + validate factory/deploy.json.
  *   • file missing        → { config: DEFAULT_DEPLOY }  (a legitimate "not configured")

@@ -1,7 +1,26 @@
-// ADR-030 — Usage tracking. PURE token/context math. NO DOLLARS, EVER — the cli
-// `result` event carries `total_cost_usd` but it is NEVER read here; subscription is
-// flat-rate so a $ figure would be false. This module only ever produces token counts
-// + a context-window %. Modeled on Claude Code's `/context`.
+// ADR-030 — Usage tracking. PURE token/context math. NO DOLLARS IN THIS MODULE — the cli
+// `result` event carries `total_cost_usd` but it is NEVER read here. This module only
+// ever produces token counts + a context-window %. Modeled on Claude Code's `/context`.
+//
+// PHASE 7 AMENDMENT (2026-08-11) — WHY THIS RULE NARROWED, AND WHY IT STILL HOLDS HERE.
+//
+// This header used to read "NO DOLLARS, EVER — subscription is flat-rate so a $ figure
+// would be false." That reasoning was correct, and it was correct because of a PREMISE:
+// every run went through a Claude Code subscription. The multi-provider work (Phase 1)
+// broke that premise — api_key accounts (OpenRouter, custom endpoints) bill per token,
+// so for those accounts a cost is a real measurement rather than a fiction.
+//
+// The rule is therefore now scoped, not repealed:
+//   * SUBSCRIPTION runs still have no dollar figure. Ever. `included`, never a number.
+//   * API-KEY runs may carry a REPORTED cost, and only a reported one — spend is never
+//     inferred from token counts we have no price for.
+//   * The two can never be summed into one total.
+//
+// That logic lives in `spend.mjs`, which owns the exception in full. This module stays
+// token-only so there is exactly ONE place a dollar figure can be produced.
+//
+// This comment is load-bearing: a stale comment contradicting the code is how this
+// project's worst error happened. If the premise changes again, change this text with it.
 
 const clamp01 = (x) => Math.min(1, Math.max(0, Number.isFinite(x) ? x : 0));
 
@@ -106,8 +125,11 @@ export function createUsageStore(deps = {}) {
     };
     upsert.run(row);
     const acc = selRow.get(aid, tid, t, day) || row;
-    // usage.tick — tokens + context% ONLY. Day-cumulative in/out (total spend) + the
-    // latest window fill (contextPct). NO cost/USD/$ field, ever.
+    // usage.tick — tokens + context% ONLY. Day-cumulative in/out + the latest window
+    // fill (contextPct). NO cost/USD/$ field on this frame, ever: the bus is fanned out
+    // to every connected client and a cost here would be attached to runs that have no
+    // price. Phase 7 puts metered spend in spend.mjs, scoped to api_key accounts, and
+    // deliberately did NOT widen this frame to carry it.
     const tick = {
       agentId: aid, threadId: tid, tier: t, day,
       inputTokens: acc.inputTokens, outputTokens: acc.outputTokens, turns: acc.turns,

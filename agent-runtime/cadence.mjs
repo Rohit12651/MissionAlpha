@@ -49,7 +49,37 @@ export const CADENCE_SEED = Object.freeze([
   Object.freeze({ id: "nightly-regression", skill: "repo-health-check", agent: "qa", expr: "daily", hour: EOD_HOUR, enabled: false }),
   // SRE — the deployed-surface health poll. LIVE from S5 (S5 ships the monitor it drives).
   Object.freeze({ id: "monitor-tick", skill: "repo-health-check", agent: "sre", expr: "2xdaily", hour: null, enabled: true }),
+
+  // ── Phase 1 / R2b — THE WORKER CATALOG ────────────────────────────────────
+  // These four are the "Inbox fills itself" half of the ruflo adoption. Each one is a
+  // READ-ONLY analysis run whose product is a low-band Delivery the BOSS can decide on,
+  // not a diff. They are the difference between a tool that waits for work and a team
+  // that finds it.
+  //
+  // ALL FOUR LAND **DISABLED**, on purpose, and this is not timidity:
+  //   1. Every one of them dispatches a real model run. Enabling four new daily spawns on
+  //      an install whose account is not even active would mint four failure Deliveries a
+  //      day and call it autonomy — exactly the theatre ruflo's dead daemon performs.
+  //   2. The BOSS enables them per-worker from the cockpit once an account is live. That
+  //      is one click each, and it is an informed click.
+  // The same convention CADENCE_SEED already uses for `nightly-regression` (disabled until
+  // the thing it depends on exists). A cadence that fires into an unproven surface is
+  // theatre; a disabled row that the operator turns on is a feature.
+  Object.freeze({ id: "worker-audit", skill: "security-audit", agent: "sr-security", expr: "daily", hour: 9, enabled: false }),
+  Object.freeze({ id: "worker-testgaps", skill: "test-gap-scan", agent: "qa", expr: "daily", hour: 11, enabled: false }),
+  Object.freeze({ id: "worker-document", skill: "docs-refresh", agent: "docs-writer", expr: "weekly", hour: 13, enabled: false }),
+  Object.freeze({ id: "worker-refactor", skill: "refactor-scan", agent: "tech-lead", expr: "weekly", hour: 15, enabled: false }),
 ]);
+
+/**
+ * The worker rows are the ones Law 3 binds: capped per day, forced to the low band, and
+ * structurally unable to auto-apply. Membership is by id prefix so a future worker cannot
+ * be added without inheriting the constraint.
+ */
+export const WORKER_PREFIX = "worker-";
+export function isWorkerCadence(id) {
+  return typeof id === "string" && id.startsWith(WORKER_PREFIX);
+}
 
 const DEFAULT_VENTURE = "waahyu";
 
@@ -194,14 +224,40 @@ export function createCadence(deps = {}) {
       WHERE id = @id AND next_run = @slot`,
   );
 
-  function tick({ now: t = now(), enqueue, emit } = {}) {
+  // Phase 1 / R2b — two OPTIONAL gates in front of dispatch. Both are injected and both
+  // default to absent, so an unwired caller gets byte-identical pre-R2b behaviour (the
+  // existing cadence tests pin that).
+  //
+  //   guard — resource-guard.mjs. Checked ONCE per tick, BEFORE the CAS loop. Deferring
+  //           must not consume the slot: if the CAS advanced first, a deferred run would
+  //           be a LOST run rather than a postponed one, and the next_run would have
+  //           silently skipped forward. So the early return happens before any claim.
+  //   cap   — worker-cap.mjs (Law 3). Checked and consumed PER ROW, also before the CAS,
+  //           for the same reason. A capped row is skipped today and runs tomorrow.
+  function tick({ now: t = now(), enqueue, emit, guard = null, cap = null } = {}) {
     const fired = [];
     if (typeof enqueue !== "function") return fired;
+
+    // Guard is intentionally SYNCHRONOUS here: tick() is called from the runtime's one
+    // periodic timer and its contract is a synchronous array return. The async probe is
+    // sampled by the caller and handed in as a resolved verdict (server.mjs), so this
+    // module stays free of I/O — the same discipline every other pure module here keeps.
+    if (guard && guard.ok === false) {
+      return [{ deferred: true, reason: guard.reason, detail: guard.detail || null }];
+    }
+
     for (const row of due(t)) {
+      // Law 3: a worker that has spent its daily budget is SKIPPED, not queued. Checked
+      // before the CAS so the slot survives to the next eligible day.
+      if (cap && typeof cap.allows === "function" && !cap.allows(row.id, t)) {
+        fired.push({ id: row.id, skill: row.skill, agent: row.agent, capped: true, used: cap.used(row.id, t), cap: cap.cap });
+        continue;
+      }
       const slot = row.next_run;
       const next = nextRun(row.expr, row.hour, t); // strictly future — no catch-up storm
       const claimed = advanceCas.run({ id: row.id, slot, next_run: next, t }).changes;
       if (!claimed) continue; // another tick already fired this exact slot
+      if (cap && typeof cap.consume === "function") cap.consume(row.id, t);
       const r = enqueue({ agent: row.agent, skill: row.skill, goal: goalFor(row) });
       const taskId = r && (r.firstTaskId || r.taskId) || null;
       if (r && r.error) {

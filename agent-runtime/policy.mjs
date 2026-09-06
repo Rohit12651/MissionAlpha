@@ -169,6 +169,29 @@ export const DEFAULT_DENYLIST = Object.freeze([
 // Default SLA windows (ms), overridable by policy.sla and by env in the server.
 export const DEFAULT_SLA_MS = Object.freeze({ low: 86_400_000, medium: 28_800_000, high: 3_600_000 });
 
+// ── PHASE 2 TASK 2.2 — the two bounds auto-approve was missing ───────────────
+//
+// A band ceiling alone is not a bound. "Low risk" is a CLASSIFIER'S OPINION about the kind
+// of change, and it says nothing about its SIZE: a low-risk rewrite of forty files is still
+// forty files nobody read. And the pre-existing deny-list can only ever refuse what someone
+// thought to name, which is the wrong polarity for a gate that runs while the operator is
+// asleep — an unforeseen path must be REFUSED, not permitted.
+//
+// So: a diff-size ceiling, and an allowlist that is deny-by-default. Both can only ever
+// REMOVE auto-approval; neither can relax `human` or `typed_confirm`.
+export const DEFAULT_LIMITS = Object.freeze({ maxFiles: 8, maxLines: 300 });
+// The HARD UPPER BOUND on the ceilings themselves, enforced HERE rather than only in the
+// editor. Code review (MEDIUM): `positiveInt` rejected 0 and negatives but accepted
+// 999_999_999, so a POST to /runtime/policy could store a ceiling no real diff can reach —
+// re-creating exactly the unbounded auto-approve this bound exists to stop, while the UI
+// went on advertising a 50/2000 maximum. A client-side clamp is a hint; the server is the
+// authority, and the number the control claims to allow must be the number it does allow.
+export const MAX_LIMITS = Object.freeze({ maxFiles: 50, maxLines: 2000 });
+// The built-in floor is the ADR-029 SAFE set: plain `src/*` text plus README. It is the
+// same territory `isAutoSafe` already permits, so the allowlist cannot be edited into
+// something the classifier downstream would refuse anyway — it can only narrow it.
+export const DEFAULT_ALLOWLIST = Object.freeze(["src/**", "README.md"]);
+
 // Minimal, safe glob → RegExp. Supports **, **/ (cross-segment), * (within a segment).
 // Every other char is matched literally. Anchored full-match.
 function globToRe(glob) {
@@ -199,19 +222,55 @@ export function createBandPolicy(opts = {}) {
   let denyGlobs = [...DEFAULT_DENYLIST];
   let denyRes = denyGlobs.map(globToRe);
   let sla = { ...DEFAULT_SLA_MS };
+  let limits = { ...DEFAULT_LIMITS };
+  let allowGlobs = [...DEFAULT_ALLOWLIST];
+  let allowRes = allowGlobs.map(globToRe);
   let ok = true; // false ⇒ we fell back to SAFE_BANDS after a bad file
 
   const validBands = (b) =>
     b && typeof b === "object"
     && LOW_BEHAVIORS.has(b.low) && MED_BEHAVIORS.has(b.medium) && HIGH_BEHAVIORS.has(b.high);
 
+  // A ceiling must be a POSITIVE integer. 0 or a negative is not "no limit" — it is a
+  // malformed limit, and a malformed limit that read as "unlimited" would be the most
+  // dangerous default in the file.
+  const inRange = (v, max) => Number.isFinite(Number(v)) && Number(v) > 0 && Number(v) <= max;
+  const validLimits = (l) =>
+    l === undefined
+    || (l && typeof l === "object" && !Array.isArray(l)
+        && (l.maxFiles === undefined || inRange(l.maxFiles, MAX_LIMITS.maxFiles))
+        && (l.maxLines === undefined || inRange(l.maxLines, MAX_LIMITS.maxLines)));
+  const validAllowList = (a) =>
+    a === undefined || (Array.isArray(a) && a.every((s) => typeof s === "string"));
+
+  function resetBounds() {
+    limits = { ...DEFAULT_LIMITS };
+    allowGlobs = [...DEFAULT_ALLOWLIST];
+    allowRes = allowGlobs.map(globToRe);
+  }
+
   function load() {
-    if (!file || !existsSync(file)) { bands = { ...DEFAULT_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; sla = { ...DEFAULT_SLA_MS }; ok = true; denyRes = denyGlobs.map(globToRe); return; }
+    if (!file || !existsSync(file)) { bands = { ...DEFAULT_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; sla = { ...DEFAULT_SLA_MS }; ok = true; denyRes = denyGlobs.map(globToRe); resetBounds(); return; }
     let raw;
     try { raw = JSON.parse(readFileSync(file, "utf-8")); }
     catch (e) { log(`[policy] ${file} unparseable → all-human (fail closed): ${e?.message}`); return failClosed(); }
     if (!validBands(raw.bands)) { log(`[policy] ${file} bands invalid → all-human (fail closed)`); return failClosed(); }
+    // A malformed ceiling or allowlist is a malformed POLICY. It cannot be quietly ignored
+    // in favour of the defaults, because the operator wrote it intending to bound something
+    // and we have no way to know which direction they meant — so the whole file fails
+    // closed, exactly as a malformed `bands` block does.
+    if (!validLimits(raw.limits)) { log(`[policy] ${file} limits invalid → all-human (fail closed)`); return failClosed(); }
+    if (!validAllowList(raw.allowList)) { log(`[policy] ${file} allowList invalid → all-human (fail closed)`); return failClosed(); }
     bands = { low: raw.bands.low, medium: raw.bands.medium, high: raw.bands.high };
+    limits = {
+      maxFiles: raw.limits?.maxFiles === undefined ? DEFAULT_LIMITS.maxFiles : Math.floor(Number(raw.limits.maxFiles)),
+      maxLines: raw.limits?.maxLines === undefined ? DEFAULT_LIMITS.maxLines : Math.floor(Number(raw.limits.maxLines)),
+    };
+    // An explicit `allowList: []` means ALLOW NOTHING. It is not a wildcard and it is not
+    // "unset": the operator asked for nothing to be auto-approvable, and deny-by-default
+    // says we honour that literally. Only an ABSENT key falls back to the built-in set.
+    allowGlobs = raw.allowList === undefined ? [...DEFAULT_ALLOWLIST] : raw.allowList.slice(0, 200);
+    allowRes = allowGlobs.map(globToRe);
     // deny-list: operator globs are ADDED to the built-in floor, never replace it. The
     // classifier already keeps .env/secrets/.github/keys at HIGH (unauto-appliable), but
     // the deny-list is defense-in-depth and its built-in entries must be un-removable —
@@ -230,23 +289,80 @@ export function createBandPolicy(opts = {}) {
     }
     ok = true;
   }
-  function failClosed() { bands = { ...SAFE_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; denyRes = denyGlobs.map(globToRe); sla = { ...DEFAULT_SLA_MS }; ok = false; }
+  function failClosed() { bands = { ...SAFE_BANDS }; denyGlobs = [...DEFAULT_DENYLIST]; denyRes = denyGlobs.map(globToRe); sla = { ...DEFAULT_SLA_MS }; resetBounds(); ok = false; }
   load();
 
   const denyHit = (paths) => (Array.isArray(paths) ? paths : []).some((p) => denyRes.some((re) => re.test(String(p || ""))));
   const behaviorFor = (bandName) => bands[bandName] ?? SAFE_BANDS[bandName] ?? "human";
 
-  // The routing decision. Deny-list forces human, but only ever tightens: it turns
-  // auto_approve into human and never relaxes typed_confirm/human.
-  function routeFor({ band, changedPaths }) {
-    let route = behaviorFor(band);
-    if (route === "auto_approve" && denyHit(changedPaths)) route = "human";
-    return route;
+  // PHASE 2 TASK 2.2 — deny-by-default. EVERY path must match the allowlist; one that does
+  // not holds the whole diff, the same all-or-nothing rule ADR-029's classifier applies to
+  // a risky path. An empty diff satisfies `every()` vacuously, so it is refused explicitly:
+  // there is nothing that could have been reviewed.
+  const allowedPaths = (paths) => {
+    const list = Array.isArray(paths) ? paths : [];
+    if (!list.length) return false;
+    return list.every((p) => allowRes.some((re) => re.test(String(p || ""))));
+  };
+
+  // A size that was never measured is NOT a small size. Auto-approve requires positive
+  // evidence that the diff is under the ceiling; absent evidence, the gate closes. This is
+  // the same rule the tool probe follows — an unasked question is not a yes.
+  const withinLimits = ({ fileCount, changedLines }) => {
+    // `Number(null)` is 0 and `Number("")` is 0 — both would read as "a measured zero" and
+    // sail under any ceiling. An absent measurement must be rejected as absent, not
+    // coerced into the most permissive number in the range.
+    if (fileCount === null || fileCount === undefined || changedLines === null || changedLines === undefined) return false;
+    if (typeof fileCount !== "number" || typeof changedLines !== "number") return false;
+    const files = Number(fileCount);
+    const lines = Number(changedLines);
+    if (!Number.isFinite(files) || !Number.isFinite(lines)) return false;
+    if (files < 0 || lines < 0) return false;
+    return files <= limits.maxFiles && lines <= limits.maxLines;
+  };
+
+  /**
+   * The routing decision.
+   *
+   * Every gate here is a TIGHTENING: each one can turn `auto_approve` into `human` and
+   * nothing else. None of them can relax `human` or `typed_confirm`, which is why they are
+   * all nested under the `auto_approve` branch rather than applied to `route` generally.
+   * A knob that tightens in one direction and loosens in the other is not a safety knob.
+   */
+  function routeFor({ band, changedPaths, fileCount, changedLines }) {
+    const route = behaviorFor(band);
+    if (route !== "auto_approve") return route;
+    if (denyHit(changedPaths)) return "human";
+    if (!allowedPaths(changedPaths)) return "human";
+    if (!withinLimits({ fileCount, changedLines })) return "human";
+    return "auto_approve";
+  }
+
+  /**
+   * WHY a delivery was not auto-approved, for the operator and for the audit line. A gate
+   * that silently declines is indistinguishable from one that is broken — and a policy
+   * nobody can see the effect of is the policy that gets loosened out of frustration.
+   */
+  function explainRoute({ band, changedPaths, fileCount, changedLines }) {
+    const route = behaviorFor(band);
+    if (route !== "auto_approve") return `band ${band ?? "unrated"} routes to ${route}`;
+    if (denyHit(changedPaths)) return "a changed path is on the always-human deny-list";
+    if (!Array.isArray(changedPaths) || !changedPaths.length) return "the diff is empty";
+    if (!allowedPaths(changedPaths)) {
+      const bad = changedPaths.find((p) => !allowRes.some((re) => re.test(String(p || ""))));
+      return `path outside the auto-approve allowlist: ${bad}`;
+    }
+    if (!withinLimits({ fileCount, changedLines })) {
+      const files = Number(fileCount), lines = Number(changedLines);
+      if (!Number.isFinite(files) || !Number.isFinite(lines)) return "the diff size was not measured";
+      return `diff exceeds the auto-approve ceiling (${files} files / ${lines} lines vs ${limits.maxFiles} / ${limits.maxLines})`;
+    }
+    return null; // auto-approved
   }
 
   const slaFor = (bandName) => sla[bandName] ?? DEFAULT_SLA_MS[bandName] ?? DEFAULT_SLA_MS.high;
 
-  function raw() { return { bands: { ...bands }, denyList: [...denyGlobs], sla: { ...sla } }; }
+  function raw() { return { bands: { ...bands }, denyList: [...denyGlobs], sla: { ...sla }, limits: { ...limits }, allowList: [...allowGlobs] }; }
 
   // Persist a BOSS edit. Validate FIRST — a rejected write never touches disk, so the
   // in-memory (and file) policy can only move between valid states. Plain JSON, 0600.
@@ -255,6 +371,18 @@ export function createBandPolicy(opts = {}) {
     if (!validBands(next.bands)) throw new Error("policy: invalid bands (low∈auto_approve|notify|human, medium∈human|notify, high∈human|typed_confirm)");
     if (next.denyList !== undefined && !(Array.isArray(next.denyList) && next.denyList.every((s) => typeof s === "string"))) {
       throw new Error("policy: denyList must be an array of strings");
+    }
+    // PHASE 2 TASK 2.2 — validate BEFORE the write, like every other field here, so a
+    // rejected edit never reaches disk and the live policy can only move between valid
+    // states. A ceiling of 0 is rejected rather than stored: it would be indistinguishable
+    // from "unset" on the next load, and "unset" falls back to a permissive-er default.
+    if (next.limits !== undefined) {
+      if (!validLimits(next.limits)) {
+        throw new Error(`policy: limits.maxFiles must be 1..${MAX_LIMITS.maxFiles} and limits.maxLines 1..${MAX_LIMITS.maxLines}`);
+      }
+    }
+    if (next.allowList !== undefined && !validAllowList(next.allowList)) {
+      throw new Error("policy: allowList must be an array of glob strings");
     }
     if (next.sla !== undefined) {
       if (typeof next.sla !== "object" || next.sla === null) throw new Error("policy: sla must be an object");
@@ -269,6 +397,11 @@ export function createBandPolicy(opts = {}) {
       bands: { low: next.bands.low, medium: next.bands.medium, high: next.bands.high },
       denyList: Array.isArray(next.denyList) ? next.denyList.slice(0, 200) : [...DEFAULT_DENYLIST],
       sla: (() => { const s = { ...DEFAULT_SLA_MS }; if (next.sla) for (const k of ["low", "medium", "high"]) if (next.sla[k] !== undefined) s[k] = Math.floor(Number(next.sla[k])); return s; })(),
+      limits: {
+        maxFiles: next.limits?.maxFiles === undefined ? DEFAULT_LIMITS.maxFiles : Math.floor(Number(next.limits.maxFiles)),
+        maxLines: next.limits?.maxLines === undefined ? DEFAULT_LIMITS.maxLines : Math.floor(Number(next.limits.maxLines)),
+      },
+      allowList: next.allowList === undefined ? [...DEFAULT_ALLOWLIST] : next.allowList.slice(0, 200),
       updatedAt: new Date().toISOString(),
     };
     const tmp = `${file}.tmp`;
@@ -279,5 +412,5 @@ export function createBandPolicy(opts = {}) {
     return raw();
   }
 
-  return { routeFor, behaviorFor, denyHit, slaFor, raw, save, reload: load, valid: () => ok };
+  return { routeFor, explainRoute, behaviorFor, denyHit, slaFor, raw, save, reload: load, valid: () => ok };
 }

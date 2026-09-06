@@ -167,3 +167,42 @@ test("P5: CONFIG_GUARD refuses a package.json scripts change made INSIDE a git w
     assert.match(readFileSync(join(wtRepo, "package.json"), "utf-8"), /vite build/, "live package.json untouched");
   } finally { rmSync(wtRoot, { recursive: true, force: true }); }
 });
+
+// ── "no diff produced" must not hide "the agent wrote somewhere it may not write" ──
+//
+// Observed while driving the live loop: a task told to create `docs/PING.md` ran, wrote
+// the file into its worktree, and the operator was told `empty-diff — no diff produced`.
+// Both facts were true and together they were misleading: `docs/` is outside SEED_DIRS, so
+// applyAllowed refuses it and listChanges skips it silently. The operator sees an agent
+// that "did nothing" and re-queues the identical task — which is exactly what happened,
+// three times, on a live model.
+//
+// listChanges keeps its contract (only appliable changes, nothing new can be applied).
+// The refusals ride alongside so the CALLER can say which of the two facts it is.
+test("listChangesDetailed reports paths the guards refused, separately from the diff", async () => {
+  const b = broker();
+  mkdirSync(join(workdir, "src"), { recursive: true });
+  mkdirSync(join(workdir, "scripts"), { recursive: true });
+  writeFileSync(join(workdir, "src", "ok.ts"), "export const ok = 1;\n");
+  // `scripts/` runs on the HOST via npm and is deliberately outside the appliable scope.
+  // (This used to use `docs/` — #9 made docs appliable, which is the point of #9.)
+  writeFileSync(join(workdir, "scripts", "deploy.mjs"), "console.log('nope');\n");
+
+  const detailed = await b.listChangesDetailed("t");
+  assert.deepEqual(detailed.changes.map((c) => c.path), ["src/ok.ts"], "only appliable paths are changes");
+  assert.ok(detailed.refused.includes("scripts/deploy.mjs"), `the refusal is named: ${JSON.stringify(detailed.refused)}`);
+
+  // The historical surface is untouched — same array, same shape, same guarantees.
+  const plain = await b.listChanges("t");
+  assert.deepEqual(plain.map((c) => c.path), ["src/ok.ts"]);
+});
+
+test("a file that is refused AND identical to the repo is not reported as a refusal", async () => {
+  const b = broker();
+  // README.md is appliable; an unchanged file is simply not a change either way.
+  writeFileSync(join(repoRoot, "README.md"), "# same\n");
+  writeFileSync(join(workdir, "README.md"), "# same\n");
+  const d = await b.listChangesDetailed("t");
+  assert.deepEqual(d.changes, []);
+  assert.deepEqual(d.refused, [], "no change means nothing to refuse — refusals describe blocked WORK");
+});

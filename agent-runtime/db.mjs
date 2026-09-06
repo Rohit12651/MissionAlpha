@@ -667,6 +667,256 @@ export const MIGRATIONS = Object.freeze([
         ON deliveries(COALESCE(externalKey, taskId, 'agent:' || agentId)) WHERE status = 'pending';
     `,
   },
+  {
+    // PHASE 7 / metered spend — the ONE place a dollar figure is persisted.
+    //
+    // The `usage` table above deliberately has no $ column, and that stays true: on a
+    // subscription plan a cost is a fiction. This table exists because the multi-provider
+    // work added api_key accounts (OpenRouter, custom) that genuinely bill per token.
+    //
+    // THE SCHEMA ITSELF ENFORCES THE HONESTY RULE:
+    //   * `usd` is NULLABLE, and null means "no price", not zero. A subscription turn is
+    //     never written here at all; a metered turn whose provider reported no figure is
+    //     written with usd = NULL so the turn is counted but not valued.
+    //   * `accountId` + `authMethod` are stored per row, so a query can never blend
+    //     metered and unmetered turns into one total by accident — the CHECK makes an
+    //     unmetered row structurally impossible.
+    // ADD TABLE only — no rebuild; migrate() wraps it in a txn.
+    version: 18,
+    sql: `
+      CREATE TABLE IF NOT EXISTS spend (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        agentId     TEXT NOT NULL,
+        threadId    TEXT NOT NULL,
+        tier        TEXT NOT NULL,
+        day         TEXT NOT NULL,
+        accountId   TEXT NOT NULL,
+        authMethod  TEXT NOT NULL CHECK (authMethod = 'api_key'),
+        usd         REAL,
+        at          TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_spend_day   ON spend(day);
+      CREATE INDEX IF NOT EXISTS idx_spend_agent ON spend(agentId);
+    `,
+  },
+  {
+    // AUTONOMY PROGRAM PHASE 3 (2026-08-14) — the STRUCTURED HANDBACK.
+    //
+    // A reject travelled as a bare `ref` string, so the UI could render "reviewer requested
+    // fixes (round 2)" and nothing else: not who sent it back, not who is expected to pick
+    // it up, not what evidence they were looking at. "Who told whom what, and why" was
+    // unanswerable from the log that is supposed to record exactly that.
+    //
+    // ADD COLUMN only — no table rebuild, so every existing story_log row survives with
+    // NULLs, which is the honest value for a transition that never carried these fields.
+    // The whole handback still lands in the SAME row, in the SAME transaction, as the
+    // story-row write: a second log would let the two disagree.
+    //
+    // `evidence` is a JSON array of short refs (vault ids, task ids, PR urls). It is
+    // scrubbed and length-capped at rest by stories.mjs, exactly like `ref` — untrusted
+    // reviewer text must never persist a secret or an unbounded paste.
+    version: 19,
+    sql: `
+      ALTER TABLE story_log ADD COLUMN from_stage TEXT;
+      ALTER TABLE story_log ADD COLUMN by_agent   TEXT;
+      ALTER TABLE story_log ADD COLUMN to_agent   TEXT;
+      ALTER TABLE story_log ADD COLUMN evidence   TEXT;
+    `,
+  },
+  {
+    // MUNDER-ADOPTION A7 (2026-08-20) — the Inbox gains ONE more READ-ONLY external
+    // source: 'slack' (a channel message surfaced as a Delivery; deliveries.decide()
+    // refuses it exactly like claude-code). SQLite cannot ALTER a CHECK constraint,
+    // so — exactly like v16/v17 widened `kind` — this is the documented table rebuild:
+    // new table (source CHECK widened by one value) → copy → drop → rename → recreate
+    // every index (including the partial pending-key uniqueness index), all inside
+    // migrate()'s transaction with foreign_keys toggled around it. Preserves ALL
+    // columns v1–v19 verbatim; transforms no data.
+    version: 20,
+    sql: `
+      CREATE TABLE deliveries_v20 (
+        id             TEXT PRIMARY KEY,
+        agentId        TEXT NOT NULL,
+        taskId         TEXT,
+        title          TEXT NOT NULL,
+        summary        TEXT NOT NULL,
+        source         TEXT NOT NULL CHECK (source IN ('swarm','claude-code','github-pr','slack','external')),
+        kind           TEXT NOT NULL CHECK (kind IN ('code','doc','post','command','failure','question','design-approval','release-approval')),
+        diffFiles      INTEGER NOT NULL DEFAULT 0,
+        diffAdditions  INTEGER NOT NULL DEFAULT 0,
+        diffDeletions  INTEGER NOT NULL DEFAULT 0,
+        changedPaths   TEXT NOT NULL DEFAULT '[]',
+        riskScore      INTEGER,
+        riskBand       TEXT CHECK (riskBand IN ('low','medium','high')),
+        riskReasons    TEXT NOT NULL DEFAULT '[]',
+        status         TEXT NOT NULL DEFAULT 'pending'
+                         CHECK (status IN ('pending','approved','rejected','changes_requested','expired','auto_approved')),
+        slaDeadline    TEXT,
+        createdAt      TEXT NOT NULL,
+        decidedAt      TEXT,
+        decidedBy      TEXT,
+        feedback       TEXT,
+        auditRef       TEXT NOT NULL,
+        prUrl          TEXT,
+        mode           TEXT CHECK (mode IN ('pr','branch','apply')),
+        branch         TEXT,
+        landing        TEXT CHECK (landing IN ('pending','resolved')),
+        slaState       TEXT CHECK (slaState IN ('halflife','expired')),
+        externalKey    TEXT,
+        externalMeta   TEXT,
+        assignee       TEXT,
+        storyId        TEXT
+      );
+
+      INSERT INTO deliveries_v20
+        (id, agentId, taskId, title, summary, source, kind, diffFiles, diffAdditions, diffDeletions,
+         changedPaths, riskScore, riskBand, riskReasons, status, slaDeadline, createdAt, decidedAt,
+         decidedBy, feedback, auditRef, prUrl, mode, branch, landing, slaState, externalKey, externalMeta, assignee, storyId)
+        SELECT
+         id, agentId, taskId, title, summary, source, kind, diffFiles, diffAdditions, diffDeletions,
+         changedPaths, riskScore, riskBand, riskReasons, status, slaDeadline, createdAt, decidedAt,
+         decidedBy, feedback, auditRef, prUrl, mode, branch, landing, slaState, externalKey, externalMeta, assignee, storyId
+        FROM deliveries;
+
+      DROP TABLE deliveries;
+      ALTER TABLE deliveries_v20 RENAME TO deliveries;
+
+      CREATE INDEX IF NOT EXISTS idx_deliveries_status   ON deliveries(status);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_agent    ON deliveries(agentId);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_created  ON deliveries(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_external ON deliveries(externalKey);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_assignee ON deliveries(assignee);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_story    ON deliveries(storyId);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_pending_key
+        ON deliveries(COALESCE(externalKey, taskId, 'agent:' || agentId)) WHERE status = 'pending';
+    `,
+  },
+  {
+    // Phase 9 (2026-09-05) — THE JOB. A Job is NOT a Story: it has its own gate slot, answer
+    // route, stall clock and retry budget, so it gets its own tables rather than borrowing the
+    // story ones. ADDITIVE ONLY — nothing existing is rebuilt, so every story and delivery row
+    // survives untouched and the story gate path is byte-identical to today.
+    //
+    // `source` + `externalKey` exist NOW although nothing writes them before Phase 13 (Jira):
+    // adding a UNIQUE column later would mean rebuilding a live table, and the point of the
+    // unique index is that one ticket can never open two jobs.
+    // `deliveries.jobId` is the job-scoped gate slot. Nullable; every existing row keeps NULL.
+    version: 21,
+    sql: `
+      CREATE TABLE IF NOT EXISTS jobs (
+        id          TEXT PRIMARY KEY,
+        title       TEXT NOT NULL,
+        brief       TEXT NOT NULL,
+        repo        TEXT,
+        source      TEXT NOT NULL DEFAULT 'paste',
+        externalKey TEXT,
+        status      TEXT NOT NULL DEFAULT 'intake'
+                      CHECK (status IN ('intake','clarify','planned','building','review','awaiting-you','shipped','blocked')),
+        questions   TEXT NOT NULL DEFAULT '[]',
+        answers     TEXT,
+        summary     TEXT,
+        prUrl       TEXT,
+        blockedOn   TEXT,
+        createdAt   INTEGER NOT NULL,
+        updatedAt   INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_external ON jobs(externalKey) WHERE externalKey IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS job_tasks (
+        id             TEXT PRIMARY KEY,
+        jobId          TEXT NOT NULL,
+        seq            INTEGER NOT NULL,
+        title          TEXT NOT NULL,
+        seat           TEXT,
+        skillsRequired TEXT NOT NULL DEFAULT '[]',
+        steps          TEXT NOT NULL DEFAULT '[]',
+        status         TEXT NOT NULL DEFAULT 'planned',
+        goalId         TEXT,
+        taskId         TEXT,
+        deliveryId     TEXT,
+        changedPaths   TEXT NOT NULL DEFAULT '[]',
+        blockedOn      TEXT,
+        createdAt      INTEGER NOT NULL,
+        updatedAt      INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_tasks_job ON job_tasks(jobId, seq);
+      CREATE INDEX IF NOT EXISTS idx_job_tasks_task ON job_tasks(taskId);
+
+      ALTER TABLE deliveries ADD COLUMN jobId TEXT;
+      CREATE INDEX IF NOT EXISTS idx_deliveries_job ON deliveries(jobId);
+    `,
+  },
+  {
+    // Phase 11 (2026-09-05) — `job-approval`, the JOB's own gate kind: the single yes that
+    // ships every task in a job. SQLite cannot widen a CHECK in place, so — exactly like
+    // v16/v17/v20 widened `kind` before it — this is the documented table rebuild:
+    // new table (kind CHECK widened by ONE value) → copy → drop → rename → recreate every
+    // index, inside migrate()'s transaction. Preserves ALL 31 columns v1–v21 verbatim
+    // (including v21's jobId) and transforms no data.
+    version: 22,
+    sql: `
+      CREATE TABLE deliveries_v22 (
+        id             TEXT PRIMARY KEY,
+        agentId        TEXT NOT NULL,
+        taskId         TEXT,
+        title          TEXT NOT NULL,
+        summary        TEXT NOT NULL,
+        source         TEXT NOT NULL CHECK (source IN ('swarm','claude-code','github-pr','slack','external')),
+        kind           TEXT NOT NULL CHECK (kind IN ('code','doc','post','command','failure','question','design-approval','release-approval','job-approval')),
+        diffFiles      INTEGER NOT NULL DEFAULT 0,
+        diffAdditions  INTEGER NOT NULL DEFAULT 0,
+        diffDeletions  INTEGER NOT NULL DEFAULT 0,
+        changedPaths   TEXT NOT NULL DEFAULT '[]',
+        riskScore      INTEGER,
+        riskBand       TEXT CHECK (riskBand IN ('low','medium','high')),
+        riskReasons    TEXT NOT NULL DEFAULT '[]',
+        status         TEXT NOT NULL DEFAULT 'pending'
+                         CHECK (status IN ('pending','approved','rejected','changes_requested','expired','auto_approved')),
+        slaDeadline    TEXT,
+        createdAt      TEXT NOT NULL,
+        decidedAt      TEXT,
+        decidedBy      TEXT,
+        feedback       TEXT,
+        auditRef       TEXT NOT NULL,
+        prUrl          TEXT,
+        mode           TEXT CHECK (mode IN ('pr','branch','apply')),
+        branch         TEXT,
+        landing        TEXT CHECK (landing IN ('pending','resolved')),
+        slaState       TEXT CHECK (slaState IN ('halflife','expired')),
+        externalKey    TEXT,
+        externalMeta   TEXT,
+        assignee       TEXT,
+        storyId        TEXT,
+        jobId          TEXT
+      );
+
+      INSERT INTO deliveries_v22
+        (id, agentId, taskId, title, summary, source, kind, diffFiles, diffAdditions, diffDeletions,
+         changedPaths, riskScore, riskBand, riskReasons, status, slaDeadline, createdAt, decidedAt,
+         decidedBy, feedback, auditRef, prUrl, mode, branch, landing, slaState, externalKey,
+         externalMeta, assignee, storyId, jobId)
+        SELECT
+         id, agentId, taskId, title, summary, source, kind, diffFiles, diffAdditions, diffDeletions,
+         changedPaths, riskScore, riskBand, riskReasons, status, slaDeadline, createdAt, decidedAt,
+         decidedBy, feedback, auditRef, prUrl, mode, branch, landing, slaState, externalKey,
+         externalMeta, assignee, storyId, jobId
+        FROM deliveries;
+
+      DROP TABLE deliveries;
+      ALTER TABLE deliveries_v22 RENAME TO deliveries;
+
+      CREATE INDEX IF NOT EXISTS idx_deliveries_status   ON deliveries(status);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_agent    ON deliveries(agentId);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_created  ON deliveries(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_external ON deliveries(externalKey);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_assignee ON deliveries(assignee);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_story    ON deliveries(storyId);
+      CREATE INDEX IF NOT EXISTS idx_deliveries_job      ON deliveries(jobId);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_pending_key
+        ON deliveries(COALESCE(externalKey, taskId, 'agent:' || agentId)) WHERE status = 'pending';
+    `,
+  },
 ]);
 
 // Open (creating if needed) the delivery DB, apply pending migrations, return a

@@ -1,6 +1,7 @@
 /* Hallmark · macrostructure: Workbench (two-pane queue + sticky review) · tone: technical-luxury
  * theme: studied-DNA (source: docs/mockups/helm-inbox-merged-mockup.html — this repo's own design target)
- * paper: #0B1220 ink (dark band) · accent: brass #C89B3C (warm) · display: geometric-sans
+ * paper: #050a14 ink (dark band) · accent: brass #C89B3C (warm) · display: geometric-sans
+ * surfaces: 3-level ladder, >=1.25:1 adjacent (8.2) · contrast: AA on every surface, min 4.55:1 (8.5)
  * nav: reuses the existing shell TitleBar (N-none) · footer: reuses StatusStrip (Ft-none)
  * pre-emit critique: P5 H5 E4 S5 R5 V4
  *
@@ -19,33 +20,64 @@
  */
 
 [data-skin="helm"] {
-  /* ── surfaces ── */
-  --helm-ink: #0b1220;
-  --helm-deck: #121b2e;
-  --helm-deck-raised: #182338;
-  --helm-deck-raised-2: #1e2b45;
-  --helm-well: #0a0f1a;
-  --helm-line: #26324a;
-  --helm-line-soft: #1d2a40;
+  /* ── surfaces — PHASE 8 TASK 8.2 ────────────────────────────────────────────
+   * THREE levels, each >= 1.25:1 against the one below. Measured, not asserted:
+   *   ink -> deck 1.25 · deck -> raised 1.26 · ink -> raised 1.57 · raised -> line 1.26
+   * (Was 1.09 / 1.09 / 1.11 — three levels nobody could tell apart.)
+   *
+   * WHY THREE AND NOT FIVE, stated plainly because the plan asked for a ladder across
+   * five surfaces. On a dark theme that target and WCAG AA are mutually exclusive, and
+   * the arithmetic is short enough to check: four 1.25 steps multiply to 1.25^4 = 2.44,
+   * and since contrast is (L+0.05)/(L+0.05), the darkest surface cannot go below L=0, so
+   * the LIGHTEST surface is forced to L >= 0.05*2.44-0.05 = 0.072. Body text needs 4.5:1
+   * against that, i.e. L >= 0.499 — brighter than this theme's dimmest text by a factor
+   * of four. Every semantic colour would become a pale wash and the paper/dim/faint
+   * hierarchy would collapse. So the ladder is three DISTINCT levels that genuinely
+   * differ, rather than five nominal ones that do not.
+   *
+   * The two redundant tokens are ALIASED rather than deleted: ~168 call sites reference
+   * them, and an alias makes the collapse explicit and greppable instead of scattering a
+   * rename. `--helm-well` was 1.02:1 from ink — not a level, a rounding error; an inset
+   * is now expressed with a BORDER, which is a real signal at any luminance.
+   */
+  /* UI-UNIFICATION 2026-08-20 (BOSS theme) — the Helm skin now resolves to the SAME
+   * WhatsApp-style palette as the --c-* tokens (index.css), so the cockpit, Helm and
+   * BOS generations read as ONE app. Token NAMES unchanged (the wire contract of the
+   * 2,895-line bos.css and every helm component); "brass" now carries the teal/green
+   * identity: --helm-brass = primary teal #00a884, --helm-brass-bright = brand green
+   * #25d366. Ladder mirrors --c-*: ink #0b141a < deck #1f2c34 < raised #26333d. */
+  --helm-ink: #0b141a;
+  --helm-deck: #1f2c34;
+  --helm-deck-raised: #26333d;
+  /* Collapsed into --helm-deck-raised (was #1e2b45, 1.11:1 from it — invisible). */
+  --helm-deck-raised-2: var(--helm-deck-raised);
+  /* Collapsed into --helm-ink (was #0a0f1a, 1.02:1 from it). Insets use a border. */
+  --helm-well: var(--helm-ink);
+  --helm-line: #37474f;
+  --helm-line-soft: #2a3942;
 
   /* ── accent ── */
-  --helm-brass: #c89b3c;
-  --helm-brass-bright: #e0b759;
+  --helm-brass: #00a884;
+  --helm-brass-bright: #25d366;
 
-  /* ── semantic ── */
-  --helm-green: #4f9d69;
-  --helm-amber: #d9a441;
-  /* red brightened #c1554a → #d16a5f for WCAG AA: old was 3.82–4.16:1 on the
-     decks (diff-del / reject / failure text); now 4.86:1 on deck, 5.29:1 on ink. */
-  --helm-red: #d16a5f;
+  /* ── semantic ── re-measured on THIS ladder's lightest surface (#26333d, L≈.036):
+     green #25d366 ≈ 7.4:1 · amber #e9a13b ≈ 6.0:1 · red #f28b7d ≈ 4.9:1. The pure
+     destructive #ea4335 is bg/decoration only (3.1:1 as text — never small text). */
+  --helm-green: #25d366;
+  --helm-amber: #e9a13b;
+  --helm-red: #f28b7d;
 
-  /* ── text ── */
-  --helm-paper: #ede6d6;
-  --helm-paper-dim: #9ba3b4;
-  /* faint lightened #5d6579 → #868fa3 for WCAG AA: old was 2.70–3.21:1 (eyebrows,
-     chip labels, diff-meta, placeholders); now 4.84:1 on the chip deck, 5.77:1 on
-     ink. Stays below --helm-paper-dim so the paper/dim/faint tiers still read. */
-  --helm-paper-faint: #868fa3;
+  /* ── text ── same tiers, palette values: paper #e9edef ≈ 13:1 on raised;
+     dim #8696a0 ≈ 4.6:1 on raised; faint #8a97a0 ≈ 4.6:1 on raised (stays below dim). */
+  --helm-paper: #e9edef;
+  --helm-paper-dim: #8696a0;
+  --helm-paper-faint: #8a97a0;
+
+  /* ── on-accent inks ── the text that sits ON a filled accent, not beside it.
+   * Re-measured against the new accents: ~9:1 on green #25d366, ~5.5:1 on teal
+   * #00a884 — AA holds on both. */
+  --helm-on-green: #062e1d;
+  --helm-on-brass: #04241b;
 
   /* ── type ── */
   --helm-font-display: "Space Grotesk", "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -59,10 +91,12 @@
   --helm-dur-move: 240ms;
 
   /* ── shape ── */
-  --helm-r-card: 12px;
-  --helm-r-pane: 14px;
+  /* UI-UNIFICATION 2026-08-20 — the BOSS theme's 1rem radius system: cards 16px,
+     panes 18px, controls 10px. Chips stay fully round. */
+  --helm-r-card: 16px;
+  --helm-r-pane: 18px;
   --helm-r-chip: 999px;
-  --helm-r-ctl: 9px;
+  --helm-r-ctl: 10px;
 }
 
 /* The Inbox root paints the ink deck over the cockpit's own background. */
@@ -353,7 +387,7 @@
 
 [data-skin="helm"] .helm-btn[data-variant="approve"] {
   background: var(--helm-green);
-  color: #0d1f14;
+  color: var(--helm-on-green);
 }
 [data-skin="helm"] .helm-btn[data-variant="approve"]:disabled {
   background: color-mix(in srgb, var(--helm-green) 25%, transparent);
@@ -386,7 +420,7 @@
 /* Button success / error feedback — colour only, no layout shift. */
 [data-skin="helm"] .helm-btn[data-state="success"] {
   background: var(--helm-green);
-  color: #0d1f14;
+  color: var(--helm-on-green);
 }
 [data-skin="helm"] .helm-btn[data-state="error"] {
   background: color-mix(in srgb, var(--helm-red) 22%, transparent);
@@ -494,8 +528,8 @@
   min-width: 18px;
   padding: 1px 6px;
   border-radius: var(--helm-r-chip);
-  background: var(--helm-brass, #c89b3c);
-  color: #221803;
+  background: var(--helm-brass);
+  color: var(--helm-on-brass);
   font-family: var(--helm-font-mono, ui-monospace, monospace);
   font-size: 10px;
   font-weight: 600;
@@ -541,4 +575,427 @@
 [data-skin="helm"][data-reduce-motion="on"] .helm-pulse {
   animation: none;
   opacity: 0.7;
+}
+
+/* Phase 3 — bulk-select checkbox on a delivery row. A real focusable control (role
+   checkbox + tabIndex) rather than a decorative span, so keyboard users can build a
+   selection. Sized to the 24px touch-target floor. */
+[data-skin="helm"] .helm-bulkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--helm-line);
+  border-radius: 5px;
+  background: var(--helm-well);
+  color: var(--helm-ink);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+[data-skin="helm"] .helm-bulkbox[data-checked="true"] {
+  background: var(--helm-brass);
+  border-color: var(--helm-brass);
+  color: var(--helm-ink);
+}
+/* 8-state discipline (hallmark component-scope). The first cut of this control shipped
+   with only default + checked, which meant a keyboard user got no focus ring and a
+   pointer user got no hover feedback on a control that mutates a bulk selection. */
+[data-skin="helm"] .helm-bulkbox:hover {
+  border-color: var(--helm-brass);
+  background: var(--helm-deck-raised);
+}
+[data-skin="helm"] .helm-bulkbox[data-checked="true"]:hover {
+  background: var(--helm-brass-bright);
+  border-color: var(--helm-brass-bright);
+}
+[data-skin="helm"] .helm-bulkbox:focus-visible {
+  outline: 2px solid var(--helm-brass-bright);
+  outline-offset: 2px;
+}
+[data-skin="helm"] .helm-bulkbox:active {
+  transform: scale(0.92);
+}
+[data-skin="helm"] .helm-bulkbox[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* transform is the only animated property; reduced-motion strips it entirely. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-skin="helm"] .helm-bulkbox {
+    transition: background-color var(--helm-dur-press) var(--helm-ease-out),
+                border-color var(--helm-dur-press) var(--helm-ease-out),
+                transform 90ms var(--helm-ease-out);
+  }
+}
+[data-skin="helm"] .helm-card[data-bulk-selected="true"] {
+  border-color: var(--helm-brass);
+}
+
+/* hallmark gate 59 — a clickable label must never wrap to two lines. At 320px the bulk
+   bar and cluster actions ("Approve 1", "Dismiss all 2", "Show 2") were breaking across
+   lines, which reads as a broken control and doubles the tap target's height. The button
+   text stays on one line; the flex container wraps whole buttons instead. */
+[data-skin="helm"] .helm-btn {
+  white-space: nowrap;
+}
+
+/* ── Phase 4 — approve-with-edit ───────────────────────────────────────────────
+   The diff surface becomes editable on a PENDING code delivery. Three new pieces:
+   a slim per-file action button, an "edited" flag, and the textarea itself.
+
+   The textarea inherits .helm-input's full state set (hover / focus / disabled /
+   invalid) rather than restating it — one control, one definition. Only the things
+   that genuinely differ for a code editor are set here: monospace, tab size, a taller
+   default, and vertical-only resize so an operator cannot drag it wider than the pane
+   and reintroduce horizontal page scroll at 320px. */
+/* Specificity must beat `.helm-btn[data-variant="quiet"]` (0,3,0) — both call sites set
+   data-variant, so a bare `.helm-btn-slim` (0,2,0) lost every declaration except the one
+   the variant rule did not set. The class was, in effect, dead. */
+[data-skin="helm"] .helm-btn.helm-btn-slim[data-variant] {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+/* Not colour alone: the flag carries the word "edited" and role="status", so the state
+   reaches a screen reader and survives a monochrome or high-contrast rendering. */
+[data-skin="helm"] .helm-edit-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--helm-brass) 55%, transparent);
+  background: color-mix(in srgb, var(--helm-brass) 14%, transparent);
+  color: var(--helm-brass);
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+[data-skin="helm"] .helm-edit-area {
+  min-height: 220px;
+  /* Bounded like .helm-diff so the pane never grows without limit. It does NOT promise
+     a jump-free toggle: the read view is sized by patch length and the edit view by full
+     file length, so a short diff does grow when opened. Saying otherwise in a comment
+     would be the tell — a claim the code cannot keep. */
+  max-height: 46vh;
+  line-height: 1.7;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+[data-skin="helm"] .helm-edit-note {
+  color: var(--helm-paper-faint);
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* The editor's ERROR state. The 8-state discipline requires it, and the runtime really
+   does refuse edits (a redacted or truncated review, a path outside the delivery). The
+   message is TEXT with role="alert", wired to the field via aria-describedby — never
+   colour alone. Replaces the helper note in the same slot so the layout does not jump. */
+[data-skin="helm"] .helm-edit-error {
+  color: var(--helm-red);
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── Phase 5 — activity stream ─────────────────────────────────────────────────
+   A collapsible right rail on the Command Center. Read-only, SSE-fed, bounded.
+
+   MOTION: one 140ms row-enter, transform + opacity only (compositor-friendly). Under
+   prefers-reduced-motion the animation is removed outright rather than shortened — a
+   long feed of crossfading rows is exactly the vestibular load the query is for. */
+[data-skin="helm"] .helm-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  background: var(--helm-panel);
+  border: 1px solid var(--helm-line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+[data-skin="helm"] .helm-activity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .helm-activity-title {
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--helm-paper);
+  margin-right: auto;
+}
+
+/* Live indicator. The WORD carries the state; the dot is decoration on top of it, so a
+   monochrome or colour-blind reading loses nothing. */
+[data-skin="helm"] .helm-activity-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  color: var(--helm-paper-faint);
+}
+[data-skin="helm"] .helm-activity-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--helm-paper-faint);
+}
+[data-skin="helm"] .helm-activity-live[data-live="true"]::before { background: var(--helm-green); }
+[data-skin="helm"] .helm-activity-live[data-live="false"]::before { background: var(--helm-red); }
+
+[data-skin="helm"] .helm-activity-filter { display: flex; }
+[data-skin="helm"] .helm-activity-select { font-size: 12px; padding: 6px 9px; }
+
+[data-skin="helm"] .helm-activity-new {
+  align-self: center;
+  border: 1px solid color-mix(in srgb, var(--helm-brass) 55%, transparent);
+  background: color-mix(in srgb, var(--helm-brass) 14%, transparent);
+  color: var(--helm-brass);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  [data-skin="helm"] .helm-activity-new:hover {
+    background: color-mix(in srgb, var(--helm-brass) 24%, transparent);
+  }
+}
+[data-skin="helm"] .helm-activity-new:active { transform: translateY(1px); }
+
+[data-skin="helm"] .helm-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 52vh;
+  overflow-y: auto;
+  overflow-x: hidden; /* a long target must not scroll the rail sideways */
+}
+
+[data-skin="helm"] .helm-activity-row {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-paper-dim);
+  animation: helm-activity-in 140ms var(--helm-ease-out) both;
+}
+[data-skin="helm"] .helm-activity-row:nth-child(odd) {
+  background: color-mix(in srgb, var(--helm-well) 55%, transparent);
+}
+[data-skin="helm"] .helm-activity-row[data-tone="good"] { color: var(--helm-green); }
+[data-skin="helm"] .helm-activity-row[data-tone="warn"] { color: var(--helm-amber, var(--helm-brass)); }
+[data-skin="helm"] .helm-activity-row[data-tone="bad"] { color: var(--helm-red); }
+
+[data-skin="helm"] .helm-activity-who {
+  font-size: 12px;
+  color: var(--helm-brass);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 12ch;
+}
+[data-skin="helm"] .helm-activity-what { min-width: 0; overflow-wrap: anywhere; }
+[data-skin="helm"] .helm-activity-target { color: var(--helm-paper); }
+[data-skin="helm"] .helm-activity-when {
+  font-size: 12px;
+  color: var(--helm-paper-faint);
+  white-space: nowrap;
+}
+
+[data-skin="helm"] .helm-activity-empty,
+[data-skin="helm"] .helm-activity-foot {
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  color: var(--helm-paper-faint);
+  margin: 0;
+}
+
+/* The collapsed affordance. Full 8-state treatment lives on .helm-btn; this only adds
+   the rail-tab shape on top of it. */
+[data-skin="helm"] .helm-activity-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--helm-panel);
+  border: 1px solid var(--helm-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--helm-paper-dim);
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--helm-dur-press) var(--helm-ease-out);
+}
+@media (hover: hover) {
+  [data-skin="helm"] .helm-activity-tab:hover {
+    border-color: color-mix(in srgb, var(--helm-brass) 45%, var(--helm-line));
+  }
+}
+[data-skin="helm"] .helm-activity-tab:active { transform: translateY(1px); }
+[data-skin="helm"] .helm-activity-count {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--helm-brass) 18%, transparent);
+  color: var(--helm-brass);
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+@keyframes helm-activity-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .helm-activity-row { animation: none; }
+  [data-skin="helm"] .helm-activity-tab,
+  [data-skin="helm"] .helm-activity-new { transition: none; }
+  [data-skin="helm"] .helm-activity-tab:active,
+  [data-skin="helm"] .helm-activity-new:active { transform: none; }
+}
+
+/* The activity rail's slot on the Command Center. A full-width row under the two
+   columns, not a third grid track: .bos-center is one scrolling column and this page
+   already stacks at 768px, where a third track would be unusably narrow. */
+[data-skin="helm"] .bos-center-activity {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* ── Phase 6 — agent ledger ────────────────────────────────────────────────────
+   A sortable table on the Agents deck. Every number comes from the runtime's SQL over
+   rows that already exist. The one styling rule that carries meaning: an UNRATED agent
+   is muted, not warned — an absence of evidence is not a failing grade. */
+[data-skin="helm"] .bos-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  background: var(--helm-panel);
+  border: 1px solid var(--helm-line);
+  border-radius: 12px;
+  padding: 14px;
+}
+[data-skin="helm"] .bos-ledger-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+[data-skin="helm"] .bos-ledger-title {
+  margin: 0;
+  margin-right: auto;
+  font-family: var(--helm-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--helm-paper);
+}
+[data-skin="helm"] .bos-ledger-window { width: auto; font-size: 12px; padding: 6px 9px; }
+
+/* The table scrolls INSIDE this box, so a narrow viewport never scrolls the page body
+   sideways (hallmark gate 36). */
+[data-skin="helm"] .bos-ledger-scroll { overflow-x: auto; }
+[data-skin="helm"] .bos-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--helm-font-body);
+  font-size: 12px;
+  color: var(--helm-paper-dim);
+}
+[data-skin="helm"] .bos-ledger-table th,
+[data-skin="helm"] .bos-ledger-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--helm-line);
+  white-space: nowrap;
+}
+[data-skin="helm"] .bos-ledger-table thead th {
+  color: var(--helm-paper-faint);
+  font-weight: 600;
+}
+[data-skin="helm"] .bos-ledger-table tbody tr:last-child th,
+[data-skin="helm"] .bos-ledger-table tbody tr:last-child td { border-bottom: 0; }
+[data-skin="helm"] .bos-ledger-agent {
+  color: var(--helm-brass);
+  font-weight: 500;
+}
+
+/* Sort control — all 8 states come from being a real <button>; only the chrome differs. */
+[data-skin="helm"] .bos-ledger-sort {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (hover: hover) {
+  [data-skin="helm"] .bos-ledger-sort:hover { color: var(--helm-brass); }
+}
+[data-skin="helm"] .bos-ledger-sort:active { transform: translateY(1px); }
+
+[data-skin="helm"] .bos-ledger-rate { font-weight: 600; }
+[data-skin="helm"] .bos-ledger-rate[data-tone="good"] { color: var(--helm-green); }
+[data-skin="helm"] .bos-ledger-rate[data-tone="warn"] { color: var(--helm-amber, var(--helm-brass)); }
+[data-skin="helm"] .bos-ledger-rate[data-tone="bad"] { color: var(--helm-red); }
+/* Unrated: muted, and deliberately NOT red. */
+[data-skin="helm"] .bos-ledger-rate[data-tone="muted"] {
+  color: var(--helm-paper-faint);
+  font-weight: 500;
+  font-style: italic;
+}
+[data-skin="helm"] .bos-ledger-sub { color: var(--helm-paper-faint); }
+
+[data-skin="helm"] .bos-ledger-empty,
+[data-skin="helm"] .bos-ledger-foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--helm-paper-faint);
+  line-height: 1.5;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="helm"] .bos-ledger-sort:active { transform: none; }
+}
+
+/* Phase 7 — the spend cell. Tabular figures so a column of dollar amounts lines up on
+   the decimal point instead of jittering per row. */
+[data-skin="helm"] .bos-ledger-spend {
+  font-variant-numeric: tabular-nums;
+  color: var(--helm-paper-dim);
 }

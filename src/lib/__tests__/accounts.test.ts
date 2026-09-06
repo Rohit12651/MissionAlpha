@@ -4,6 +4,7 @@ import {
   getAccounts,
   addAccount,
   replaceAccountSecret,
+  updateAccount,
   removeAccount,
   setActiveAccount,
   authReady,
@@ -155,4 +156,44 @@ test("authReady false for empty, or an api_key account without a stored secret",
 test("capabilityLabel names the two honest tiers", () => {
   assert.equal(capabilityLabel("swarm"), "Full swarm");
   assert.equal(capabilityLabel("chat_only"), "Chat only");
+});
+
+// ── updateAccount (Phase 1, excellence program) ──────────────────────────────
+// The client half of the edit path. The omit-empty behaviour is load-bearing: a blank
+// "replace token" input must never reach the wire, or a user who edits only the model
+// would silently wipe a working credential.
+test("updateAccount → PATCH :id path with token", async () => {
+  await updateAccount("acc-1", { model: "nvidia/nemotron-nano-9b-v2:free" });
+  assert.equal(last?.method, "PATCH");
+  assert.ok(last?.url.endsWith("/runtime/accounts/acc-1"), `unexpected url: ${last?.url}`);
+  assert.equal(last?.token, "tok-abc");
+  assert.deepEqual(JSON.parse(last?.body ?? "{}"), { model: "nvidia/nemotron-nano-9b-v2:free" });
+});
+
+test("updateAccount omits an empty secret so a blank field cannot wipe the token", () => {
+  return updateAccount("acc-1", { model: "m", secret: "" }).then(() => {
+    const body = JSON.parse(last?.body ?? "{}");
+    assert.equal("secret" in body, false, "empty secret must not reach the wire");
+    assert.equal(body.model, "m");
+  });
+});
+
+test("updateAccount sends a non-empty secret when replacing the token", async () => {
+  await updateAccount("acc-1", { secret: "sk-new" });
+  assert.deepEqual(JSON.parse(last?.body ?? "{}"), { secret: "sk-new" });
+});
+
+test("updateAccount forwards model:null to clear the model", async () => {
+  await updateAccount("acc-1", { model: null });
+  assert.deepEqual(JSON.parse(last?.body ?? "{}"), { model: null });
+});
+
+test("updateAccount omits empty label and baseUrl", async () => {
+  await updateAccount("acc-1", { label: "", baseUrl: "", model: "m" });
+  assert.deepEqual(JSON.parse(last?.body ?? "{}"), { model: "m" });
+});
+
+test("updateAccount url-encodes the id", async () => {
+  await updateAccount("a/b c", { model: "m" });
+  assert.ok(last?.url.endsWith("/runtime/accounts/a%2Fb%20c"), `unexpected url: ${last?.url}`);
 });

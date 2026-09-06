@@ -74,6 +74,28 @@ export function kpis({ venture, windowMs, nowMs, db } = {}) {
     "SELECT COUNT(*) n FROM deliveries WHERE status = 'pending'",
   ).get().n;
 
+  // ── Phase 14 / 14.2 — THE MILESTONE'S NUMBER ───────────────────────────────
+  // "≥ 5 jobs shipped as PRs in one week" is what M2-LIVE is measured in, and nothing on the
+  // board showed it. Two figures, deliberately separate:
+  //   jobsShipped  — every job that reached `shipped` in the window.
+  //   prsShipped   — those of them that opened a real PR (`prUrl IS NOT NULL`).
+  // Reporting only the first would count a LOCAL BRANCH as a shipped PR, which is exactly the
+  // overclaim the ship ladder already refuses to make (`mode: "branch"` is not `mode: "pr"`).
+  // On a machine with no `gh`, prsShipped is 0 and jobsShipped is not — and the difference is
+  // the honest answer to "did we hit the target?".
+  //
+  // Guarded: the jobs table arrived in Phase 9 and this same module runs against older stores.
+  let jobsShipped = 0;
+  let prsShipped = 0;
+  try {
+    jobsShipped = db.prepare(
+      "SELECT COUNT(*) n FROM jobs WHERE status = 'shipped' AND updatedAt >= ?",
+    ).get(sinceMs).n;
+    prsShipped = db.prepare(
+      "SELECT COUNT(*) n FROM jobs WHERE status = 'shipped' AND prUrl IS NOT NULL AND updatedAt >= ?",
+    ).get(sinceMs).n;
+  } catch { /* no jobs table (pre-Phase-9 store) → zeros, never a thrown KPI page */ }
+
   // ── vault records written in the window (venture-scoped when given) ────────
   const recordsWritten = scope
     ? db.prepare("SELECT COUNT(*) n FROM vault_records WHERE created_at >= ? AND venture = ?").get(sinceMs, scope).n
@@ -95,6 +117,8 @@ export function kpis({ venture, windowMs, nowMs, db } = {}) {
     decisionsToday,
     recordsWritten,
     deliveriesApproved,
+    jobsShipped,
+    prsShipped,
     // deliveries have no venture column in v1; these two are cross-venture, labeled.
     crossVenture: true,
     pendingDeliveries,

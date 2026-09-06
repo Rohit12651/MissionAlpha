@@ -24,11 +24,24 @@ import { dirname, resolve, sep } from "node:path";
 import { DELIVERY_STATUSES } from "./db.mjs";
 import { classify, detectNewDependency } from "./risk.mjs";
 import { isAutoSafe } from "./policy.mjs";
+// P-EDIT (Phase 4) — approve-with-edit. Validation + staging only: this module still
+// never writes the live repo, and the edited content lands through the SAME
+// broker.applyChanges every other approve uses.
+import {
+  validateEdits,
+  validateUnifiedDiff,
+  reviewedMatchesDisk,
+  restoreTerminator,
+  stageEdits,
+  readWorkdirFile,
+} from "./patch-edit.mjs";
 
-const SOURCES = Object.freeze(["swarm", "claude-code", "github-pr", "external"]);
+// MUNDER-ADOPTION A7 — 'slack' joins as a READ-ONLY external source (like claude-code):
+// a Slack message can ask, it can never ship. decide() refuses it below.
+const SOURCES = Object.freeze(["swarm", "claude-code", "github-pr", "slack", "external"]);
 // P7 / ADR-054 — the sources an ADAPTER may mint. `swarm` stays the ONLY auto-appliable
 // source (autoApprove refuses everything else); these two are ingested from outside.
-const EXTERNAL_SOURCES = Object.freeze(["github-pr", "claude-code"]);
+const EXTERNAL_SOURCES = Object.freeze(["github-pr", "claude-code", "slack"]);
 // `failure` (P4 / ADR-051 §9) is mint-able ONLY through mintFailure(): it is the
 // diff-less "agent stuck — needs you" row, never a code delivery with zero files.
 // Story-Pipeline S2/S5 — `question`, `design-approval` and `release-approval` are the HUMAN-GATE
@@ -36,12 +49,20 @@ const EXTERNAL_SOURCES = Object.freeze(["github-pr", "claude-code"]);
 // `storyId` back-pointer and their decision routes back to a Story (never a repo apply).
 // `release-approval` (S5) is the release-accept gate the BOSS decides before a deploy executes.
 // mint() refuses all diff-less kinds; each has its own dedicated mint path.
-const KINDS = Object.freeze(["code", "doc", "post", "command", "failure", "question", "design-approval", "release-approval"]);
+// EXPORTED so the drift between these two lists, risk.mjs's copy and the client's mirror
+// can be ASSERTED rather than assumed (job-approval.test.mjs JA-6/JA-7). Nothing pinned
+// them before, and a kind that is a gate in one module and a diff row in another is a row
+// the Inbox cannot render.
+export const KINDS = Object.freeze(["code", "doc", "post", "command", "failure", "question", "design-approval", "release-approval", "job-approval"]);
 // The diff-less human-gate kinds (S2). Kept as a set for the decide() gate-branch below:
 // a gate decision flips status, emits, and fires onDecided — then STOPS. It never touches a
 // broker, a worktree or an engine goal, because a gate has no diff and no task to advance;
 // its ONLY side effect is the Story transition, which the pipeline owns via onDecided.
-const GATE_KINDS = Object.freeze(new Set(["question", "design-approval", "release-approval"]));
+export const GATE_KINDS = Object.freeze(new Set(["question", "design-approval", "release-approval", "job-approval"]));
+// Every placeholder the scrub layer can substitute into reviewed text. Their presence
+// means the reviewer is NOT looking at the bytes on disk, which makes the file
+// un-editable (Phase 4). Keep in step with factory.mjs and secret-scrub.mjs.
+const REDACTION_MARKERS = Object.freeze(["[redacted-secret]", "[redacted-mcp-cred]", "<redacted>"]);
 const VERBS = Object.freeze({ approve: "approved", reject: "rejected", request_changes: "changes_requested" });
 const MAX_TITLE = 200;
 const MAX_SUMMARY = 4000;
@@ -209,6 +230,10 @@ export function createDeliveries(deps = {}) {
   // the engine advances its goal chain (engine.onOperatorApplied) and the agent's next
   // task dispatches with no human action. Optional: unset ⇒ P2/P3 behavior unchanged.
   const onApproved = deps.onApproved || null;
+  // Phase 4 — approve-with-edit. `workdirFor(brokerKey)` resolves the agent's isolation
+  // dir (engine worktree or copy-sandbox), which is where an operator edit is STAGED.
+  // Unset ⇒ editing is refused with 501; every pre-Phase-4 behaviour is untouched.
+  const workdirFor = typeof deps.workdirFor === "function" ? deps.workdirFor : null;
   // P5 (ADR-026 as-built) — how an approved Delivery LEAVES the runtime. Returns
   // {mode,branch,prUrl,reason,refused}. Unset ⇒ pre-P5 behavior exactly: the broker
   // applies straight into the live working tree and the mode is recorded as 'apply'.
@@ -292,6 +317,7 @@ export function createDeliveries(deps = {}) {
       // belongs to. NULL for every non-gate row. The pipeline reads it to route a gate
       // decision back to its Story; server-minted, never caller-supplied.
       storyId: row.storyId ?? null,
+      jobId: row.jobId ?? null,
     };
   }
   const safeJson = (s, fallback) => { try { return JSON.parse(s); } catch { return fallback; } };
@@ -624,24 +650,30 @@ export function createDeliveries(deps = {}) {
     if (!kind) throw new Error(`mintGate: kind must be one of ${[...GATE_KINDS].join("|")}`);
     const agentId = String(input.agentId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 64);
     if (!agentId) throw new Error("mintGate: agentId required");
+    // Phase 9 — a gate belongs to EXACTLY ONE owner: a Story or a Job. Both would give a
+    // decision two pipelines to notify and neither would own it; neither leaves the gate
+    // orphaned, decided by a human and connected to nothing.
     const storyId = String(input.storyId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
-    if (!storyId) throw new Error("mintGate: storyId required");
+    const jobId = String(input.jobId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
+    if (storyId && jobId) throw new Error("mintGate: pass storyId OR jobId, never both");
+    if (!storyId && !jobId) throw new Error("mintGate: storyId or jobId required");
+    const ownerId = storyId || jobId;
     // The dedupe/pending-slot key. Defaults to the storyId, but a story with several
     // simultaneous gates (N clarify questions) MUST pass a distinct slot per gate or they
     // collapse onto one pending slot — so the caller supplies `<storyId>-q<i>` etc.
-    const slot = String(input.slot || storyId).replace(/[^a-z0-9_-]/gi, "").slice(0, 80) || storyId;
+    const slot = String(input.slot || ownerId).replace(/[^a-z0-9_-]/gi, "").slice(0, 80) || ownerId;
 
     // A pending gate for this exact slot already exists → return it, emit nothing (idempotent
     // re-entry — the pipeline may re-run a stage without double-minting).
     const existing = findPendingByKey(slot, agentId);
-    if (existing && existing.storyId === storyId && existing.kind === kind) {
+    if (existing && existing.storyId === (storyId || null) && existing.jobId === (jobId || null) && existing.kind === kind) {
       return { ...hydrate(existing), deduped: true };
     }
 
     const id = ulid(now());
     const auditRef = `delivery:${id}`;
     const createdAt = nowIso();
-    const title = oneLine(input.title || `${kind} for ${storyId}`, MAX_TITLE) || kind;
+    const title = oneLine(input.title || `${kind} for ${ownerId}`, MAX_TITLE) || kind;
     const summary = clean(input.body || "", MAX_SUMMARY);
     // A gate is diff-less and always needs a human — its own high band + high-band SLA, so it
     // escalates through the EXISTING sweepSla if the BOSS leaves it sitting.
@@ -654,10 +686,10 @@ export function createDeliveries(deps = {}) {
         db.prepare(
           `INSERT INTO deliveries
              (id, agentId, taskId, title, summary, source, kind, diffFiles, diffAdditions, diffDeletions,
-              changedPaths, riskScore, riskBand, riskReasons, slaDeadline, status, createdAt, auditRef, storyId)
+              changedPaths, riskScore, riskBand, riskReasons, slaDeadline, status, createdAt, auditRef, storyId, jobId)
            VALUES (@id, @agentId, @slot, @title, @summary, 'swarm', @kind, 0, 0, 0,
-              '[]', @riskScore, @riskBand, @riskReasons, @slaDeadline, 'pending', @createdAt, @auditRef, @storyId)`,
-        ).run({ id, agentId, slot, kind, title, summary, riskScore: risk.score, riskBand: risk.band, riskReasons: JSON.stringify(risk.reasons), slaDeadline, createdAt, auditRef, storyId });
+              '[]', @riskScore, @riskBand, @riskReasons, @slaDeadline, 'pending', @createdAt, @auditRef, @storyId, @jobId)`,
+        ).run({ id, agentId, slot, kind, title, summary, riskScore: risk.score, riskBand: risk.band, riskReasons: JSON.stringify(risk.reasons), slaDeadline, createdAt, auditRef, storyId: storyId || null, jobId: jobId || null });
       })();
       row = getRow(id);
     } catch (e) {
@@ -670,7 +702,7 @@ export function createDeliveries(deps = {}) {
     }
 
     const out = hydrate(row);
-    audit("delivery.created", { ref: auditRef, id, agentId, storyId, kind });
+    audit("delivery.created", { ref: auditRef, id, agentId, storyId: storyId || null, jobId: jobId || null, kind });
     events.emit("delivery.created", out); // emit-on-persist, same function (ADR-052 §2)
     return out;
   }
@@ -678,12 +710,14 @@ export function createDeliveries(deps = {}) {
   // Every PENDING gate delivery for a Story (optionally one kind) — the pipeline reads this
   // to learn whether a stage already has an open gate (idempotency) and to count how many
   // clarify questions are still unanswered. Hydrated ⇒ scrubbed on egress.
-  function listGates(storyId, kind) {
-    const sid = String(storyId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
-    if (!sid) return [];
+  // Phase 9 — matches EITHER owner column. The caller passes an owner id and does not have
+  // to know which kind it is, so the Manager and the pipeline read gates the same way.
+  function listGates(ownerId, kind) {
+    const oid = String(ownerId || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
+    if (!oid) return [];
     const rows = kind
-      ? db.prepare("SELECT * FROM deliveries WHERE status='pending' AND storyId=? AND kind=? ORDER BY id ASC").all(sid, String(kind))
-      : db.prepare("SELECT * FROM deliveries WHERE status='pending' AND storyId=? ORDER BY id ASC").all(sid);
+      ? db.prepare("SELECT * FROM deliveries WHERE status='pending' AND (storyId=? OR jobId=?) AND kind=? ORDER BY id ASC").all(oid, oid, String(kind))
+      : db.prepare("SELECT * FROM deliveries WHERE status='pending' AND (storyId=? OR jobId=?) ORDER BY id ASC").all(oid, oid);
     return rows.map(hydrate);
   }
 
@@ -763,15 +797,141 @@ export function createDeliveries(deps = {}) {
         else if (ln.startsWith("+")) after.push(ln.slice(1));
         else if (ln.startsWith(" ")) { before.push(ln.slice(1)); after.push(ln.slice(1)); }
       }
+      // Phase 4 — is this file EDITABLE, and if not, why?
+      //
+      // An operator may only edit a file whose reviewed text is a faithful rendering of
+      // what is on disk. broker.mjs truncates at 4000 chars and scrub() redacts secrets
+      // BEFORE the reviewer ever sees the text, and decide() fails closed on any edit to
+      // such a file. Computing that here means the UI can disable the Edit button with
+      // the reason, instead of accepting a full retyped file and refusing it only after
+      // the operator presses Approve on a production write. A control that cannot succeed
+      // must not be offered.
+      const afterText = scrub(after.join("\n"));
+      const patchText = scrub(text);
+      const truncated = patchText.includes("…(truncated)");
+      const redacted = REDACTION_MARKERS.some((m) => patchText.includes(m));
       out.push({
         path: p,
         status: isNew ? "new" : "modified",
         before: isNew ? null : scrub(before.join("\n")),
-        after: scrub(after.join("\n")),
-        patch: scrub(text),
+        after: afterText,
+        patch: patchText,
+        editable: !truncated && !redacted,
+        editableReason: truncated
+          ? "This file is too long to show in full, so an edit could not be applied safely."
+          : redacted
+            ? "This file contains a redacted secret, so an edit could not be applied safely."
+            : null,
       });
     }
     return out;
+  }
+
+  // ── approve-with-edit (Phase 4) ────────────────────────────────────────────
+  //
+  // Stages an operator's revision into the agent's OWN workdir, then lets the normal
+  // approve path run untouched. The repo write still happens exactly once, in
+  // broker.applyChanges, behind applyAllowed + CONFIG_GUARD + symlink/realpath. There is
+  // deliberately no second landing path — an "edited approve" is an ordinary approve of
+  // a proposal whose bytes a human corrected first.
+  //
+  // ORDER MATTERS: this runs BEFORE the status flip. A rejected edit therefore leaves the
+  // row PENDING and nothing applied, rather than approving a delivery whose correction
+  // failed to stage. The cost is a small window in which a validated edit is written to
+  // the workdir and the flip then loses a race with a concurrent decider — the concurrent
+  // approve would land the EDITED bytes. That is disclosed in the delivery report; the
+  // alternative (flip first) silently applies the agent's ORIGINAL text after the operator
+  // asked for a change, which is strictly worse.
+  //
+  // THE CORRUPTION GATE. What the reviewer saw is `scrub(trunc(after))` — secrets
+  // redacted, body cut at 4000 chars. Writing that back would bake "[redacted]" into
+  // source or silently delete the tail of a long file. So an edit is refused unless the
+  // reviewed text is BYTE-IDENTICAL to the workdir file. Fails closed, loudly, with the
+  // reason named.
+  async function stageOperatorEdits(row, rawEdits) {
+    if (!workdirFor) return { code: 501, error: "editing is not wired for this runtime" };
+    if (GATE_KINDS.has(row.kind)) return { code: 400, error: "this delivery has no diff to edit" };
+
+    const paths = safeJson(row.changedPaths, []);
+    const v = validateEdits(rawEdits, { allowedPaths: paths });
+    // `editErrors` binds a refusal to the file that caused it, so the UI can show it ON
+    // that field. A pane-level banner leaves the operator to map a message back to a
+    // filename by hand, which on a multi-file delivery is guesswork.
+    if (!v.ok) return { code: v.code, error: v.error, ...(v.path ? { editErrors: [{ path: v.path, message: v.error }] } : {}) };
+
+    const workdir = workdirFor(row.taskId || row.agentId);
+    const reviewed = readChanges(row.id, paths);
+    const byPath = new Map(reviewed.map((c) => [c.path, c]));
+
+    // The editor works on the REVIEWED text, which by the unified-diff convention has no
+    // trailing newline. Writing it verbatim would strip the final newline from every file
+    // an operator touches, so the file's own terminator convention is restored here.
+    const toStage = [];
+    for (const e of v.edits) {
+      const rec = byPath.get(e.path);
+      if (!rec) {
+        return {
+          code: 409,
+          error: `no reviewable diff on record for ${e.path}`,
+          editErrors: [{ path: e.path, message: "There is no reviewable diff on record for this file." }],
+        };
+      }
+      const onDisk = await readWorkdirFile(workdir, e.path);
+      if (onDisk === null) {
+        return {
+          code: 409,
+          error: `${e.path} is no longer in the agent's workdir`,
+          editErrors: [{ path: e.path, message: "This file is no longer in the agent's workdir." }],
+        };
+      }
+      if (!reviewedMatchesDisk(rec.after, onDisk)) {
+        return {
+          code: 409,
+          // The UI normally prevents this by disabling Edit (readChanges sets
+          // `editable:false`). Reaching it means a hand-rolled POST or a file that
+          // changed under review, so the message has to stand on its own.
+          error: `${e.path} was shown redacted or truncated, so an edit cannot be applied safely. Approve it as-is, or request changes.`,
+          editErrors: [{
+            path: e.path,
+            message: "This file was shown redacted or truncated, so an edit cannot be applied safely.",
+          }],
+        };
+      }
+      toStage.push({ path: e.path, after: restoreTerminator(e.after, onDisk) });
+    }
+
+    const staged = await stageEdits({ workdir, edits: toStage });
+    if (!staged.ok) return { code: staged.code, error: scrub(String(staged.error)) };
+
+    // Rewrite the on-disk patch record so the audit trail shows what was APPROVED, not
+    // what the agent originally proposed. A record that disagrees with the bytes that
+    // landed is worse than no record. `before` is the same rendering the reviewer saw —
+    // the edit does not make that side any less faithful than it already was at mint.
+    const dir = store.patchDirFor(row.id);
+    const editedAfter = new Map(v.edits.map((e) => [e.path, e.after]));
+    let additions = 0;
+    let deletions = 0;
+    for (const c of reviewed) {
+      const after = editedAfter.has(c.path) ? editedAfter.get(c.path) : c.after;
+      const stat = diffStat(c.before, after);
+      additions += stat.additions;
+      deletions += stat.deletions;
+      if (!editedAfter.has(c.path)) continue;
+      const patch = unifiedDiff(c.path, c.before, after);
+      const check = validateUnifiedDiff(patch, { path: c.path });
+      if (!check.ok) return { code: 500, error: `regenerated patch is invalid for ${c.path}: ${check.error}` };
+      const dest = patchFileFor(dir, c.path);
+      mkdirSync(dirname(dest), { recursive: true, mode: 0o700 });
+      if (isSymlinkDest(dest)) return { code: 409, error: `patch record for ${c.path} is a symlink` };
+      writeFileSync(dest, scrub(patch), { mode: 0o600 });
+    }
+
+    // Keep the row's own headline numbers honest with the rewritten patches.
+    db.prepare("UPDATE deliveries SET diffAdditions = ?, diffDeletions = ? WHERE id = ? AND status = 'pending'")
+      .run(additions, deletions, row.id);
+
+    audit("delivery.edited", { ref: row.auditRef, id: row.id, agentId: row.agentId, paths: staged.staged });
+    return { ok: true, editedPaths: staged.staged };
   }
 
   // ── decide (ADR-051 §5) ────────────────────────────────────────────────────
@@ -790,6 +950,9 @@ export function createDeliveries(deps = {}) {
     // P7 (ADR-054) — a Claude Code session is READ-ONLY in v1. The decide buttons are
     // hidden client-side; refuse here too so a hand-rolled POST cannot decide it either.
     if (row.source === "claude-code") return { code: 403, error: "read-only — decide in Claude Code", id };
+    // MUNDER-ADOPTION A7 — same posture for Slack ingress: the row is visibility, the
+    // work it asks for arrives (if at all) as a normal swarm Delivery that IS decidable.
+    if (row.source === "slack") return { code: 403, error: "read-only — a Slack request is never applied directly", id };
 
     const feedback = opts.feedback === undefined || opts.feedback === null ? null : clean(opts.feedback, MAX_FEEDBACK);
     if (verb === "request_changes" && !feedback) return { code: 400, error: "feedback required for request-changes" };
@@ -803,6 +966,16 @@ export function createDeliveries(deps = {}) {
     // a local broker apply. Run it FIRST and flip the row ONLY if gh returned ok — never
     // fabricate an approve/close that did not actually happen on GitHub.
     if (row.source === "github-pr") return decideGithub(row, verb, nextStatus, { feedback, by, decidedAt });
+
+    // Phase 4 — an optional operator revision, staged BEFORE the flip so a refused edit
+    // leaves the row pending rather than approving something the operator did not mean.
+    let editedPaths = null;
+    if (opts.edits !== undefined && opts.edits !== null) {
+      if (verb !== "approve") return { code: 400, error: "edits are only valid with approve", id };
+      const staged = await stageOperatorEdits(row, opts.edits);
+      if (!staged.ok) return { ...staged, id };
+      editedPaths = staged.editedPaths;
+    }
 
     // #5 — the landing marker rides the SAME transaction as the status flip. An
     // approve is "decided but not yet landed" from this instant until the mode write
@@ -818,6 +991,7 @@ export function createDeliveries(deps = {}) {
     }
 
     const out = hydrate(getRow(id));
+    if (editedPaths) out.editedPaths = editedPaths; // what the operator revised before approving
     events.emit("delivery.decided", { id, status: nextStatus, by }); // catalog shape, program plan §2
     audit(`delivery.${nextStatus}`, { ref: row.auditRef, id, agentId: row.agentId, by, paths: safeJson(row.changedPaths, []) });
     // B2 — the decision enters shared memory the moment it is committed, BEFORE the

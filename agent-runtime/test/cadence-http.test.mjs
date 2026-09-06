@@ -144,8 +144,15 @@ test("GET /runtime/cadence returns the seeded SE rows, forward-scheduled", async
   const r = await get("/runtime/cadence");
   assert.equal(r.status, 200);
   const { cadences } = await r.json();
-  assert.equal(cadences.length, 3, "the three SE cadences seeded, and nothing retired");
   const byId = new Map(cadences.map((c) => [c.id, c]));
+  // The invariant this test protects is NOTHING RETIRED — a seeded cadence silently
+  // disappearing is the regression that matters. Asserting a literal row count made the
+  // test fail the moment R2b legitimately ADDED the four worker cadences, which is a
+  // false alarm, not a caught bug. So: assert the three SE rows are all still present
+  // (the real invariant) and let the catalog grow.
+  for (const id of ["stuck-story-sweep", "nightly-regression", "monitor-tick"]) {
+    assert.ok(byId.has(id), `${id} retired from the seed`);
+  }
   const sweep = byId.get("stuck-story-sweep");
   assert.equal(sweep.agent, "tech-lead");
   assert.equal(sweep.enabled, true, "the pipeline watchdog is live from S0");
@@ -156,6 +163,13 @@ test("GET /runtime/cadence returns the seeded SE rows, forward-scheduled", async
   assert.equal(byId.get("nightly-regression").agent, "qa");
   assert.equal(byId.get("monitor-tick").enabled, true, "S5 ships the monitor it drives");
   assert.equal(byId.get("monitor-tick").agent, "sre");
+
+  // R2b — the worker catalog is seeded but DARK. An install whose account is not active
+  // must not start minting four model-backed runs a day on its own.
+  for (const id of ["worker-audit", "worker-testgaps", "worker-document", "worker-refactor"]) {
+    assert.ok(byId.has(id), `${id} missing from the seeded catalog`);
+    assert.equal(byId.get(id).enabled, false, `${id} must seed disabled`);
+  }
 });
 
 test("adversarial: no token 401, evil Host 403", async () => {

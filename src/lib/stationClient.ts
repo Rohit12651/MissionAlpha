@@ -44,6 +44,11 @@ export interface SkillsDoc {
   agentId: string;
   skills: string[];
   catalog: SkillRef[];
+  /** MUNDER-ADOPTION A5 — prompt-budget observability for the skills section:
+   *  `used` = chars reaching the prompt after the boundary cut, `raw` = what the list
+   *  wanted, `max` = the budget, `trimmed` = the cut engaged. Additive; older runtimes
+   *  simply omit it. */
+  budget?: { used: number; raw: number; max: number; trimmed: boolean };
   error?: string;
 }
 
@@ -354,6 +359,20 @@ export const getHooks = (agentId: string) => authedJson<HooksDoc>(hooksPath(agen
 
 /** GET /runtime/engine/steps?taskId=… */
 export const getLoopSteps = (taskId: string) => authedJson<LoopStepsDoc>(stepsPath(taskId));
+
+// MUNDER-ADOPTION A6 — the run inspector's gated read (raw stream tail, scrubbed at
+// append server-side). 404 (thrown by authedJson) = no buffer for this task — the
+// caller renders the honest empty state, never a fabricated blank terminal.
+export interface RunOutputDoc {
+  taskId: string;
+  agentId: string;
+  bytes: number;
+  trimmed: boolean;
+  updatedAt: number;
+  text: string;
+}
+export const getRunOutput = (taskId: string) =>
+  authedJson<RunOutputDoc>(`/runtime/engine/output?taskId=${encodeURIComponent(taskId)}`);
 
 /** GET /runtime/engine/runs — the only source the Loop taskId is derived from. */
 export const getEngineRuns = () => authedJson<EngineRunsDoc>(ENGINE_RUNS_PATH);

@@ -63,7 +63,7 @@ afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch 
 // file-level failure. Every test that actually needs a wake to fire injects its own.
 function buildEngine({
   writeFiles = {}, maxInflight = 2, dispatchOverride, maxQueued = 500, onTerminalFailure, brokerOverride,
-  setTimer = () => ({ __inert: true }), clearTimer = () => {}, autoStart = true, onDone,
+  setTimer = () => ({ __inert: true }), clearTimer = () => {}, autoStart = true, onDone, retryFloorMs,
 } = {}) {
   const queue = createQueue({ dir: storeDir, now, maxQueued, leaseMs: 600_000, maxPerAgent: 2 });
   const policy = createPolicy({ file: join(storeDir, "policy.json"), token: TOKEN });
@@ -88,7 +88,7 @@ function buildEngine({
     queue, policy, worktreeMgr, scheduler, broker, dispatchFn,
     reportBackFn: (agentId, summary) => reports.push({ agentId, summary }),
     escalateFn: (agentId, kind, attempts, reason) => escalations.push({ agentId, kind, attempts, reason }),
-    onTerminalFailure, onDone, setTimer, clearTimer,
+    onTerminalFailure, onDone, setTimer, clearTimer, retryFloorMs,
     now, goalsDir: join(storeDir, "goals"), jitter: () => 0,
   });
   if (autoStart) engine.start();
@@ -811,4 +811,173 @@ test("B2 a throwing onDone can never strand a task that already finished", async
   const { goalId } = engine.enqueueGoal({ agentId: "senior-web-1", tier: "sonnet", steps: ["safe step"] });
   assert.ok(await until(() => queue.all().some((t) => t.goalId === goalId && t.status === "done"), 5000), "task still reached DONE");
   assert.ok(existsSync(join(repoRoot, "src", "Safe.tsx")), "and the apply still landed");
+});
+
+// ── PHASE 2 TASK 2.4 — THE WATCHDOG: a claimed task must never be orphaned ───
+//
+// The gap: `reclaimExpiredLeases` ran in exactly two places — the boot reconcile, and the
+// backoff wake timer. The wake timer only arms when some task carries a `notBefore`, so on
+// a queue with no pending retry NOTHING re-armed it, and a lease whose holder died was
+// never reclaimed for as long as the process stayed up. engine.mjs:139 said in so many
+// words that the runtime has no heartbeat; this is the heartbeat, and it rides the ONE
+// periodic timer the runtime already owns rather than adding a second (ADR-025: the
+// dispatch scheduler owns no wall-clock).
+
+test("sweep() reclaims a lease whose holder died, on a queue with no pending retry", async () => {
+  const { engine, queue } = buildEngine({ writeFiles: { "*": [{ path: "src/a.ts", content: "export const a = 1;\n" }] }, autoStart: false });
+  const r = queue.enqueue({ goalId: "g-orphan", stepIndex: 0, attempt: 0, agentId: "dev", tier: "sonnet", priority: "normal", task: "step" });
+  // Claim it and then simply vanish — the shape of a process killed mid-step.
+  const claimed = queue.claimNext();
+  assert.equal(claimed.taskId, r.taskId);
+  assert.equal(queue.get(r.taskId).status, "claimed");
+
+  // No task carries a notBefore, so nothing arms the backoff wake. Before this task, the
+  // row stayed `claimed` until the next restart.
+  clock += 600_001; // past the 600s lease
+  const reclaimed = engine.sweep();
+
+  assert.equal(reclaimed, 1);
+  assert.equal(queue.get(r.taskId).status, "queued", "an expired lease with no live holder must return to the queue");
+  assert.equal(queue.get(r.taskId).claimedAt, null);
+  assert.equal(queue.get(r.taskId).leaseExpiry, null);
+});
+
+test("sweep() does NOT reclaim a lease that has not expired", () => {
+  const { engine, queue } = buildEngine({ autoStart: false });
+  const r = queue.enqueue({ goalId: "g-live", stepIndex: 0, attempt: 0, agentId: "dev", tier: "sonnet", priority: "normal", task: "step" });
+  queue.claimNext();
+  clock += 1000; // well inside the lease
+  assert.equal(engine.sweep(), 0);
+  assert.equal(queue.get(r.taskId).status, "claimed");
+});
+
+test("sweep() NEVER reclaims a task that is still executing in-process", async () => {
+  // Two writers on one worktree, and a first child whose kill handle is gone from
+  // `running`, is strictly worse than a stuck row. A LIVE task is not a dead one, however
+  // long it has been going — killing it is the watchdog's job, not the sweep's.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const { engine, queue } = buildEngine({
+    dispatchOverride: async () => { await gate; return { acc: "late" }; },
+  });
+  const r = queue.enqueue({ goalId: "g-live2", stepIndex: 0, attempt: 0, agentId: "dev", tier: "sonnet", priority: "normal", task: "slow" });
+  engine.tick();
+  assert.ok(await until(() => queue.get(r.taskId).status === "claimed"), "task should be claimed and running");
+
+  clock += 600_001; // its lease is long gone, but the step is demonstrably still alive
+  assert.equal(engine.sweep(), 0, "a running task must be vetoed out of the reclaim");
+  assert.equal(queue.get(r.taskId).status, "claimed");
+
+  release();
+  await until(() => ["done", "failed", "held"].includes(queue.get(r.taskId).status));
+});
+
+test("sweep() re-dispatches the reclaimed work — a requeue nobody picks up is not a recovery", async () => {
+  const { engine, queue } = buildEngine({ writeFiles: { "*": [{ path: "src/a.ts", content: "export const a = 2;\n" }] } });
+  const r = queue.enqueue({ goalId: "g-redispatch", stepIndex: 0, attempt: 0, agentId: "dev", tier: "sonnet", priority: "normal", task: "step" });
+  // Claim it out from under the scheduler, then let the lease lapse.
+  const claimed = queue.claimNext();
+  assert.equal(claimed.taskId, r.taskId);
+  clock += 600_001;
+
+  assert.equal(engine.sweep(), 1);
+  // sweep() ticks the scheduler, so the freed task runs without waiting for the next
+  // enqueue to happen to come along.
+  assert.ok(await until(() => ["done", "held"].includes(queue.get(r.taskId).status)), `stuck at ${queue.get(r.taskId).status}`);
+});
+
+// ── D4 — a dispatch REFUSAL is terminal on the first attempt ─────────────────────
+// Live evidence this pins: goal_4f363d708c2c spawned task_f5205c844ff6 →
+// task_7f558c33def1 → task_1481afc84a22, each a full live model turn plus a 120s
+// container run, each ending in the same post-edit gate veto. Three paid attempts, one
+// answer. A hook veto is EVIDENCE, and evidence does not become different on a retry.
+test("D4-ENGINE: a HOOK_VETO fails terminally after ONE attempt, with its own kind", async () => {
+  let dispatches = 0;
+  const terminal = [];
+  const h = buildEngine({
+    dispatchOverride: async () => { dispatches++; return { error: "quality gate failed in the worktree", code: "HOOK_VETO" }; },
+    onTerminalFailure: (task, row) => terminal.push(row),
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["do the thing"] });
+  assert.ok(r.firstTaskId);
+  await until(() => terminal.length > 0);
+
+  assert.equal(dispatches, 1, "exactly one model turn was spent on a settled refusal");
+  assert.equal(terminal.length, 1, "one failure Delivery, not three");
+  assert.equal(terminal[0].kind, "gate-veto", "the operator is told what actually happened");
+  const rec = h.queue.get(r.firstTaskId);
+  assert.equal(rec.status, "failed");
+  assert.equal(rec.error.kind, "gate-veto");
+  // No successor attempt was queued.
+  const all = h.queue.list ? h.queue.list() : [];
+  if (all.length) assert.equal(all.filter((t) => t.goalId === r.goalId).length, 1, "no retry task was enqueued");
+});
+
+test("D4-ENGINE: an UNCODED dispatch error still retries exactly as before", async () => {
+  const seen = [];
+  const h = buildEngine({
+    dispatchOverride: async () => ({ error: "spawn ENOENT" }),   // no `code` — unrecognised
+    onTerminalFailure: (task, row) => seen.push(row),
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["do the thing"] });
+  // Inert timers (this file's default) — assert on the QUEUE, the same way every other
+  // retry test here does, instead of sleeping through a real backoff.
+  assert.ok(
+    await until(() => h.queue.all().some((t) => t.goalId === r.goalId && t.attempts === 1)),
+    "an unrecognised failure still schedules another attempt",
+  );
+  assert.equal(h.queue.get(r.firstTaskId).error.kind, "spawn", "the historical transient bucket is untouched");
+  assert.deepEqual(seen, [], "and the operator is not paged while the budget remains");
+});
+
+test("empty-diff NAMES a path the guards refused, instead of saying the agent did nothing", async () => {
+  // Live: a task told to create a file outside the appliable scope wrote it, and the
+  // operator was told "no diff produced" — so they re-queued the same impossible task
+  // three times on a live model. The work was blocked, not absent. `scripts/` runs on the
+  // HOST via npm and stays out of scope even after #9 widened it to agent-runtime + docs.
+  const terminal = [];
+  const h = buildEngine({
+    dispatchOverride: async (ctx) => {
+      mkdirSync(join(ctx.workdir, "scripts"), { recursive: true });
+      writeFileSync(join(ctx.workdir, "scripts", "deploy.mjs"), "console.log('nope');\n");
+      return { acc: "wrote the script" };
+    },
+    onTerminalFailure: (task, row) => terminal.push(row),
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["create scripts/deploy.mjs"] });
+  assert.ok(await until(() => h.queue.get(r.firstTaskId)?.status === "failed"));
+  const msg = String(h.queue.get(r.firstTaskId).error.msg);
+  assert.match(msg, /scripts\/deploy\.mjs/, `the refused path must be named: ${msg}`);
+  assert.match(msg, /not appliable|outside|refused/i, "and the operator must be told WHY it produced nothing");
+});
+
+// ── #8 — the engine's retry must not knock before the provider is back ───────────
+// A queue of build tasks and a story pipeline share one endpoint. The engine's own
+// exponential backoff is about THIS task; the provider hold is about EVERYONE. The wait is
+// the longer of the two — taking the engine's alone is what let a full queue re-knock on a
+// rate-limited provider every few seconds.
+test("#8 a retry is scheduled no earlier than the shared provider hold", async () => {
+  const timers = [];
+  const h = buildEngine({
+    dispatchOverride: async () => ({ error: "openai-compat chat failed: HTTP 429 — rate-limited" }),
+    setTimer: (fn, ms) => { timers.push(ms); return { __fake: true }; },
+    retryFloorMs: () => 45_000,
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["work"] });
+  // handleRetryable stamps attempts=1 on the FAILED original AND on its successor, so
+  // matching on attempts alone picks the wrong row (and reads notBefore as undefined).
+  const successor = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(successor())));
+  const waitMs = Date.parse(successor().notBefore) - clock;
+  assert.ok(waitMs >= 45_000, `the retry waits for the provider, not just its own backoff (got ${waitMs}ms)`);
+});
+
+test("#8 with no provider hold the historical backoff is unchanged", async () => {
+  const h = buildEngine({
+    dispatchOverride: async () => ({ error: "spawn ENOENT" }),
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["work"] });
+  const successor = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(successor())));
+  assert.equal(Date.parse(successor().notBefore) - clock, 2000, "base backoff, jitter 0 — byte-identical to pre-#8");
 });

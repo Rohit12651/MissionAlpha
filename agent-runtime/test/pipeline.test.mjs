@@ -71,7 +71,9 @@ function harness(over = {}) {
   const goals = [];
   const enqueueGoal = over.enqueueGoal === null ? undefined
     : (over.enqueueGoal || ((args) => { const goalId = `goal_${goals.length}`; goals.push({ goalId, ...args }); return { goalId, firstTaskId: `task_${goals.length}` }; }));
-  pipeline = createPipeline({ stories, deliveries, vault, dispatchFn, scrub, vaultVenture: "waahyu", enqueueGoal });
+  // S16 — the appliable scope is INJECTED (server.mjs passes guards.SEED_DIRS). The harness
+  // states it explicitly so the file-scope header under test is the repo's real one.
+  pipeline = createPipeline({ stories, deliveries, vault, dispatchFn, scrub, vaultVenture: "waahyu", enqueueGoal, seedDirs: ["src", "public", "agent-runtime", "docs"] });
   const cleanup = () => { h.close(); rmSync(root, { recursive: true, force: true }); };
   return { root, h, stories, deliveries, vault, pipeline, emitted, calls, goals, cleanup };
 }
@@ -174,6 +176,17 @@ test("approving the design gate decomposes the plan into per-seat goals and adva
     const backend = t.goals.find((g) => g.agentId === "sr-backend");
     assert.equal(backend.steps.length, 2, "the seat's steps are threaded");
     assert.ok(backend.steps[0].includes("file-scope"), "step 0 carries a file-scope hint");
+    // S16 REGRESSION. The header used to be invented per seat and named `services/**` — a
+    // directory of a different repo, absent here and outside SEED_DIRS. Live, that header was
+    // stamped onto a step whose own text said "CREATE new file src/lib/buildHealth.ts", so the
+    // seat was handed two contradictory scopes by its own harness.
+    assert.ok(!backend.steps[0].includes("services"), "no invented services/** scope");
+    assert.ok(backend.steps[0].includes("src/**"), "step 0 names the real appliable roots");
+    assert.ok(backend.steps[0].includes("agent-runtime/**"), "the widened scope is included");
+    // The scope is a property of the REPO, not the seat: both seats are told the same thing.
+    const frontend = t.goals.find((g) => g.agentId === "sr-frontend");
+    const header = (s0) => s0.slice(0, s0.indexOf("]") + 1);
+    assert.equal(header(backend.steps[0]), header(frontend.steps[0]), "one scope for every seat");
 
     // A plan artifact landed in the vault + the story log (event plan-drafted).
     const log = t.stories.getLog(id);

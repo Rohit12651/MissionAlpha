@@ -31,8 +31,8 @@
 //     with -c, so the operator's global git config is never read or written.
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, lstatSync } from "node:fs";
-import { join, resolve, relative } from "node:path";
+import { existsSync, readFileSync, lstatSync, writeFileSync, mkdirSync } from "node:fs";
+import { join, resolve, relative, dirname, isAbsolute } from "node:path";
 import { applyAllowed, CONFIG_GUARD, configGuardViolation } from "./guards.mjs";
 import { GIT_SAFE_ARGS } from "./workspace.mjs";
 
@@ -387,5 +387,146 @@ export function createPr(deps = {}) {
     }
   }
 
-  return { deliverApproved, ghStatus, commitMessageFor };
+  // ── Phase 11 / task 11.3 — SHIP A JOB ────────────────────────────────────────
+  // BOSS-approved 2026-09-05 (.planning/phases/11-review-ship/PR-LADDER-EDITS.md, Option A).
+  //
+  // `deliverApproved` above is the PER-TASK ladder and is untouched. This is the per-JOB one:
+  // one branch, one commit per task, one PR. It runs in a worktree of its OWN and never writes
+  // to the operator's tree or index — the measured reason being that broker.applyChanges copies
+  // into repoRoot and never stages, which is exactly why `write-tree == HEAD^{tree}` holds. A
+  // ship that applied-then-committed would have had to stage, and would have dirtied the tree
+  // the operator is sitting in. Pinned by PJB-6.
+
+  /** The ONLY ref shape ship may ever write. Anything else is refused before git runs. */
+  const JOB_BRANCH_RE = /^ma\/job\/[a-z0-9_]+$/;
+
+  /**
+   * Create `ma/job/<jobId>` at `baseSha`, in a throwaway worktree.
+   * Refuses a jobId outside the allow-list, and refuses an existing branch — no reuse, no
+   * force: a second ship onto the same branch would rewrite the first.
+   */
+  async function createJobBranch(jobId, baseSha) {
+    const out = { ok: false, branch: null, worktree: null, reason: "" };
+    const branch = `ma/job/${String(jobId ?? "")}`;
+    if (!JOB_BRANCH_RE.test(branch)) { out.reason = `refused branch name: ${branch}`; return out; }
+    if (!worktreeMgr || !repoRoot) { out.reason = "no worktree manager"; return out; }
+    const sha = String(baseSha ?? "").trim();
+    if (!/^[0-9a-f]{7,40}$/i.test(sha)) { out.reason = `refused base sha: ${sha.slice(0, 40)}`; return out; }
+
+    const exists = await git(["-C", repoRoot, "rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], repoRoot);
+    if (exists.ok && exists.stdout.trim()) { out.reason = `branch ${branch} already exists — refusing to reuse or force it`; return out; }
+
+    // The job checkout goes under the SAME root the task worktrees use. The first version
+    // fell back to `dirname(repoRoot)` when the manager exposed no accessor — and it exposes
+    // `worktreeRoot` as a VALUE, not a function, so the live run put a git worktree at
+    // `~/Downloads/WaahyuFOLDER/job_<id>`: outside the repo, beside the operator's other
+    // projects, where nobody would look for it or clean it up. Refuse rather than guess.
+    const root = worktreeMgr.worktreeRoot;
+    if (!root || typeof root !== "string") { out.reason = "no worktree root to create the job checkout in"; return out; }
+    const dir = join(root, `job_${String(jobId)}`);
+    const add = await git(["-C", repoRoot, "worktree", "add", "-b", branch, dir, sha], repoRoot);
+    if (!add.ok) { out.reason = `git worktree add failed: ${scrub(add.stderr).slice(0, 300)}`; return out; }
+    audit("job.branch", { jobId, branch, baseSha: sha });
+    return { ok: true, branch, worktree: dir, reason: "" };
+  }
+
+  /**
+   * Copy ONE task's approved paths from its own worktree into the job worktree and commit them.
+   * Every guard `deliverApproved` runs, runs here: the broker's own `allowed` predicate, the
+   * CONFIG_GUARD on protected keys, the symlink and unreadable refusals, and the staged-set ==
+   * approved-set assertion. One rule, two exits.
+   */
+  async function commitTask({ jobWorktree, taskId, paths, message } = {}) {
+    const out = { ok: false, sha: null, refused: [], reason: "" };
+    try {
+      if (!jobWorktree || !(await isGit(jobWorktree))) { out.reason = "no job worktree"; return out; }
+      const src = worktreeMgr?.pathFor?.(taskId);
+      if (!src) { out.reason = `no worktree for task ${taskId}`; return out; }
+
+      const approved = [];
+      for (const pth of (Array.isArray(paths) ? paths : []).slice(0, MAX_PATHS)) {
+        if (!allowed(pth)) { out.refused.push(String(pth).slice(0, 200)); continue; }
+        const relNorm = relative(jobWorktree, resolve(jobWorktree, pth));
+        if (relNorm.startsWith("..") || isAbsolute(relNorm)) { out.refused.push(`${pth} (escapes the job worktree)`.slice(0, 200)); continue; }
+        let body;
+        try {
+          if (lstatSync(join(src, relNorm)).isSymbolicLink()) { out.refused.push(`${relNorm} (symlink in the task worktree)`.slice(0, 200)); continue; }
+          body = readFileSync(join(src, relNorm), "utf-8");
+        } catch { out.refused.push(`${relNorm} (unreadable in the task worktree)`.slice(0, 200)); continue; }
+        if (CONFIG_GUARD[relNorm]) {
+          let before = null;
+          try { before = readFileSync(join(jobWorktree, relNorm), "utf-8"); } catch { /* new file */ }
+          const bad = configGuardViolation(relNorm, before, body);
+          if (bad) { out.refused.push(`${relNorm} (protected key changed: ${bad})`.slice(0, 200)); continue; }
+        }
+        mkdirSync(dirname(join(jobWorktree, relNorm)), { recursive: true });
+        writeFileSync(join(jobWorktree, relNorm), body, "utf-8");
+        approved.push(relNorm);
+      }
+      if (!approved.length) { out.reason = "no allowed paths to commit"; return out; }
+
+      const add = await git(["-C", jobWorktree, "add", "--", ...approved], jobWorktree);
+      if (!add.ok) { out.reason = `git add failed: ${scrub(add.stderr).slice(0, 300)}`; return out; }
+
+      const staged = await git(["-C", jobWorktree, "diff", "--cached", "--name-only"], jobWorktree);
+      const stagedList = staged.stdout.split("\n").map((x) => x.trim()).filter(Boolean);
+      if (!stagedList.length) { out.reason = "nothing to commit (no staged changes)"; return out; }
+      const extra = stagedList.filter((x) => !approved.includes(x));
+      if (extra.length) {
+        await git(["-C", jobWorktree, "reset", "-q"], jobWorktree);
+        out.reason = `staged set drifted from the approved set: ${extra.slice(0, 5).join(", ")}`;
+        return out;
+      }
+
+      const commit = await git(
+        ["-C", jobWorktree, "-c", `user.name=${COMMIT_NAME}`, "-c", `user.email=${COMMIT_EMAIL}`, "commit", "-m", String(message || "chore: task")],
+        jobWorktree,
+      );
+      if (!commit.ok) { out.reason = `git commit failed: ${scrub(commit.stderr).slice(0, 300)}`; return out; }
+      const head = await git(["-C", jobWorktree, "rev-parse", "HEAD"], jobWorktree);
+      out.ok = true;
+      out.sha = head.stdout.trim();
+      audit("job.commit", { taskId, sha: out.sha, paths: approved });
+      return out;
+    } catch (e) {
+      out.reason = scrub(String(e?.message || e)).slice(0, 300);
+      return out;
+    }
+  }
+
+  /** Push the job branch and open its PR. `gh` absent ⇒ the branch stands, and says so. */
+  async function openJobPr({ jobWorktree, branch, title, body } = {}) {
+    const out = { mode: "branch", prUrl: null, reason: "" };
+    try {
+      if (!JOB_BRANCH_RE.test(String(branch ?? ""))) { out.reason = `refused branch name: ${branch}`; return out; }
+      if (!(await hasRemote(jobWorktree))) { out.reason = "no remote configured — the commits stay on the local branch"; return out; }
+      const auth = await gh.run("gh", ["auth", "status"], { cwd: jobWorktree, shell: false });
+      if (!auth.ok) { out.reason = "gh unavailable or unauthenticated — the commits stay on the local branch"; return out; }
+
+      const push = await gitPush(["-C", jobWorktree, "push", "-u", "origin", branch], jobWorktree);
+      if (!push.ok) { out.reason = `git push failed: ${scrub(push.stderr).slice(0, 300)}`; return out; }
+      // `pushed` is REPORTED SEPARATELY from `mode`, and the distinction is not cosmetic.
+      // `mode: "branch"` is returned by four different outcomes — no remote, no gh, a failed
+      // push, and a push that SUCCEEDED before `gh pr create` failed. In the first three the
+      // commits are local; in the fourth they are on the operator's remote and anyone can see
+      // them. Measured live: with a real authenticated gh and a non-GitHub remote, the branch
+      // reached origin at the same sha and the result still read `mode: "branch"` — the same
+      // word the never-left-this-machine cases use.
+      out.pushed = true;
+
+      const args = ["pr", "create", "--head", branch, "--title", String(title || branch).slice(0, 200), "--body", scrub(String(body || "")).slice(0, 60_000)];
+      const pr = await gh.run("gh", args, { cwd: jobWorktree, shell: false });
+      if (!pr.ok) { out.reason = `gh pr create failed: ${scrub(pr.stderr).slice(0, 300)}`; return out; }
+      const url = (pr.stdout.match(/https:\/\/[^\s]+/) || [])[0] || null;
+      if (!url) { out.reason = "gh pr create returned no URL"; return out; }
+      if (!isSafePrUrl(url)) { out.reason = "gh pr create returned a non-GitHub URL — refusing to store it"; return out; }
+      audit("job.pr", { branch, prUrl: url });
+      return { mode: "pr", prUrl: url, pushed: true, reason: "" };
+    } catch (e) {
+      out.reason = scrub(String(e?.message || e)).slice(0, 300);
+      return out;
+    }
+  }
+
+  return { deliverApproved, ghStatus, commitMessageFor, createJobBranch, commitTask, openJobPr };
 }

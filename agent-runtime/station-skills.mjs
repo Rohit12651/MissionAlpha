@@ -3,8 +3,8 @@
 // SYSTEM PROMPT on its next spawn (interactive AND engine — both flow through
 // server.mjs systemFor). It grants NO tools: real capability stays governed by the
 // runtime TOOLS mode / factory G5 spec — this is training, not privilege.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { isValidAgentId } from "./perm-mode.mjs";
 
 const MAX_SKILLS = 12;
@@ -62,4 +62,90 @@ export function createStationSkills({ file, validIds }) {
     },
     reload: load,
   };
+}
+
+
+// ── Phase 2 / R8 — the ON-DISK skill catalog reader ──────────────────────────
+//
+// SEPARATE FROM EVERYTHING ABOVE, on purpose. The store above governs BOSS-ASSIGNED
+// skills from factory.SKILL_CATALOG — fourteen entries that grant a documented playbook. This
+// reads the Claude Code skill DIRECTORIES on disk (1,439 of them on this install), which
+// grant nothing and are merely discoverable by name. Conflating the two would let a
+// filesystem directory look like a governed grant.
+//
+// COST DISCIPLINE: the curated tier is READ (a handful of small files); the bulk catalog
+// is only LISTED (readdir, no file opens). Opening 1,439 SKILL.md files to harvest
+// descriptions that a 6,000-character budget will discard 95% of is work done to be thrown
+// away. Callers read this ONCE at boot — the catalog does not change under a running
+// process, and re-walking it per prompt would be absurd.
+
+/** Upper bound on curated entries actually parsed. A curated tier is small by definition. */
+export const MAX_CURATED = 32;
+
+function descFrom(md) {
+  const fm = /^---\s*\n([\s\S]*?)\n---/.exec(String(md || ""));
+  if (!fm) return "";
+  const m = /^description:\s*(.*)$/im.exec(fm[1]);
+  if (!m) return "";
+  const inline = m[1].trim();
+  // YAML folded/literal block scalars ('>' or '|') put the text on the FOLLOWING lines.
+  if (inline && inline !== ">" && inline !== "|" && inline !== ">-" && inline !== "|-") return inline;
+  const after = fm[1].slice(m.index + m[0].length);
+  const first = after.split("\n").map((l) => l.trim()).find((l) => l && !/^[a-z_-]+:/i.test(l));
+  return first || "";
+}
+
+function dirsIn(dir) {
+  try { return readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort(); }
+  catch { return []; }
+}
+
+/**
+ * readSkillCatalog({ curatedDir, allDir }) → { curated: [{name, desc}], names: [string] }
+ * Never throws — a missing directory is an empty tier, not a boot failure.
+ */
+export function readSkillCatalog({ curatedDir, allDir } = {}) {
+  const curated = [];
+  for (const name of dirsIn(curatedDir).slice(0, MAX_CURATED)) {
+    let desc = "";
+    try { desc = descFrom(readFileSync(join(curatedDir, name, "SKILL.md"), "utf8")); } catch { /* name only */ }
+    curated.push({ name, desc });
+  }
+  return { curated, names: dirsIn(allDir) };
+}
+
+
+// ── Phase 7 / task 7.3 — SKILL BODIES for a roster seat ──────────────────────
+//
+// The distinction this function exists to make: today a seat is told the NAMES of its
+// skills (`skillsNote` above renders "- Label: desc"). A name is not a playbook. A seat
+// told "you hold the ui skill" knows nothing it did not already know; a seat handed the
+// ui SKILL.md knows which directories are its own and which are somebody else's.
+//
+// A body is VENDORED TEXT that ends up inside another agent's system prompt, so it is
+// treated exactly like every other untrusted artifact on that path:
+//   • CAPPED per body (6 KB) and in COUNT (12) — a prompt budget, not a hope.
+//   • SCRUBBED through the shared egress scrub when one is injected.
+//   • Truncation is ANNOUNCED in the text, never silent: a seat that reads half a rule
+//     and cannot tell it is half a rule is worse off than one told the rule was cut.
+// A missing SKILL.md is SKIPPED, never a boot failure — same posture as readSkillCatalog.
+
+/** Max SKILL bodies injected into one seat's system prompt. */
+export const MAX_SKILL_BODIES = 12;
+/** Max bytes of any single SKILL body. */
+export const MAX_SKILL_BODY_BYTES = 6 * 1024;
+
+export function readSkillBodies(ids, { curatedDir, maxBodies = MAX_SKILL_BODIES, maxBytes = MAX_SKILL_BODY_BYTES, scrub } = {}) {
+  const out = [];
+  for (const id of Array.isArray(ids) ? ids.slice(0, maxBodies) : []) {
+    if (typeof id !== "string" || !/^[a-z0-9][a-z0-9_-]*$/i.test(id)) continue; // never a path segment from the wire
+    let raw;
+    try { raw = readFileSync(join(curatedDir, id, "SKILL.md"), "utf8"); } catch { continue; }
+    let body = typeof scrub === "function" ? scrub(raw) : raw;
+    if (Buffer.byteLength(body, "utf8") > maxBytes) {
+      body = `${Buffer.from(body, "utf8").subarray(0, maxBytes).toString("utf8")}\n[...SKILL body truncated at ${maxBytes} bytes]`;
+    }
+    out.push({ id, body });
+  }
+  return out;
 }

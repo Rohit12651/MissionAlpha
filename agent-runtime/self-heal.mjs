@@ -35,6 +35,30 @@ export function classify(sig) {
   }
 }
 
+// D4 — A DISPATCH THAT REFUSED IS NOT A DISPATCH THAT FAILED.
+//
+// `engineDispatch` returns { error, code } for a refusal it has already decided: a
+// post-edit hook veto, an account that measured as not tool-capable, a backend with no
+// model to spawn. runStep used to fold every one of those into `spawn` — the TRANSIENT
+// bucket — so the engine retried a settled answer up to maxAttempts. Measured on this
+// install: one goal, three tasks, three live model turns and three 120s container runs,
+// three identical verdicts, and an operator told "spawn" about a quality gate.
+//
+// A code this table does not know stays `spawn`/retryable, byte-identical to the old
+// behaviour: an unrecognised failure is a reason to retry, not a reason to give up.
+const TERMINAL_DISPATCH_CODES = Object.freeze({
+  HOOK_VETO: "gate-veto",             // a registered hook stopped the run on evidence
+  NOT_TOOL_CAPABLE: "not-capable",    // the active account cannot drive the write-loop
+  BACKEND_UNAVAILABLE: "backend",     // this runtime has no model to spawn
+  CHAT_ONLY: "chat-only",             // the provider is not a swarm engine
+});
+
+/** Map a dispatch result `code` to { kind, retryable }. Never throws. */
+export function classifyDispatchError(code) {
+  const kind = TERMINAL_DISPATCH_CODES[String(code ?? "")];
+  return kind ? { kind, retryable: false } : { kind: "spawn", retryable: true };
+}
+
 // Exponential backoff with jitter: min(base * 2^(attempt-1), max) + jitter.
 export function backoffMs(attempt, opts = {}) {
   const base = opts.base ?? 2000;

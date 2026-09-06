@@ -27,7 +27,7 @@
 
 import { join, sep } from "node:path";
 import { realpathSync } from "node:fs";
-import { validateHealthUrl } from "./deploy-config.mjs";
+import { validateHealthUrl, deployCmdForChanges } from "./deploy-config.mjs";
 
 const TAIL_MAX = 2_000;
 const FEEDBACK_MAX = 1_500;
@@ -106,7 +106,7 @@ export function createDeployExecutor(deps = {}) {
    * @returns {Promise<{deployed:boolean, healthy:boolean|null, network:boolean, tail:string,
    *                    exitCode:number, timedOut:boolean, reason?:string, health?:object}>}
    */
-  async function run({ storyId, deployRoot } = {}) {
+  async function run({ storyId, deployRoot, changedPaths } = {}) {
     const sid = String(storyId || "");
     const loaded = loadConfig();
     if (!loaded || loaded.error || !loaded.config) {
@@ -131,7 +131,15 @@ export function createDeployExecutor(deps = {}) {
     }
     // The validated argv (allow-listed binary + SAFE_ARG per element + node-flag denylist) has no
     // shell metachars, so joining is a clean single string for the container's `sh -c`.
-    const command = cfg.deployCmd.join(" ");
+    // Phase 6.4 — pick the command from WHAT CHANGED (src/public → the configured build;
+    // anything else → the scoped typecheck; unknown/empty → the full command, never narrow
+    // blindly). Both branches are re-validated inside deployCmdForChanges; it fails closed.
+    const sel = deployCmdForChanges(Array.isArray(changedPaths) ? changedPaths : [], cfg);
+    if (sel.error) {
+      log(`[deploy] command selection refused for ${sid}: ${sel.error}`);
+      return { deployed: false, healthy: null, network: cfg.network, tail: sel.error, exitCode: -1, timedOut: false, reason: "config" };
+    }
+    const command = sel.cmd.join(" ");
     let res;
     try {
       res = await sandbox.runInSandbox(guarded.cwd, command, { network: cfg.network, timeoutMs: cfg.timeoutMs, callId: `deploy-${sid}`.slice(0, 48) });

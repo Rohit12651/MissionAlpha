@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { isValidAgentId } from "./perm-mode.mjs";
+import { truncateAtBoundary } from "./system-prompt.mjs";
 
 export const MEMORY_MAX = 8_000; // chars stored per station — prompt budget, not a transport cap
 
@@ -21,7 +22,10 @@ export function createStationMemory({ file, max = MEMORY_MAX }) {
       const raw = JSON.parse(readFileSync(file, "utf8"));
       for (const [k, v] of Object.entries(raw || {})) {
         if (!isValidAgentId(k) || typeof v !== "string") continue;
-        const t = v.slice(0, max).trim();
+        // R8 — boundary cut, not a mid-character one. Station memory is BOSS-authored
+        // rules; a rule severed mid-sentence is worse than an absent rule, because the model
+        // follows the fragment as if it were whole.
+        const t = truncateAtBoundary(v, max).trim();
         if (t) map[k] = t;
       }
     } catch { map = Object.create(null); }
