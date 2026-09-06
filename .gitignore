@@ -69,3 +69,10 @@ agent-runtime/data/
 .claude/commands/**/*.gif
 .claude/commands/**/*.zip
 release/
+
+# Playwright visual-regression (Phase 0)
+test-results/
+playwright-report/
+
+# Local .env backups (isolation runs) — never source, never shipped
+.env.bak-*
