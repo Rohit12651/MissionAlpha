@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MissionAlpha × Munder Difflin — Integration Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Lato:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── Helm tokens (verbatim from src/theme/helm.css) ─────────────────────── */
+  :root{
+    --ink:#050a14; --deck:#182238; --deck-raised:#243350; --well:#050a14;
+    --line:#334260; --line-soft:#2a3b58;
+    --brass:#c89b3c; --brass-bright:#e0b759;
+    --green:#57ad74; --amber:#d9a441; --red:#ee796d;
+    --paper:#ede6d6; --paper-dim:#9ba3b4; --paper-faint:#929cb1;
+    --on-green:#0d1f14; --on-brass:#221803;
+    --f-display:"Space Grotesk","Lato",system-ui,sans-serif;
+    --f-body:"Lato",system-ui,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --r-card:12px; --r-pane:14px; --r-chip:999px; --r-ctl:9px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#02040a;color:var(--paper);font-family:var(--f-body);font-size:14px;line-height:1.45;padding:28px 18px 80px}
+  .frame-scroll{overflow-x:auto;padding-bottom:8px}
+  .wrap{max-width:1460px;margin:0 auto}
+
+  /* ── Doc header ── */
+  .doc-head{max-width:1460px;margin:0 auto 22px}
+  .doc-head h1{font-family:var(--f-display);font-size:22px;font-weight:700;letter-spacing:.2px}
+  .doc-head h1 em{color:var(--brass-bright);font-style:normal}
+  .doc-head p{color:var(--paper-dim);font-size:13px;margin-top:4px;max-width:900px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .legend .pin{position:static;transform:none}
+
+  /* ── Pins (adoption markers) ── */
+  .pin{position:absolute;z-index:5;display:inline-flex;align-items:center;gap:5px;
+    background:var(--brass);color:var(--on-brass);font-family:var(--f-mono);font-size:10.5px;font-weight:600;
+    padding:2px 8px;border-radius:var(--r-chip);border:1px solid var(--brass-bright);
+    box-shadow:0 2px 10px rgba(224,183,89,.35);white-space:nowrap}
+  .pin small{font-weight:400;opacity:.85}
+  .adopt{position:relative;outline:1.5px dashed rgba(224,183,89,.75);outline-offset:3px;border-radius:var(--r-card)}
+
+  /* ── App frame ── */
+  .app{min-width:1380px;background:var(--ink);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .titlebar{display:flex;align-items:center;gap:14px;background:var(--deck);border-bottom:1px solid var(--line-soft);padding:9px 14px}
+  .lights{display:flex;gap:7px}
+  .lights i{width:11px;height:11px;border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .tb-title{font-family:var(--f-display);font-weight:600;font-size:13px;letter-spacing:.4px}
+  .tb-title span{color:var(--paper-faint);font-weight:500}
+  .tb-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:10.5px;
+    padding:2.5px 9px;border-radius:var(--r-chip);border:1px solid var(--line);color:var(--paper-dim);background:rgba(255,255,255,.02)}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--paper-faint)}
+  .chip.ok{color:var(--green);border-color:rgba(87,173,116,.4)}.chip.ok .dot{background:var(--green)}
+  .chip.warn{color:var(--amber);border-color:rgba(217,164,65,.45)}.chip.warn .dot{background:var(--amber)}
+  .chip.bad{color:var(--red);border-color:rgba(238,121,109,.45)}.chip.bad .dot{background:var(--red)}
+  .chip.brass{color:var(--brass-bright);border-color:rgba(200,155,60,.5)}.chip.brass .dot{background:var(--brass-bright)}
+
+  .cols{display:grid;grid-template-columns:216px 1fr 372px;min-height:640px}
+
+  /* ── Sidebar ── */
+  .side{background:var(--deck);border-right:1px solid var(--line-soft);padding:14px 12px;display:flex;flex-direction:column;gap:16px}
+  .venture{background:var(--deck-raised);border:1px solid var(--line);border-radius:var(--r-ctl);padding:8px 10px}
+  .venture b{font-family:var(--f-display);font-size:12.5px;display:block}
+  .venture span{font-size:11px;color:var(--paper-faint)}
+  .nav a{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r-ctl);color:var(--paper-dim);
+    text-decoration:none;font-size:13px;font-family:var(--f-display);font-weight:500}
+  .nav a.on{background:rgba(200,155,60,.12);color:var(--brass-bright);border:1px solid rgba(200,155,60,.35)}
+  .nav a .n{margin-left:auto;background:var(--brass);color:var(--on-brass);font-family:var(--f-mono);font-size:10px;
+    padding:1px 7px;border-radius:var(--r-chip);font-weight:600}
+  .side-sec{font-family:var(--f-mono);font-size:10px;letter-spacing:1.2px;color:var(--paper-faint);text-transform:uppercase;margin:2px 4px}
+  .engines{display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-card)}
+  .eng{display:flex;align-items:center;gap:8px;font-size:12px}
+  .eng .logo{width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;
+    font-family:var(--f-mono);font-size:9px;font-weight:700;color:#0b0b0b}
+  .eng .st{margin-left:auto;font-family:var(--f-mono);font-size:9.5px}
+  .eng .st.ok{color:var(--green)}.eng .st.miss{color:var(--paper-faint)}
+
+  /* ── Inbox center ── */
+  .center{padding:16px 18px;background:var(--ink)}
+  .center-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .center-head h2{font-family:var(--f-display);font-size:16px;font-weight:600}
+  .card{background:var(--deck);border:1px solid var(--line-soft);border-radius:var(--r-card);padding:12px 14px;margin-bottom:11px}
+  .card.gate{box-shadow:inset 3px 0 0 0 rgba(217,164,65,.7)}
+  .card h3{font-family:var(--f-display);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card .sum{color:var(--paper-dim);font-size:12.5px;margin:5px 0 8px}
+  .meta{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .diffstat{font-family:var(--f-mono);font-size:11px}
+  .diffstat b{color:var(--green);font-weight:500}.diffstat i{color:var(--red);font-style:normal}
+  .risk{font-family:var(--f-mono);font-size:10px;font-weight:600;padding:2px 8px;border-radius:var(--r-chip)}
+  .risk.low{background:rgba(87,173,116,.15);color:var(--green);border:1px solid rgba(87,173,116,.4)}
+  .risk.med{background:rgba(217,164,65,.14);color:var(--amber);border:1px solid rgba(217,164,65,.4)}
+  .risk.high{background:rgba(238,121,109,.14);color:var(--red);border:1px solid rgba(238,121,109,.4)}
+  .sla{font-family:var(--f-mono);font-size:10.5px;color:var(--paper-faint);margin-left:auto}
+  .ladder{display:inline-flex;gap:4px;align-items:center;font-family:var(--f-mono);font-size:9.5px}
+  .ladder i{font-style:normal;padding:1.5px 7px;border-radius:var(--r-chip);border:1px solid var(--line);color:var(--paper-faint)}
+  .ladder i.hit{background:rgba(238,121,109,.16);border-color:rgba(238,121,109,.5);color:var(--red)}
+  .ladder i.past{border-color:rgba(217,164,65,.45);color:var(--amber)}
+
+  /* ── Right rail ── */
+  .rail{background:var(--deck);border-left:1px solid var(--line-soft);padding:14px;display:flex;flex-direction:column;gap:14px}
+  .pane{background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-pane);padding:12px}
+  .pane h4{font-family:var(--f-display);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .diff{font-family:var(--f-mono);font-size:11px;line-height:1.65;border:1px solid var(--line-soft);border-radius:8px;overflow:hidden}
+  .diff div{padding:1px 10px;white-space:pre}
+  .diff .h{background:var(--deck-raised);color:var(--paper-dim)}
+  .diff .a{background:rgba(87,173,116,.09);color:var(--green)}
+  .diff .d{background:rgba(238,121,109,.09);color:var(--red)}
+  .btns{display:flex;gap:8px;margin-top:11px}
+  .btn{font-family:var(--f-display);font-weight:600;font-size:12px;padding:7px 14px;border-radius:var(--r-ctl);border:1px solid var(--line);
+    background:var(--deck-raised);color:var(--paper);cursor:default}
+  .btn.approve{background:var(--green);border-color:var(--green);color:var(--on-green)}
+  .btn.reject{color:var(--red);border-color:rgba(238,121,109,.5)}
+  .urow{display:flex;align-items:center;gap:9px;font-size:12px;padding:6px 0;border-bottom:1px solid rgba(51,66,96,.4)}
+  .urow:last-child{border-bottom:0}
+  .urow .who{font-family:var(--f-mono);font-size:11px;width:106px;color:var(--paper-dim)}
+  .bar{flex:1;height:6px;border-radius:4px;background:var(--deck-raised);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;background:var(--brass)}
+  .bar i.g{background:var(--green)}.bar i.r{background:var(--red)}
+  .uval{font-family:var(--f-mono);font-size:10px;color:var(--paper-faint);width:110px;text-align:right}
+
+  /* ── Status strip ── */
+  .status{display:flex;gap:10px;align-items:center;background:var(--deck);border-top:1px solid var(--line-soft);padding:8px 14px}
+
+  /* ── Detail row (station + vault) ── */
+  .detail{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px;min-width:1380px}
+  .panel{background:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .panel>h3{font-family:var(--f-display);font-size:14px;font-weight:600;margin-bottom:12px;display:flex;gap:10px;align-items:center}
+  .skills{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+  .term{background:#01030a;border:1px solid var(--line-soft);border-radius:8px;font-family:var(--f-mono);font-size:10.8px;
+    line-height:1.7;padding:10px 12px;color:#b9c4da;margin-top:9px}
+  .term .p{color:var(--green)} .term .t{color:var(--brass-bright)} .term .m{color:var(--paper-faint)}
+  .regions{display:grid;grid-template-columns:96px 1fr 150px;gap:0;border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;
+    font-family:var(--f-mono);font-size:10.5px;text-align:center;margin:10px 0}
+  .regions div{padding:12px 6px}
+  .regions .r1{background:rgba(200,155,60,.16);color:var(--brass-bright)}
+  .regions .r2{background:rgba(87,173,116,.12);color:var(--green)}
+  .regions .r3{background:rgba(155,163,180,.1);color:var(--paper-dim)}
+  .flow{font-family:var(--f-mono);font-size:11px;color:var(--paper-dim);display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .flow b{color:var(--green);font-weight:500}
+
+  /* ── Rejected strip ── */
+  .rejected{margin-top:18px;min-width:1380px;background:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .rejected h3{font-family:var(--f-display);font-size:14px;color:var(--paper-dim);margin-bottom:11px}
+  .rej-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .rej{border:1px solid var(--line-soft);border-radius:var(--r-card);padding:11px 13px;opacity:.62}
+  .rej b{font-family:var(--f-display);font-size:12.5px;display:flex;gap:7px;align-items:center}
+  .rej b::before{content:"✕";color:var(--red);font-weight:700}
+  .rej p{font-size:11.5px;color:var(--paper-faint);margin-top:4px}
+
+  /* ── Wiring map ── */
+  .map{margin-top:18px;min-width:1380px;background:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .map h3{font-family:var(--f-display);font-size:14px;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{font-family:var(--f-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--paper-faint);
+    text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  td{padding:8px 10px;border-bottom:1px solid rgba(51,66,96,.35);vertical-align:top}
+  td code{font-family:var(--f-mono);font-size:11px;color:var(--brass-bright)}
+  td .from{font-family:var(--f-mono);font-size:11px;color:var(--paper-dim)}
+  .pill{font-family:var(--f-mono);font-size:10px;padding:1.5px 8px;border-radius:var(--r-chip);
+    background:rgba(200,155,60,.14);color:var(--brass-bright);border:1px solid rgba(200,155,60,.4)}
+</style>
+</head>
+<body>
+
+<header class="doc-head">
+  <h1>MissionAlpha × <em>Munder Difflin</em> — what lands where</h1>
+  <p>Annotated Helm-skin mockup. Brass pins <b>A1–A7</b> mark adopted capabilities in the exact surface they land on;
+     dashed outlines = new UI. Everything else is the shipped P3/BOS shell, unchanged. Rejected imports at the bottom.</p>
+  <div class="legend">
+    <span class="pin">A1 <small>multi-engine</small></span>
+    <span class="pin">A2 <small>breaker ladder · R14</small></span>
+    <span class="pin">A3 <small>transcript usage</small></span>
+    <span class="pin">A4 <small>condensation · R6</small></span>
+    <span class="pin">A5 <small>skills budget · R8</small></span>
+    <span class="pin">A6 <small>PTY inspect</small></span>
+    <span class="pin">A7 <small>slack ingress</small></span>
+  </div>
+</header>
+
+<div class="frame-scroll"><div class="wrap">
+
+<!-- ═══════════════ MAIN APP FRAME ═══════════════ -->
+<div class="app">
+  <div class="titlebar">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="tb-title">MissionAlpha <span>— Business OS · Helm</span></div>
+    <div class="tb-right">
+      <span class="chip ok"><span class="dot"></span>doctor: all green</span>
+      <span class="chip ok"><span class="dot"></span>SSE live</span>
+      <span class="chip brass"><span class="dot"></span>waahyu venture</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="venture"><b>Waahyu</b><span>grocery platform · 4 apps</span></div>
+      <nav class="nav">
+        <a class="on" href="#">⚓ Inbox <span class="n">4</span></a>
+        <a href="#">▦ Board</a>
+        <a href="#">◉ Stations</a>
+        <a href="#">◈ Vault</a>
+        <a href="#">∿ Usage</a>
+        <a href="#">⚙ Settings</a>
+      </nav>
+      <div class="side-sec">Engines</div>
+      <div class="engines adopt">
+        <span class="pin" style="top:-14px;right:-8px">A1 <small>cli-engines.mjs</small></span>
+        <div class="eng"><span class="logo" style="background:#d97a4e">C</span>claude <span class="st ok">active ×3</span></div>
+        <div class="eng"><span class="logo" style="background:#e8e8e8">⌾</span>codex <span class="st ok">probe ✓ tools</span></div>
+        <div class="eng"><span class="logo" style="background:#8ab4f8">G</span>grok <span class="st miss">install…</span></div>
+        <div class="eng"><span class="logo" style="background:#b48ef0">Q</span>qwen <span class="st miss">proxy bridge</span></div>
+      </div>
+    </aside>
+
+    <!-- Inbox -->
+    <main class="center">
+      <div class="center-head">
+        <h2>Deliveries</h2>
+        <span class="chip">queue 2 running · 3 waiting</span>
+        <span class="chip warn"><span class="dot"></span>1 needs typed confirm</span>
+      </div>
+
+      <!-- existing baseline card -->
+      <div class="card">
+        <h3>Fix cart total rounding on split payments <span class="risk low">LOW</span></h3>
+        <div class="sum">2-line change in money utils; matches ADR-051 cents law. Auto-tests green in worktree.</div>
+        <div class="meta">
+          <span class="diffstat"><b>+14</b> / <i>−3</i> · 2 files</span>
+          <span class="chip">senior-backend-1</span>
+          <span class="chip">worktree wt-8f3a</span>
+          <span class="sla">SLA 3h 12m</span>
+        </div>
+      </div>
+
+      <!-- A1/R7 cross-model review card -->
+      <div class="card adopt">
+        <span class="pin" style="top:-13px;left:14px">A1 <small>R7 cross-model review</small></span>
+        <h3>Port OrderCard to spice tokens <span class="risk med">MED</span></h3>
+        <div class="sum">Story S3a follow-up. Built and reviewed by <b>different providers</b> — review artifact names both.</div>
+        <div class="meta">
+          <span class="diffstat"><b>+212</b> / <i>−96</i> · 7 files</span>
+          <span class="chip brass"><span class="dot"></span>built: claude · opus</span>
+          <span class="chip ok"><span class="dot"></span>reviewed: codex ✓ crossModel:true</span>
+          <span class="sla">SLA 6h 40m</span>
+        </div>
+      </div>
+
+      <!-- A2/R14 breaker escalation card -->
+      <div class="card gate adopt">
+        <span class="pin" style="top:-13px;left:14px">A2 <small>R14 breaker escalation</small></span>
+        <h3>Agent stuck — needs you <span class="risk high">HIGH</span></h3>
+        <div class="sum">senior-web-2 hit no-progress + repeated identical tool calls. Ladder stepped one level per beat;
+          hardStop off → capped at <b>constrained</b>, minted this diff-less escalation Delivery.</div>
+        <div class="meta">
+          <span class="ladder"><i class="past">healthy</i>→<i class="past">steering</i>→<i class="hit">constrained</i>→<i>stopped</i></span>
+          <span class="chip">Δ velocity: 0 tok/min × 3 beats</span>
+          <span class="sla">escalated 4m ago</span>
+        </div>
+      </div>
+
+      <!-- A7 slack ingress card -->
+      <div class="card adopt">
+        <span class="pin" style="top:-13px;left:14px">A7 <small>ephemeral worker</small></span>
+        <h3>Draft release notes for v1.4 <span class="risk low">LOW</span></h3>
+        <div class="sum">Arrived from Slack thread → ephemeral worker spawned, replied in-thread, tore down. Law 3: forced low band, never auto-apply.</div>
+        <div class="meta">
+          <span class="chip brass"><span class="dot"></span>source: slack #ship-requests</span>
+          <span class="diffstat"><b>+58</b> / <i>−0</i> · 1 file</span>
+          <span class="chip">worker cap 2/5 today</span>
+          <span class="sla">SLA 11h</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right rail -->
+    <aside class="rail">
+      <div class="pane">
+        <h4>Review — OrderCard port <span class="chip" style="margin-left:auto">7 files</span></h4>
+        <div class="diff">
+          <div class="h">@@ apps/vendor/src/OrderCard.tsx @@</div>
+          <div class="d">- className="bg-white shadow rounded"</div>
+          <div class="a">+ className="spice-card spice-elev-1"</div>
+          <div class="a">+ data-status={order.state}</div>
+        </div>
+        <div class="btns">
+          <button class="btn approve">Approve → PR</button>
+          <button class="btn">Request changes</button>
+          <button class="btn reject">Reject</button>
+        </div>
+      </div>
+
+      <div class="pane adopt">
+        <span class="pin" style="top:-13px;right:10px">A3 <small>transcript.mjs</small></span>
+        <h4>Usage <span class="chip brass" style="margin-left:auto"><span class="dot"></span>source: transcripts</span></h4>
+        <div class="urow"><span class="who">senior-web-1</span><span class="bar"><i style="width:62%"></i></span><span class="uval">148k tok · ctx 62%</span></div>
+        <div class="urow"><span class="who">senior-web-2</span><span class="bar"><i class="r" style="width:91%"></i></span><span class="uval">302k tok · ctx 91%</span></div>
+        <div class="urow"><span class="who">tech-lead</span><span class="bar"><i class="g" style="width:34%"></i></span><span class="uval">71k tok · ctx 34%</span></div>
+        <div class="urow"><span class="who">codex-review</span><span class="bar"><i style="width:18%"></i></span><span class="uval">22k tok · ctx 18%</span></div>
+        <div class="flow" style="margin-top:9px">per-turn truth from <b>~/.claude/projects/*.jsonl</b> · tokens + context % only — no dollars</div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="status">
+    <span class="chip ok"><span class="dot"></span>broker: all writes gated</span>
+    <span class="chip">deny-list: 14 paths</span>
+    <span class="chip warn"><span class="dot"></span>breaker: 1 constrained</span>
+    <span class="chip" style="margin-left:auto">MAX_INFLIGHT 3 · runtime :3005</span>
+  </div>
+</div>
+
+<!-- ═══════════════ DETAIL ROW ═══════════════ -->
+<div class="detail">
+
+  <!-- Station drawer -->
+  <div class="panel">
+    <h3>Station drawer — senior-web-1 <span class="chip ok" style="margin-left:auto"><span class="dot"></span>running</span></h3>
+
+    <div class="adopt" style="padding:11px 13px;background:var(--deck);border-radius:var(--r-card)">
+      <span class="pin" style="top:-13px;left:12px">A1 <small>engine per station</small></span>
+      <div class="meta">
+        <span class="chip brass"><span class="dot"></span>engine: claude · opus</span>
+        <span class="chip">fallback: codex (probe ✓)</span>
+        <span class="chip">resume: --resume 8f3a…</span>
+      </div>
+    </div>
+
+    <div class="adopt" style="padding:11px 13px;background:var(--deck);border-radius:var(--r-card);margin-top:14px">
+      <span class="pin" style="top:-13px;left:12px">A2 <small>breaker.mjs → hooks.mjs veto</small></span>
+      <div class="meta">
+        <span class="ladder"><i class="hit" style="background:rgba(87,173,116,.15);border-color:rgba(87,173,116,.5);color:var(--green)">healthy</i>→<i>steering</i>→<i>constrained</i>→<i>stopped</i></span>
+        <span class="chip">de-escalates 1 level / healthy beat</span>
+      </div>
+    </div>
+
+    <div class="adopt" style="padding:11px 13px;background:var(--deck);border-radius:var(--r-card);margin-top:14px">
+      <span class="pin" style="top:-13px;left:12px">A5 <small>R8 station-skills.mjs</small></span>
+      <div class="skills">
+        <span class="chip">sp-tdd</span><span class="chip">security-review</span><span class="chip">spice-tokens</span>
+        <span class="chip">react-review</span><span class="chip brass">+ catalog (install-free)</span>
+      </div>
+      <div class="urow"><span class="who">prompt budget</span><span class="bar"><i style="width:77%"></i></span><span class="uval">6.2k / 8k chars</span></div>
+    </div>
+
+    <div class="adopt" style="padding:11px 13px;background:var(--deck);border-radius:var(--r-card);margin-top:14px">
+      <span class="pin" style="top:-13px;left:12px">A6 <small>on-demand PTY · read-mostly</small></span>
+      <div class="meta">
+        <button class="btn">▸ Inspect terminal</button>
+        <span class="chip warn"><span class="dot"></span>read-only · write gated like a decision</span>
+      </div>
+      <div class="term">
+        <span class="p">⏺</span> Running <span class="t">npm run typecheck</span>…<br>
+        <span class="m">  tsc --noEmit -p tsconfig.web.json</span><br>
+        <span class="p">✓</span> 0 errors · <span class="m">PostToolUse → hooks bus → this pane. Closed by default; opened from the escalation card.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vault -->
+  <div class="panel">
+    <h3>Vault — memory condensation <span class="pill" style="margin-left:auto">A4 · unblocks R6 retrieval</span></h3>
+    <div class="meta">
+      <span class="chip ok"><span class="dot"></span>condensed 2026-08-19 14:02</span>
+      <span class="chip">budget 128 KB · now 96 KB</span>
+      <span class="chip brass"><span class="dot"></span>reflect pass: haiku tail-summary</span>
+    </div>
+    <div class="regions">
+      <div class="r1">PINNED FACTS<br><small>never touched</small></div>
+      <div class="r2">ROLLING RECURSIVE SUMMARY<br><small>evicted tail → verified summary</small></div>
+      <div class="r3">NEWEST K VERBATIM<br><small>last 6 sections</small></div>
+    </div>
+    <div class="flow">backup (lossless cold copy) → <b>verify-don't-trust gate</b> → atomic swap · any failed check = original untouched + <code style="color:var(--red)">condense-abort</code> log</div>
+    <div class="flow" style="margin-top:12px">then R6: repeat-topic prompts carry fenced top-k prior art · R15 graph ranking re-orders hits (already built, wakes up here)</div>
+    <div class="urow" style="margin-top:12px"><span class="who">retrieval p95</span><span class="bar"><i class="g" style="width:22%"></i></span><span class="uval">38 ms @ 1k recs</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ REJECTED ═══════════════ -->
+<div class="rejected">
+  <h3>Rejected — never port</h3>
+  <div class="rej-row">
+    <div class="rej"><b>Pixi office floor / avatars</b><p>LimeZu assets non-commercial; sprites inherit it. Copying caps MissionAlpha commercially forever.</p></div>
+    <div class="rej"><b>File-mailbox hive</b><p>You have threads + SSE + queue. Their mailboxes exist because their agents share no runtime. Second plane = two truths.</p></div>
+    <div class="rej"><b>HITL-in-terminal</b><p>"Permission prompt is the gate" inverts the Inbox thesis and Law 1. One queue, risk-routed, stays.</p></div>
+    <div class="rej"><b>Policy in system prompt</b><p>Their escalation rules live in Michael's prompt. Yours are deterministic, testable JSON. Keep yours.</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ WIRING MAP ═══════════════ -->
+<div class="map">
+  <h3>Wiring map — pin → module → wire point</h3>
+  <table>
+    <tr><th>Pin</th><th>Adopts</th><th>From (munder-difflin)</th><th>Lands in (MissionAlpha)</th><th>Wire point</th><th>Program pin</th><th>Days</th></tr>
+    <tr><td><span class="pill">A1</span></td><td>Multi-engine preset table + bridges</td><td class="from">src/shared/agentProvider.ts</td>
+        <td><code>agent-runtime/providers/cli-engines.mjs</code> <i style="color:var(--paper-faint)">(new)</i></td>
+        <td>registry.mjs picker · capability stays <b>probed</b> · engine badge on cards/stations</td><td>unblocks R7</td><td>2–3</td></tr>
+    <tr><td><span class="pill">A2</span></td><td>Circuit breaker ladder</td><td class="from">src/main/breaker.ts</td>
+        <td><code>agent-runtime/breaker.mjs</code> <i style="color:var(--paper-faint)">(new)</i></td>
+        <td>hooks.mjs <b>pre-task veto</b> + queue.mjs beat · escalation mints diff-less Delivery · StatusStrip chip</td><td><b>is R14</b></td><td>1</td></tr>
+    <tr><td><span class="pill">A3</span></td><td>Transcript-grade telemetry</td><td class="from">src/main/transcript.ts + pricing.ts</td>
+        <td><code>agent-runtime/transcript.mjs</code> <i style="color:var(--paper-faint)">(new)</i></td>
+        <td>feeds usage.mjs when RUNTIME_BACKEND=cli · UsageMeter "source: transcripts" · carry the projectKey bugfix + test</td><td>—</td><td>1</td></tr>
+    <tr><td><span class="pill">A4</span></td><td>Memory condensation</td><td class="from">src/main/reflect.ts</td>
+        <td><code>agent-runtime/vault-reflect.mjs</code> <i style="color:var(--paper-faint)">(new)</i></td>
+        <td>vault.mjs write path · backup→verify→atomic swap · in-process timer (TCC: never launchd)</td><td>unblocks R6</td><td>2</td></tr>
+    <tr><td><span class="pill">A5</span></td><td>Skills discovery + budget</td><td class="from">src/main/skills.ts</td>
+        <td><code>station-skills.mjs</code> <i style="color:var(--paper-faint)">(extend)</i></td>
+        <td>walk CLI skill dirs + cached catalog · installs nothing (Law 2) · budget meter in station drawer</td><td><b>is R8</b></td><td>1</td></tr>
+    <tr><td><span class="pill">A6</span></td><td>PTY inspection channel</td><td class="from">src/main/pty.ts + xterm</td>
+        <td><code>agent-runtime/pty.mjs</code> + drawer pane</td>
+        <td>opened from story/escalation card only · read-mostly, write gated · native-dep cost: decide pre-Phase-4</td><td>—</td><td>3–5</td></tr>
+    <tr><td><span class="pill">A7</span></td><td>Slack/webhook ingress</td><td class="from">src/main/slack.ts + webhook.ts</td>
+        <td><code>adapters/slack.mjs</code> <i style="color:var(--paper-faint)">(new)</i></td>
+        <td>adapter model · ephemeral worker → in-thread reply → teardown · Law 3 caps unchanged</td><td>—</td><td>2</td></tr>
+  </table>
+  <div class="flow" style="margin-top:12px">Every new SSE frame (<code>breaker.state</code>, <code>engine.roster</code>, <code>usage.transcript</code>, <code>vault.condensed</code>) lands in EVENT_NAMES + client RUNTIME_EVENT_NAMES + both catalog-equality tests, one change. Every write still <b>broker.applyChanges</b> only.</div>
+</div>
+
+</div></div>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<meta charset="utf-8">
+<title>MissionAlpha Operating Model</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F2F4F7; --paper-2:#FFFFFF; --ink:#151A22; --ink-2:#4A5260; --ink-3:#7A8290; --line:#D5DAE2; --line-2:#B9C0CB;
+  --you:#5C636D; --you-bg:#E9EBEF;
+  --mgr:#2E5C8A; --mgr-bg:#E4EEF8;
+  --team:#1E8A6C; --team-bg:#E1F3EC;
+  --hr:#B4761A; --hr-bg:#FBF0DC;
+  --ok:#1E8A6C; --warn:#B4761A; --bad:#B23A3A;
+  --radius:6px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1318; --paper-2:#171C24; --ink:#E7EBF1; --ink-2:#B3BAC6; --ink-3:#7F8896; --line:#2A313C; --line-2:#3A4350;
+    --you:#A6ADB8; --you-bg:#20262F;
+    --mgr:#7FB0E3; --mgr-bg:#18283A;
+    --team:#5FCBA6; --team-bg:#15302A;
+    --hr:#E4AE59; --hr-bg:#332815;
+    --ok:#5FCBA6; --warn:#E4AE59; --bad:#E27777;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1318; --paper-2:#171C24; --ink:#E7EBF1; --ink-2:#B3BAC6; --ink-3:#7F8896; --line:#2A313C; --line-2:#3A4350;
+  --you:#A6ADB8; --you-bg:#20262F;
+  --mgr:#7FB0E3; --mgr-bg:#18283A;
+  --team:#5FCBA6; --team-bg:#15302A;
+  --hr:#E4AE59; --hr-bg:#332815;
+  --ok:#5FCBA6; --warn:#E4AE59; --bad:#E27777;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 24px 72px}
+h1,h2,h3{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:0}
+h1{font-size:40px;line-height:1.05}
+h2{font-size:24px;line-height:1.15;margin-top:56px;margin-bottom:14px}
+h3{font-size:17px;font-weight:600}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.lede{max-width:62ch;color:var(--ink-2);font-size:17px;margin:14px 0 0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:13px}
+p{max-width:65ch}
+/* diagram */
+.fig{margin:28px 0 0;display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:900px){.fig{grid-template-columns:minmax(0,1fr) 300px}}
+figure{margin:0;background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px;overflow-x:auto}
+figure svg{display:block;width:100%;max-width:100%;height:auto;color:var(--ink)}
+figcaption{color:var(--ink-3);font-size:13px;margin-top:8px}
+.node{cursor:pointer}
+.node rect{stroke-width:1.2;transition:stroke-width .15s}
+.node:hover rect,.node.active rect{stroke-width:2.4}
+.node.lit rect{stroke-width:3}
+.node:focus{outline:none}
+.node:focus rect{stroke-dasharray:4 3}
+.lbl{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;font-size:15px;font-weight:600;fill:var(--ink)}
+.sub{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:11px;fill:var(--ink-3)}
+.edge{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.75}
+.edge.dash{stroke-dasharray:5 4}
+.elbl{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:11px;fill:var(--ink-2)}
+.token{fill:var(--hr);stroke:var(--paper-2);stroke-width:2;transition:cx .5s ease,cy .5s ease}
+@media(prefers-reduced-motion:reduce){.token{transition:none}}
+/* side panel */
+.panel{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:280px}
+.panel h3{display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.panel p{margin:0;color:var(--ink-2);font-size:14.5px}
+.panel ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:14px}
+.panel li{margin:4px 0}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+button{font:inherit;font-weight:500;font-size:14px;padding:8px 14px;border-radius:var(--radius);border:1px solid var(--line-2);background:var(--paper-2);color:var(--ink);cursor:pointer}
+button.primary{background:var(--mgr);border-color:var(--mgr);color:#fff}
+button:hover{border-color:var(--ink-3)}
+button:focus-visible{outline:2px solid var(--mgr);outline-offset:2px}
+button[disabled]{opacity:.5;cursor:default}
+.log{margin-top:16px;background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:13px;line-height:1.6;min-height:52px;color:var(--ink-2)}
+.log div{display:grid;grid-template-columns:64px 88px 1fr;gap:12px;padding:2px 0;border-bottom:1px dashed var(--line)}
+.log div:last-child{border-bottom:0}
+.log .t{color:var(--ink-3);font-variant-numeric:tabular-nums}
+.log .who{font-weight:500}
+.who.you{color:var(--you)}.who.ash,.who.mgr{color:var(--mgr)}.who.team{color:var(--team)}.who.hr{color:var(--hr)}
+/* journey */
+.steps{counter-reset:s;display:grid;gap:0;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+.steps li{display:grid;grid-template-columns:44px 200px 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.steps li::before{counter-increment:s;content:counter(s,decimal-leading-zero);font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-3)}
+.steps b{font-weight:500}
+.steps span{color:var(--ink-2);font-size:15px}
+@media(max-width:700px){.steps li{grid-template-columns:44px 1fr}.steps li b{grid-column:2}.steps li span{grid-column:2}}
+/* roster */
+.roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:6px}
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:6px}
+.card .name{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:17px;display:flex;align-items:center;gap:8px}
+.card .role{color:var(--ink-2);font-size:14px}
+.card .can{font-size:13px;color:var(--ink-3)}
+.pill{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.04em;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2)}
+.card.hr{border-color:var(--hr)}.card.hr .name{color:var(--hr)}
+.card.mgr{border-color:var(--mgr)}.card.mgr .name{color:var(--mgr)}
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;margin:0;padding:0;list-style:none}
+.rules li{padding:10px 0;border-top:1px solid var(--line);font-size:15px}
+.rules b{display:block;font-weight:500;margin-bottom:2px}
+.rules span{color:var(--ink-2)}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin-top:6px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.tw{overflow-x:auto}
+.s{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.s.ok{background:var(--team-bg);color:var(--ok)}.s.half{background:var(--hr-bg);color:var(--warn)}.s.no{background:var(--you-bg);color:var(--bad)}
+.open{border-left:3px solid var(--hr);padding:10px 14px;background:var(--hr-bg);border-radius:0 6px 6px 0;margin-top:14px;font-size:15px}
+.open b{font-weight:500}
+footer{margin-top:56px;color:var(--ink-3);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">MissionAlpha · how it should work</div>
+  <h1>One door. One boss. A team that talks.</h1>
+  <p class="lede">You hand a Jira epic or story to one bot. A Manager reads the ticket and your code, splits the work, gives each piece to whoever can do it, hires when nobody can, and comes back to you once with a summary and a yes/no. That's the whole product.</p>
+
+  <div class="fig">
+    <figure>
+      <svg viewBox="0 0 960 560" role="img" aria-label="Org and flow: you talk to Ash, Ash to the Manager, the Manager assigns work to four skill-locked workers who talk to each other, asks HR when a skill is missing, and sends status back up. Work goes through a safe copy, tests, the Manager's review, your one yes, then a pull request and a Jira update.">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></marker>
+        </defs>
+
+        <!-- row 1: you → ash → manager ↔ hr -->
+        <g class="node" data-id="you" tabindex="0"><rect x="30" y="40" width="150" height="62" rx="6" fill="var(--you-bg)" stroke="var(--you)"/><text class="lbl" x="105" y="66" text-anchor="middle">You</text><text class="sub" x="105" y="86" text-anchor="middle">gives one job</text></g>
+        <line class="edge" x1="180" y1="71" x2="248" y2="71" marker-end="url(#arr)"/><text class="elbl" x="214" y="62" text-anchor="middle">epic / story</text>
+
+        <g class="node" data-id="ash" tabindex="0"><rect x="252" y="40" width="170" height="62" rx="6" fill="var(--mgr-bg)" stroke="var(--mgr)"/><text class="lbl" x="337" y="66" text-anchor="middle">Ash · CEO bot</text><text class="sub" x="337" y="86" text-anchor="middle">the only one you talk to</text></g>
+        <line class="edge" x1="422" y1="71" x2="490" y2="71" marker-end="url(#arr)"/><text class="elbl" x="456" y="62" text-anchor="middle">orders</text>
+
+        <g class="node" data-id="mgr" tabindex="0"><rect x="494" y="30" width="200" height="82" rx="6" fill="var(--mgr-bg)" stroke="var(--mgr)" stroke-width="1.8"/><text class="lbl" x="594" y="60" text-anchor="middle">Manager</text><text class="sub" x="594" y="80" text-anchor="middle">reads ticket + code, splits,</text><text class="sub" x="594" y="96" text-anchor="middle">assigns by skill, reviews</text></g>
+
+        <line class="edge dash" x1="694" y1="62" x2="760" y2="62" marker-end="url(#arr)"/>
+        <line class="edge dash" x1="760" y1="82" x2="694" y2="82" marker-end="url(#arr)"/>
+        <text class="elbl" x="727" y="52" text-anchor="middle">skill gap</text><text class="elbl" x="727" y="100" text-anchor="middle">new hire</text>
+        <g class="node" data-id="hr" tabindex="0"><rect x="764" y="40" width="166" height="62" rx="6" fill="var(--hr-bg)" stroke="var(--hr)"/><text class="lbl" x="847" y="66" text-anchor="middle">HR · agent maker</text><text class="sub" x="847" y="86" text-anchor="middle">talks only to Manager</text></g>
+
+        <!-- status back up -->
+        <path class="edge dash" d="M 594 112 L 594 150 L 105 150 L 105 102" marker-end="url(#arr)"/>
+        <text class="elbl" x="350" y="144" text-anchor="middle">status up: done / stuck and why</text>
+
+        <!-- manager → workers -->
+        <path class="edge" d="M 540 112 L 540 200 L 125 200 L 125 236" marker-end="url(#arr)"/>
+        <path class="edge" d="M 566 112 L 566 200 L 365 200 L 365 236" marker-end="url(#arr)"/>
+        <path class="edge" d="M 622 112 L 622 200 L 595 200 L 595 236" marker-end="url(#arr)"/>
+        <path class="edge" d="M 648 112 L 648 200 L 825 200 L 825 236" marker-end="url(#arr)"/>
+        <text class="elbl" x="470" y="193" text-anchor="middle">assigns, by skill only</text>
+
+        <!-- row 2: workers -->
+        <g class="node" data-id="ui" tabindex="0"><rect x="30" y="240" width="190" height="64" rx="6" fill="var(--team-bg)" stroke="var(--team)"/><text class="lbl" x="125" y="265" text-anchor="middle">Pikachu · UI</text><text class="sub" x="125" y="286" text-anchor="middle">screens only</text></g>
+        <g class="node" data-id="mid" tabindex="0"><rect x="270" y="240" width="190" height="64" rx="6" fill="var(--team-bg)" stroke="var(--team)"/><text class="lbl" x="365" y="265" text-anchor="middle">Charizard · Middletier</text><text class="sub" x="365" y="286" text-anchor="middle">server only</text></g>
+        <g class="node" data-id="db" tabindex="0"><rect x="500" y="240" width="190" height="64" rx="6" fill="var(--team-bg)" stroke="var(--team)"/><text class="lbl" x="595" y="265" text-anchor="middle">Bulbasaur · DB</text><text class="sub" x="595" y="286" text-anchor="middle">database only</text></g>
+        <g class="node" data-id="test" tabindex="0"><rect x="730" y="240" width="190" height="64" rx="6" fill="var(--team-bg)" stroke="var(--team)"/><text class="lbl" x="825" y="265" text-anchor="middle">Squirtle · Tester</text><text class="sub" x="825" y="286" text-anchor="middle">testing only</text></g>
+
+        <!-- peer talk -->
+        <line class="edge" x1="220" y1="272" x2="270" y2="272" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <line class="edge" x1="460" y1="272" x2="500" y2="272" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <line class="edge" x1="690" y1="272" x2="730" y2="272" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text class="elbl" x="475" y="326" text-anchor="middle">peers talk directly: handoffs, blockers, "done, your turn"</text>
+
+        <!-- row 3: ship lane -->
+        <path class="edge" d="M 475 332 L 475 370" marker-end="url(#arr)"/>
+        <g class="node" data-id="ship" tabindex="0"><rect x="30" y="374" width="890" height="64" rx="6" fill="var(--paper)" stroke="var(--line-2)"/>
+          <text class="lbl" x="475" y="399" text-anchor="middle">safe copy → tests → Manager review → your one yes → pull request → Jira moved to Done</text>
+          <text class="sub" x="475" y="420" text-anchor="middle">nothing touches the real code until you say yes · this lane already works in MissionAlpha today</text></g>
+
+        <!-- board note -->
+        <g class="node" data-id="board" tabindex="0"><rect x="30" y="470" width="890" height="56" rx="6" fill="var(--paper-2)" stroke="var(--line)" stroke-dasharray="5 4"/>
+          <text class="lbl" x="475" y="493" text-anchor="middle">Kanban board</text>
+          <text class="sub" x="475" y="512" text-anchor="middle">every worker, every task and every new hire is visible here the moment it exists — you watch, you don't drive</text></g>
+
+        <circle id="token" class="token" r="7" cx="105" cy="102" style="opacity:0"/>
+      </svg>
+      <figcaption>Solid arrows carry work. Dashed arrows carry status and hiring. Click any box to read its rules.</figcaption>
+    </figure>
+
+    <aside class="panel" id="panel" aria-live="polite">
+      <h3><span class="dot" id="pdot" style="background:var(--mgr)"></span><span id="ptitle">Manager</span></h3>
+      <p id="pbody">The product. Reads the whole ticket, opens your code, writes the task list, picks who does what by skill, asks HR when nobody fits, reviews the result and reports to you once.</p>
+      <ul id="plist"><li>Only speaks to Ash above and the team below.</li><li>Asks you questions once, up front, not ten times later.</li><li>If a worker is stuck, the Manager resolves it or escalates — you never see the noise.</li></ul>
+      <div class="btnrow"><button class="primary" id="run">Run a ticket</button><button id="reset">Reset</button></div>
+    </aside>
+  </div>
+  <div class="log" id="log"><div><span class="t">—</span><span class="who">ready</span><span>Press <b>Run a ticket</b> to watch WAA-142 travel the whole path.</span></div></div>
+
+  <h2>The journey, step by step</h2>
+  <ol class="steps">
+    <li><b>Ticket comes in</b><span>You hand Ash a Jira epic or story. Existing app or brand new — same door.</span></li>
+    <li><b>Manager reads everything</b><span>The ticket, the comments, the acceptance list. Then your actual code, so it knows how the app is built.</span></li>
+    <li><b>Manager asks once</b><span>If something essential is missing, it asks you up front. One round, not a drip.</span></li>
+    <li><b>Task list, by skill</b><span>Screens to Pikachu, server to Charizard, database to Bulbasaur, tests to Squirtle. Nothing outside a worker's skill ever lands on that worker.</span></li>
+    <li><b>Skill gap → HR</b><span>Nobody fits? Manager asks HR. HR makes one new agent with exactly those skills, it appears on the board, it joins the roster for next time.</span></li>
+    <li><b>Team builds in a safe copy</b><span>Never on the real code. Workers talk to each other for handoffs and blockers. Squirtle tests as they go.</span></li>
+    <li><b>Manager reviews</b><span>Runs the tests, reads the change, writes you one summary: what's done, what isn't, any risk.</span></li>
+    <li><b>You say yes once</b><span>Your only touch. Then a pull request opens on your repo and the Jira ticket moves to Done with a comment.</span></li>
+  </ol>
+
+  <h2>The roster</h2>
+  <div class="roster">
+    <div class="card mgr"><div class="name">Manager</div><div class="role">Reads, splits, assigns, reviews, reports</div><div class="can">Talks to: Ash · workers · HR</div></div>
+    <div class="card hr"><div class="name">HR · agent maker</div><div class="role">Creates a new worker with specific skills</div><div class="can">Talks to: Manager only</div></div>
+    <div class="card"><div class="name">Pikachu <span class="pill">UI</span></div><div class="role">Screens, components, styling</div><div class="can">Cannot touch server or database</div></div>
+    <div class="card"><div class="name">Charizard <span class="pill">Middletier</span></div><div class="role">APIs, services, business logic</div><div class="can">Cannot touch screens or schema</div></div>
+    <div class="card"><div class="name">Bulbasaur <span class="pill">DB</span></div><div class="role">Schema, migrations, queries</div><div class="can">Cannot touch UI or API code</div></div>
+    <div class="card"><div class="name">Squirtle <span class="pill">Tester</span></div><div class="role">Tests, coverage, regression</div><div class="can">Cannot write feature code</div></div>
+  </div>
+
+  <h2>Five rules that never bend</h2>
+  <ul class="rules">
+    <li><b>One door</b><span>You talk to Ash. Ash talks to the Manager. Nobody else ever pings you.</span></li>
+    <li><b>The Manager owns the work</b><span>Decomposes, assigns, tracks, reports. Workers never report to Ash or to you.</span></li>
+    <li><b>Skills are locked</b><span>A worker holds only its domain skills, enforced by the system, not by a polite prompt.</span></li>
+    <li><b>Peers talk</b><span>Workers hand off and unblock each other directly. The Manager gets updates, not every message.</span></li>
+    <li><b>Nothing ships without you</b><span>Safe copy, tests, review, then one yes. The pull request is the only way code reaches the real repo.</span></li>
+  </ul>
+
+  <h2>Where MissionAlpha stands today</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Piece</th><th>Today</th><th>What's missing</th></tr></thead>
+    <tbody>
+      <tr><td>Ticket in / Jira out</td><td><span class="s no">no</span></td><td>You type an idea. No Jira in, no Jira update out.</td></tr>
+      <tr><td>Manager reads your code</td><td><span class="s no">no</span></td><td>It only reads the ticket text.</td></tr>
+      <tr><td>Manager splits work</td><td><span class="s half">once</span></td><td>Happens at plan time, then it stops managing.</td></tr>
+      <tr><td>Assign by skill</td><td><span class="s no">no</span></td><td>Always picks the same two: frontend, backend. No DB seat, no tester seat.</td></tr>
+      <tr><td>HR makes agents</td><td><span class="s half">half</span></td><td>Agent Factory exists, but only you can use it. The Manager can't call it.</td></tr>
+      <tr><td>Peers talk</td><td><span class="s no">no</span></td><td>Each worker is alone in its own copy.</td></tr>
+      <tr><td>Manager reviews + summary</td><td><span class="s no">no</span></td><td>You get raw diffs, not a summary.</td></tr>
+      <tr><td>Safe copy → tests → your yes → PR</td><td><span class="s ok">works</span></td><td>Proven this week with real Claude Code. PR needs <span class="mono">gh</span> installed.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="open"><b>Two decisions still open.</b> Is Ash a bot you talk to, or is Ash simply you? And for version one, does the ticket come in by pasting the text, or by connecting Jira?</div>
+
+  <footer>Drawn from the MissionAlpha sessions of 2026-08-24 to 2026-09-02 and the "MissionAlphamainBusiness" diagram. Pokémon names are the roster's working names.</footer>
+</div>
+
+<script>
+(function(){
+  var info={
+    you:{c:"var(--you)",t:"You",p:"The boss. You hand in one job and you answer one question at the end: yes or no.",l:["Never talk to a worker directly.","See everything on the board; drive nothing.","Your only decisions: the up-front questions and the final yes."]},
+    ash:{c:"var(--mgr)",t:"Ash · CEO bot",p:"Your single point of contact. Takes the job in plain words, hands it to the Manager, brings the answer back.",l:["Talks to you and to the Manager. Nobody else.","Open decision: this could simply be you, with the Manager as your one door."]},
+    mgr:{c:"var(--mgr)",t:"Manager",p:"The product. Reads the whole ticket, opens your code, writes the task list, picks who does what by skill, asks HR when nobody fits, reviews the result and reports to you once.",l:["Only speaks to Ash above and the team below.","Asks you questions once, up front, not ten times later.","If a worker is stuck, the Manager resolves it or escalates — you never see the noise."]},
+    hr:{c:"var(--hr)",t:"HR · agent maker",p:"Makes a new worker when the roster has no one with the needed skill. Exactly those skills, no more.",l:["Talks only to the Manager.","Every new hire appears on the Kanban board the moment it exists.","The new hire joins the roster for next time."]},
+    ui:{c:"var(--team)",t:"Pikachu · UI",p:"Screens, components, styling. Nothing else.",l:["Can talk to Charizard for the API it needs.","Cannot open server or database code — the system blocks it."]},
+    mid:{c:"var(--team)",t:"Charizard · Middletier",p:"APIs, services, business logic.",l:["Talks to Pikachu (what the screen needs) and Bulbasaur (what the data looks like).","Cannot edit screens or schema."]},
+    db:{c:"var(--team)",t:"Bulbasaur · DB",p:"Schema, migrations, queries.",l:["Talks to Charizard for the shape of the data.","Hands finished work to Squirtle to test."]},
+    test:{c:"var(--team)",t:"Squirtle · Tester",p:"Tests everything the other three produce. Reports pass or fail to the Manager.",l:["Cannot write feature code.","A red test goes back to the owner, not to you."]},
+    ship:{c:"var(--you)",t:"The ship lane",p:"Safe copy, tests, Manager review, your one yes, pull request, Jira to Done. This is the part MissionAlpha already does.",l:["No worker ever writes to the real repo.","Approve once; the system commits, opens the PR, updates Jira."]},
+    board:{c:"var(--you)",t:"Kanban board",p:"Your window. Every task, every worker, every new hire, live.",l:["Watch only. Driving happens through Ash."]}
+  };
+  var nodes=document.querySelectorAll(".node");
+  function show(id){var d=info[id];if(!d)return;document.getElementById("ptitle").textContent=d.t;document.getElementById("pdot").style.background=d.c;document.getElementById("pbody").textContent=d.p;var ul=document.getElementById("plist");ul.innerHTML="";d.l.forEach(function(s){var li=document.createElement("li");li.textContent=s;ul.appendChild(li);});nodes.forEach(function(n){n.classList.toggle("active",n.getAttribute("data-id")===id);});}
+  nodes.forEach(function(n){n.addEventListener("click",function(){show(n.getAttribute("data-id"));});n.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();show(n.getAttribute("data-id"));}});});
+
+  var pos={you:[105,102],ash:[337,102],mgr:[594,112],hr:[847,102],ui:[125,240],mid:[365,240],db:[595,240],test:[825,240],ship:[475,374],board:[475,470]};
+  var script=[
+    ["you","you","hands over WAA-142 — \"Customers can save a delivery address\""],
+    ["ash","ash","takes it. Passes to Manager."],
+    ["mgr","mgr","reads ticket + 3 comments + acceptance list. Opens customer-web and the order service."],
+    ["mgr","mgr","one question back to you: \"one address per customer, or many?\" — you: \"many\""],
+    ["mgr","mgr","task list: screen (Pikachu), API (Charizard), table + migration (Bulbasaur), tests (Squirtle)"],
+    ["mgr","mgr","needs a push-notification skill nobody has → asks HR"],
+    ["hr","hr","creates \"Jigglypuff · Notifications\". New desk appears on the board."],
+    ["db","team","Bulbasaur: addresses table + migration done → tells Charizard"],
+    ["mid","team","Charizard: POST /addresses ready → tells Pikachu"],
+    ["ui","team","Pikachu: address form wired → tells Squirtle"],
+    ["test","team","Squirtle: 14 tests, all green → tells Manager"],
+    ["mgr","mgr","reviews the change: 6 files, +212 −8, risk low. Writes you one summary."],
+    ["ship","you","you read the summary and say yes — once"],
+    ["ship","mgr","pull request #91 opened. WAA-142 moved to Done with a comment."],
+    ["board","mgr","done. Board shows 5 workers idle, 1 ticket shipped."]
+  ];
+  var log=document.getElementById("log"),tok=document.getElementById("token"),runBtn=document.getElementById("run"),timer=null,i=0;
+  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function light(id){nodes.forEach(function(n){n.classList.toggle("lit",n.getAttribute("data-id")===id);});}
+  function clock(n){var s=n*9;return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
+  function step(){if(i>=script.length){light(null);runBtn.disabled=false;return;}var s=script[i];var p=pos[s[0]];tok.style.opacity=1;tok.setAttribute("cx",p[0]);tok.setAttribute("cy",p[1]);light(s[0]);var row=document.createElement("div");row.innerHTML='<span class="t">'+clock(i)+'</span><span class="who '+s[1]+'">'+({you:"you",ash:"Ash",mgr:"Manager",hr:"HR",team:"team"})[s[1]]+'</span><span></span>';row.lastChild.textContent=s[2];log.appendChild(row);log.scrollTop=log.scrollHeight;i++;timer=setTimeout(step,reduce?60:1300);}
+  runBtn.addEventListener("click",function(){clearTimeout(timer);i=0;log.innerHTML="";runBtn.disabled=true;step();});
+  document.getElementById("reset").addEventListener("click",function(){clearTimeout(timer);i=0;runBtn.disabled=false;tok.style.opacity=0;light(null);log.innerHTML='<div><span class="t">—</span><span class="who">ready</span><span>Press <b>Run a ticket</b> to watch WAA-142 travel the whole path.</span></div>';show("mgr");});
+})();
+</script>
