@@ -299,7 +299,7 @@ export function createEngine(deps = {}) {
 
   // Retryable failure: discard worktree, mark this attempt failed, re-enqueue a fresh
   // attempt (new idemKey + new worktree) with backoff + self-heal re-prompt enrichment.
-  function handleRetryable(task, kind, reason) {
+  function handleRetryable(task, kind, reason, refused = []) {
     worktreeMgr?.remove(task.taskId);
     const attempts = (task.attempts ?? 0) + 1;
     queue.update(task.taskId, { status: "failed", engineState: "FAILED", error: { kind, msg: reason }, attempts });
@@ -309,7 +309,14 @@ export function createEngine(deps = {}) {
     const plan = goalPlans.get(task.goalId);
     const baseText = plan ? plan.steps[task.stepIndex ?? 0] : task.task;
     const enrich = (kind === "empty-diff" || kind === "no-output")
-      ? "\n\n(prior attempt produced no diff; make the concrete file edit in the working directory NOW.)"
+      // A refused-path empty diff is NOT "no work happened". The seat DID write; the
+      // broker declined the paths. Telling it to "make the edit NOW" sends it to repeat
+      // exactly what just failed — which is how this burned a Phase 14 session, and the
+      // text was live on the Tech Lead station. Narrow, not replace: an honest empty diff
+      // keeps the original wording (pinned by ENG-SC2).
+      ? (refused.length
+          ? `\n\n(Your prior attempt DID write files, but ${refused.length} path(s) were outside this seat's write scope and were refused, so nothing could be applied: ${refused.slice(0, 5).join(", ")}${refused.length > 5 ? ", …" : ""}. Make the change INSIDE your scope, or report that the task requires a path you do not own.)`
+          : "\n\n(prior attempt produced no diff; make the concrete file edit in the working directory NOW.)")
       : kind === "test-failed"
         // S4 — the red→green feedback: the scrubbed test-output tail becomes the fixer's brief.
         ? `\n\n(The unit-test gate FAILED on the prior attempt. Change the code so the tests pass — do NOT edit the tests to hide a real failure. Test output (tail):\n${String(reason).slice(0, 1500)})`
@@ -386,7 +393,7 @@ export function createEngine(deps = {}) {
         const why = refused.length
           ? `no appliable diff — the agent wrote ${refused.length} path(s) OUTSIDE the appliable scope, so nothing can be applied: ${refused.slice(0, 5).join(", ")}${refused.length > 5 ? ", …" : ""}`
           : "no diff produced";
-        return handleRetryable(task, "empty-diff", why);
+        return handleRetryable(task, "empty-diff", why, refused);
       }
       queue.update(id, { engineState: "DIFFED" });
 

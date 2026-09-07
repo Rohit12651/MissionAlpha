@@ -981,3 +981,41 @@ test("#8 with no provider hold the historical backoff is unchanged", async () =>
   assert.ok(await until(() => Boolean(successor())));
   assert.equal(Date.parse(successor().notBefore) - clock, 2000, "base backoff, jitter 0 — byte-identical to pre-#8");
 });
+
+// ── 2026-09-07 — the retry brief must not contradict the refusal ─────────────────
+// The stored error names the refused path (test above). The RETRY BRIEF did not: every
+// empty-diff retried with "prior attempt produced no diff; make the concrete file edit in
+// the working directory NOW." When the cause was an out-of-scope write that is false —
+// the seat DID write, and it is being told to repeat exactly what just failed. This text
+// was visible on the running install, on the Tech Lead station.
+test("ENG-SC1: an out-of-scope empty diff does NOT tell the agent it produced no diff", async () => {
+  const h = buildEngine({
+    dispatchOverride: async (ctx) => {
+      mkdirSync(join(ctx.workdir, "scripts"), { recursive: true });
+      writeFileSync(join(ctx.workdir, "scripts", "deploy.mjs"), "console.log('nope');\n");
+      return { acc: "wrote the script" };
+    },
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["create scripts/deploy.mjs"] });
+  const successor = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(successor())), "no retry enqueued");
+  const brief = String(successor().task);
+  assert.doesNotMatch(brief, /produced no diff/,
+    `the agent is told it produced no diff when its writes were REFUSED: ${brief}`);
+  assert.match(brief, /outside[^.]*scope/i, `the brief must name the scope breach: ${brief}`);
+  assert.match(brief, /scripts\/deploy\.mjs/, `the brief must name the refused path: ${brief}`);
+});
+
+// The honest-code half of the pair: the fix must NARROW the message, not replace it
+// everywhere. A genuine empty diff still gets the original wording.
+test("ENG-SC2: a genuine empty diff still gets the original brief", async () => {
+  const h = buildEngine({
+    dispatchOverride: async () => ({ acc: "thought about it, wrote nothing" }),
+  });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", tier: "sonnet", steps: ["do a thing"] });
+  const successor = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(successor())), "no retry enqueued");
+  const brief = String(successor().task);
+  assert.match(brief, /produced no diff/, `an honest empty diff keeps its original brief: ${brief}`);
+  assert.doesNotMatch(brief, /outside[^.]*scope/i, "and must NOT claim a scope breach that did not happen");
+});
