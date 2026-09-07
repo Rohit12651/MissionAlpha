@@ -4051,7 +4051,13 @@ identity short-circuit would have frozen a stale message even once carried.
    apply result and `inboxClient.ts:188` types it, but no component renders it. A different
    moment (a refusal after approval) with no reported operator pain. Deliberately out of scope.
 
-4. **LOW — a stale git stash.** `stash@{0}` was created while bisecting whether the `self-heal`
+4. **MEDIUM — the runtime suite writes into a TRACKED file.** `npm run test:runtime` leaves
+   `.claude/agents/notifications-engineer.md` modified: the hr-live test re-hires the seat and
+   HR rewrites its durable record with a new timestamp. Reverted here, but it means a full
+   suite run dirties the operator tree, and `git write-tree == HEAD^{tree}` is false straight
+   after any contract run until someone notices. Worth a fixture directory.
+
+5. **LOW — a stale git stash.** `stash@{0}` was created while bisecting whether the `self-heal`
    failure was mine; its content is restored and verified. Safe to drop.
    (`stash@{1}` predates this session and is NOT mine — leave it.)
 
