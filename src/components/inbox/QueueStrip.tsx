@@ -4,6 +4,7 @@ import {
   EMPTY_QUEUE,
   agentChips,
   applyQueueEvent,
+  failureReasons,
   fromSnapshot,
   queueCounts,
   type QueueState,
@@ -96,6 +97,7 @@ export function QueueStrip({ lastEvent, resyncNonce, liveNonce = 0 }: QueueStrip
 
   const counts = useMemo(() => queueCounts(state), [state]);
   const chips = useMemo(() => agentChips(state), [state]);
+  const reasons = useMemo(() => failureReasons(state), [state]);
 
   // The runtime answers the Inbox but not the engine route (older build, or the
   // route is gated off): say nothing rather than render a fabricated empty queue.
@@ -158,6 +160,39 @@ export function QueueStrip({ lastEvent, resyncNonce, liveNonce = 0 }: QueueStrip
                 {c.retrying ? `${c.retrying} retry ` : ""}
                 {c.failed ? `${c.failed} fail` : ""}
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* WHY the work is failing, not merely how much of it. The engine composes a precise
+          sentence for a scope refusal — naming the seat and the paths it may not write —
+          and every layer between it and here used to keep only the error CLASS, so the
+          operator read `empty-diff` and had to open Stories to learn anything. */}
+      {reasons.length > 0 && (
+        <ul className="flex list-none flex-col gap-1" aria-label="Why work is failing">
+          {reasons.map((r) => (
+            <li
+              key={`${r.kind} ${r.detail ?? ""}`}
+              className="helm-mono flex items-start gap-1.5 text-[11px] leading-snug"
+            >
+              <span className="helm-chip shrink-0" data-tone="red">
+                {r.kind}
+                {r.count > 1 ? ` ×${r.count}` : ""}
+              </span>
+              {r.detail && (
+                // Plain text child. `detail` is scrubbed server-side (twice) but is agent-
+                // and repo-derived, so it is never interpolated as markup. Clamped to two
+                // lines with the full text on hover — truncating in the model would
+                // destroy the path the operator actually needs.
+                <span
+                  className="line-clamp-2 break-all"
+                  style={{ color: "var(--helm-paper-faint)" }}
+                  title={r.detail}
+                >
+                  {r.detail}
+                </span>
+              )}
             </li>
           ))}
         </ul>
