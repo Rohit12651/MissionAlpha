@@ -411,3 +411,29 @@ test("HARDENING sweepTerminal with a non-positive TTL is a no-op (retention can 
   assert.equal(q.sweepTerminal(0), 0);
   assert.ok(q.get(r.taskId), "nothing removed when retention is off");
 });
+
+// 2026-09-07 — the live path dropped the failure's own words the same way the snapshot
+// mapper did, so a UI reading either path could only ever show the error CLASS.
+test("QD-1: task.failed carries the failure's own words, not just its class", () => {
+  const spy = mkSpy();
+  const q = mkQueue({ emit: spy.emit });
+  const r = q.enqueue(spec());
+  q.update(r.taskId, {
+    status: "failed",
+    error: { kind: "empty-diff", msg: "wrote 2 path(s) OUTSIDE the appliable scope: src/a.ts" },
+  });
+  const failed = spy.seen.filter((e) => e.name === "task.failed");
+  assert.equal(failed.length, 1);
+  assert.equal(failed[0].data.kind, "empty-diff");
+  assert.match(String(failed[0].data.detail ?? ""), /OUTSIDE the appliable scope/);
+  assert.match(String(failed[0].data.detail ?? ""), /src\/a\.ts/);
+});
+
+test("QD-2: a failure with no msg emits detail null, never the string 'undefined'", () => {
+  const spy = mkSpy();
+  const q = mkQueue({ emit: spy.emit });
+  const r = q.enqueue(spec());
+  q.update(r.taskId, { status: "failed", error: { kind: "spawn" } });
+  const failed = spy.seen.filter((e) => e.name === "task.failed");
+  assert.equal(failed[0].data.detail, null);
+});

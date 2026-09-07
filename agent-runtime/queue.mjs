@@ -169,7 +169,15 @@ export function createQueue(opts = {}) {
     // not (the v1 catalog is CLOSED — program plan §2). Never invent one. Guarded on
     // the PREVIOUS status so a re-update of an already-failed task emits once only.
     if (patch.status === "failed" && rec.status !== "failed") {
-      emit("task.failed", { ...wire(next), kind: next.error?.kind || "unknown" });
+      // `detail` is the failure's own words. The v1 catalog is closed by NAME, not by
+      // payload shape, and events.mjs scrubs every nested string before persisting and
+      // framing — and `error.msg` was already scrubbed and capped above. It exists so the
+      // UI can say WHY a task failed, not merely that it did.
+      emit("task.failed", {
+        ...wire(next),
+        kind: next.error?.kind || "unknown",
+        detail: next.error?.msg || null,
+      });
     }
     // PLAN AMENDMENT 2026-07-30 (program plan §2) — `task.done` was added to the v1
     // catalog. Without a success-terminal name the QueueStrip could only learn that a
