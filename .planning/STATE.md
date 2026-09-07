@@ -3935,3 +3935,143 @@ nothing but the proof.
 
 **Phase 14 ledger: 14.0 ✅ · 14.1 ✅ · 14.2 ✅ · 14.3 ⛔ (needs a week) · 14.4 ⚠️.
 Phase 14 now stays open on 14.3 ALONE.**
+
+---
+
+## PES DELIVERY REPORT — Write-scope visibility (2026-09-07)
+
+**Outcome:** When an agent writes outside its seat's `writeScope`, the operator now sees the
+seat and the refused path on the Inbox queue strip, and the agent is told the truth on retry.
+The Roster strip, previously mounted twice, moved to Settings. Spec
+`docs/superpowers/specs/2026-09-07-write-scope-visibility-design.md`, plan
+`docs/superpowers/plans/2026-09-07-write-scope-visibility.md`.
+
+**Origin:** BOSS asked why the Roster strip is on the board when the kanban already lists the
+agents. Half right — it was mounted twice. Investigating it found the real defect.
+
+### The defect
+
+The system composed a precise scope-breach sentence and then discarded it one layer before
+the screen.
+
+| Layer | State before |
+|---|---|
+| `broker.mjs:120` classifies the path | produced `out-of-scope for seat <id>` |
+| `engine.mjs:386` composes the message | *"wrote N path(s) OUTSIDE the appliable scope: …"* |
+| stored on the task | `error: { kind, msg }` — text survived |
+| `storiesClient.taskErrorText()` | could render it |
+| **`queueModel.ts:126`** | **dropped `msg`, kept only `kind`** |
+| **`queue.mjs:172`** | **dropped it again on the live SSE path** |
+
+Second defect, found next door: `engine.mjs:311` retried an out-of-scope failure with
+*"prior attempt produced no diff; make the concrete file edit NOW."* The seat DID write — the
+broker refused it — so the brief sent it to repeat what had just failed. This text was live on
+the Tech Lead station.
+
+### Scope ledger
+
+| # | Item | Status |
+|---|---|---|
+| 1 | `queueModel` carries `error.msg` as `detail` (snapshot) | DONE — `acf533a` |
+| 2 | `task.failed` SSE payload carries `detail` | DONE — `0c12109` |
+| 3 | Live event path + identity short-circuit | DONE — `7da6eb3` |
+| 4 | `failureReasons()` pure selector | DONE — `504462a` |
+| 5 | Queue strip renders the reasons | DONE — `bdde546` |
+| 6 | Honest retry brief on a scope refusal | DONE — `57375ae` |
+| 7 | Roster mounted once, in Settings | DONE — `4ba44ca` |
+| 8 | Gates + this report | DONE |
+
+**Found during plan self-review, not in the spec:** items 2 and 3. The spec named only
+`queueModel.ts:126`; the SSE emit dropped `detail` independently, and `applyQueueEvent`'s
+identity short-circuit would have frozen a stale message even once carried.
+
+### Success criteria
+
+1. **Out-of-scope failure names seat + path on the kanban surface — MET.** Verified on the
+   running install against ~1084 real failures.
+2. **Roster renders exactly once, in Settings — MET.** After a full reload:
+   `settingsOpen:false, rosterCountOnBoard:0`; with Settings open, `rosterCount:1`,
+   `rosterInsideDialog:[true]`. RM-1 pins it structurally.
+3. **Retry brief no longer claims no diff — MET.** ENG-SC1; ENG-SC2 pins that an honest empty
+   diff keeps the original wording.
+4. **Full gates green — NOT MET on this host.** See Known Gaps.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| G2 build | tsc `--noEmit` — 0 errors |
+| G3 lint | eslint `--max-warnings 0` — 0 |
+| G4 tests | unit 595/0 · vendor 54/0 · electron 9/0 · runtime **2616 pass / 3 fail** (see gaps) |
+| G5 security | `detail` is scrubbed twice server-side (`queue.mjs:166` caps at 1000 chars, `events.mjs` scrubs every nested string) and rendered as a plain text child — never `dangerouslySetInnerHTML`, never interpolated as markup |
+| G6 runtime | Verified live on the running install — screenshot evidence in the Task 5 commit |
+| G7 adversarial | Below |
+| G8 report | This document |
+
+### G7 — adversarial self-review
+
+* **"Is the ratchet vacuous?"** Every one was mutated and watched fail, with the red line in
+  its commit message and `md5` proving byte-identical restore. QM-D4/D5 and QM-D6/D9 were
+  mutated SEPARATELY so each isolates its own ratchet (1 fail each, not 3).
+* **"Does RM-1 match source text?"** It counts `<RosterStrip[\s/>]` element opens. RM-2 is a
+  BAD/GOOD/UNRELATED trio running on every CI pass: a real mount counts 1, a comment and an
+  import count 0, and `<RosterStripHeader />` is not a false positive.
+* **"Did removing the mount leave dead code?"** tsc walked the chain up:
+  `JobBoard.lastEvent` → `StoriesPage.lastEvent` → the App call site, each existing solely to
+  feed the roster. All removed with their now-unused `RuntimeEvent` imports.
+* **"Is `detail` an XSS vector?"** It is agent- and repo-derived. Scrubbed twice server-side,
+  rendered as a text child, clamped in the view only — never truncated in the model, which
+  would destroy the path.
+* **"Did the fix over-reach?"** No. `handleRetryable` takes `refused = []`, so every other
+  call site is byte-identical, and ENG-SC2 proves a genuine empty diff keeps its old wording.
+
+### Known Gaps & Risks
+
+1. **HIGH — the runtime contract was NOT measured clean.** 2616/3 at host load 82–199 (a VM at
+   98% CPU, Chrome, Xcode, the Claude app). All three failures are timeouts, none in a file
+   this work touched, and all three pass in isolation:
+
+   | Test | Clean run today | Under load | Isolated |
+   |---|---|---|---|
+   | `self-heal: …exhausts maxAttempts` | 796 ms ✔ | 6715 ms ✖ | ✔ 60/60 |
+   | `JOBHTTP-8` | 11426 ms ✔ | 30304 ms ✖ | ✔ 18/18 |
+   | `JOBHTTP-9` | 9450 ms ✔ | 47031 ms ✖ | ✔ 18/18 |
+
+   `self-heal` was additionally proven not-mine: it fails with `engine.mjs`, `queue.mjs` AND
+   `engine.test.mjs` all reverted to `62f5043`. A fourth test, `RED→GREEN`, failed on the
+   first pass and passed on the second — flaky under load, not a regression.
+   **The contract must be re-run on a quiet machine before the phase gate is claimed.**
+   Addendum #8: a timeout is not an assertion failure.
+
+2. **MEDIUM — visual baselines not re-run.** Removing the strip from the squad board changes
+   those snapshots. `npm run test:visual` was not run; Playwright needs a quiet host far more
+   than `node --test` does. Task 8 Step 8 of the plan is outstanding.
+
+3. **LOW — land-time `refusedPaths` still unrendered.** `deliveries.mjs:1062` sets it on the
+   apply result and `inboxClient.ts:188` types it, but no component renders it. A different
+   moment (a refusal after approval) with no reported operator pain. Deliberately out of scope.
+
+4. **LOW — a stale git stash.** `stash@{0}` was created while bisecting whether the `self-heal`
+   failure was mine; its content is restored and verified. Safe to drop.
+   (`stash@{1}` predates this session and is NOT mine — leave it.)
+
+### Operator finding — unrelated to this change, but now visible
+
+The new strip resolved the install's ~1084 failures into four causes on first sight:
+
+```
+NOT-CAPABLE x974  no active account cannot run the autonomous engine:
+                  no account is active. Add an account and set it active.
+EMPTY-DIFF  x24   ...OUTSIDE the appliable scope: src/build-sr-backend.txt
+                  (out-of-scope for seat sr-backend)
+EMPTY-DIFF  x24   ...src/build-notifications-engineer.txt
+EMPTY-DIFF  x21   no diff produced
+```
+
+**974 of 1084 are "no account is active"** — the autonomous engine cannot run at all. That is a
+configuration gap for the BOSS, not a defect in this work, and it was invisible behind the word
+`empty-diff` an hour before this change. Roster inspection also shows 8 of 12 worker seats
+carry **no write scope at all**, which is worth a separate look.
+
+**Carried backlog (ROADMAP.md C1–C14) is unchanged by this work** except that none of its items
+were closed here. C13 (triage the live queue) is now materially easier.
