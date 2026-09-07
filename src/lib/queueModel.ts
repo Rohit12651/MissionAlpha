@@ -19,6 +19,15 @@ export interface QueueTask {
   bucket: QueueBucket;
   /** Classified error kind on a failure (self-heal.mjs), else null. */
   kind: string | null;
+  /**
+   * The failure's own words — `error.msg`, already scrubbed server-side. Null when the
+   * task has not failed or the failure carried no message.
+   *
+   * This field exists because it was previously DROPPED here: the engine composes a
+   * precise scope-breach sentence (engine.mjs), stores it on the task, and this model
+   * kept only `kind`. The operator was shown `empty-diff` and nothing else.
+   */
+  detail: string | null;
 }
 
 export interface QueueState {
@@ -104,7 +113,7 @@ export interface QueueSnapshotTask {
   agentId: string;
   status: string;
   attempts?: number;
-  error?: { kind?: string } | null;
+  error?: { kind?: string; msg?: string } | null;
 }
 
 /**
@@ -123,7 +132,12 @@ export function fromSnapshot(tasks: readonly QueueSnapshotTask[]): QueueState {
     else if (t.status === "claimed") bucket = "running";
     else if (t.status === "failed") bucket = "failed";
     if (!bucket) continue;
-    out[taskId] = { agentId, bucket, kind: bucket === "failed" ? str(t.error?.kind) || "unknown" : null };
+    out[taskId] = {
+      agentId,
+      bucket,
+      kind: bucket === "failed" ? str(t.error?.kind) || "unknown" : null,
+      detail: bucket === "failed" ? str(t.error?.msg) || null : null,
+    };
   }
   return { tasks: out };
 }

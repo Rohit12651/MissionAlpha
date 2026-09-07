@@ -211,3 +211,36 @@ test("a burst of task frames raises the nonce once per frame — updaters cannot
   const bumped = burst.reduce((n, name) => (isQueueEvent(name) ? n + 1 : n), 0);
   assert.equal(bumped, 2, "both task frames counted, even though the last frame of the burst is not one");
 });
+
+// 2026-09-07 — the failure's own words must survive into the model. The engine composes a
+// precise scope-breach sentence and stores it as error.msg; fromSnapshot kept only `kind`,
+// so the operator saw "empty-diff" and nothing else on the surface they actually watch.
+
+test("QM-D1: a failed task keeps error.msg as detail — the WHY is not discarded", () => {
+  const state = fromSnapshot([
+    {
+      taskId: "t1",
+      agentId: "sr-frontend",
+      status: "failed",
+      error: {
+        kind: "empty-diff",
+        msg: "no appliable diff — the agent wrote 2 path(s) OUTSIDE the appliable scope, so nothing can be applied: src/lib/api.ts, src/db.mjs",
+      },
+    },
+  ]);
+  assert.equal(state.tasks.t1.kind, "empty-diff");
+  assert.match(state.tasks.t1.detail ?? "", /OUTSIDE the appliable scope/);
+  assert.match(state.tasks.t1.detail ?? "", /src\/lib\/api\.ts/);
+});
+
+test("QM-D2: a non-failed task has no detail", () => {
+  const state = fromSnapshot([{ taskId: "t2", agentId: "qa", status: "claimed" }]);
+  assert.equal(state.tasks.t2.detail, null);
+});
+
+test("QM-D3: a failure with no msg is null detail, NOT the string 'undefined'", () => {
+  const state = fromSnapshot([
+    { taskId: "t3", agentId: "qa", status: "failed", error: { kind: "test-failed" } },
+  ]);
+  assert.equal(state.tasks.t3.detail, null);
+});
