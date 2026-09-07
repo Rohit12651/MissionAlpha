@@ -76,3 +76,6 @@ playwright-report/
 
 # Local .env backups (isolation runs) — never source, never shipped
 .env.bak-*
+
+# Brainstorming visual companion (session scratch)
+.superpowers/

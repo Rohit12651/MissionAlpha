@@ -59,3 +59,39 @@ on the running install; PES delivery report per phase with Known Gaps & Risks.
 
 Exit for the milestone: **5 jobs pasted → shipped as PRs in one week, unattended between
 BOSS decisions, zero operator-tree incidents, all suites green.**
+
+---
+
+## CARRIED BACKLOG — must appear in every next plan (added 2026-09-07, BOSS instruction)
+
+Phases 6–14 are BUILT and COMMITTED (`62312d5`, `16af47b`, `8117369`). The table above
+still reads "Planned" for all of them — it is stale and is corrected here, not rewritten,
+so the original commitment stays auditable.
+
+Actual status: 6–12 CLOSED and proven live · 13 CLOSED with the live half unproven ·
+14 OPEN on 14.3 alone.
+
+Every one of the items below is a KNOWN GAP carried out of Milestone 2. No next plan may
+be written without carrying this table forward and either closing an item or restating
+why it stays open.
+
+| # | Gap | Why it matters | Size | Blocked on |
+|---|-----|----------------|------|------------|
+| C1 | reject→re-plan on resume | You reject a plan; the rejection is recorded but the job does not re-plan on resume. It sits. First rejection hits this. | Small | nothing |
+| C2 | corrected `reviewPrompt` never run live | The prompt never told the model the diff was UNAPPLIED. Fixed and unit-tested; the one live chain used the OLD text. | Tiny | one live job |
+| C3 | Phase 13 live Jira | Connector works against a fake Jira only. Never pointed at a real instance. | Medium | BOSS token — the agent never sees it |
+| C4 | 14.3 unattended week | The milestone exit criterion. 5 jobs Mon → shipped as PRs, 0 incidents, suites green Fri. | 5 days | BOSS participation |
+| C5 | `missionalpha-prproof` repo | Disposable PR-rung proof repo still in the BOSS account. | Tiny | `gh auth refresh -s delete_repo` |
+| C6 | 3 stray `ma/job/*` branches | Left by Phase 11 proofs. | Tiny | nothing |
+| C7 | `JobApprovalCard.tsx` | Named in the Phase 11 plan, never built. Approval runs through the generic path. | Small | nothing |
+| C8 | Ash no-tool notice unproven live | The adapter-road notice that stops Ash writing `create_job(...)` as prose. Unit-tested only. | Tiny | one live chat |
+| C9 | Ash MCP wiring unit-untested | `ashMcpServers()` merge into `--mcp-config` has no unit test. | Small | nothing |
+| C10 | Jira `nextPageToken` never followed | Paging past page 1 is written but never exercised. | Small | C3 |
+| C11 | addendum #44 seatless commit rung | Disclosed in the addendum, never closed. | Small | nothing |
+| C12 | addendum #39 zero-commit ship | A ship that produces no commits is not refused. | Small | nothing |
+| C13 | 1076 failures / 44 pending in the live queue | Accumulated from earlier runs. Triage before new work lands on top. | Medium | nothing |
+| C14 | `server.mjs` is 401 KB | One file every phase touches. It is why Phases 6–14 could not be split into per-phase commits. | Large | nothing |
+
+Recommended order for the next plan: **C1, C2** first (real holes in something the BOSS
+touches immediately), then **C13** (triage the queue), then C5/C6 (cleanup), then C3/C4
+when the BOSS is available.
