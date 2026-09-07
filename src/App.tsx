@@ -9,7 +9,6 @@ import { RightPanel } from "./components/cockpit/RightPanel";
 import { UtilityDrawer, type UtilityTab } from "./components/cockpit/UtilityDrawer";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ViewToggle, ShellToggle, type BoardView, type ShellView } from "./components/ViewToggle";
-import { RosterStrip } from "./components/board/RosterStrip";
 import { AgentDrawer } from "./components/AgentDrawer";
 import { CommandPalette } from "./components/CommandPalette";
 import { SkillPalette } from "./components/skills/SkillPalette";
@@ -865,7 +864,6 @@ function AppInner() {
               venture={venture}
               liveNonce={storyNonce + resyncNonce}
               jobNonce={jobNonce + resyncNonce}
-              lastEvent={lastEvent}
             />
           </main>
         </Suspense>
@@ -1033,8 +1031,10 @@ function AppInner() {
                 <h2 className="text-sm font-medium">Squad missions</h2>
                 <ViewToggle view={kanbanMode} onChange={setKanbanMode} />
               </div>
-              {/* Phase 7 / 7.4 — who is on the team and what each seat may write. */}
-              <RosterStrip lastEvent={lastEvent} />
+              {/* 2026-09-07 — the roster moved to Settings. It showed the RULE (reference data
+                  that changes about once a day) above a board the operator watches constantly,
+                  and it was mounted here AND on the Job board. The BREACH now reaches the
+                  operator through the queue strip, which is what was actually missing. */}
               <div className="min-h-0 flex-1 overflow-auto p-4" style={{ overscrollBehavior: "contain" }}>
                 <KanbanBoard agents={viewAgents} view={kanbanMode} onSelect={replaying ? undefined : openAgent} />
               </div>

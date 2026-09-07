@@ -6,8 +6,6 @@
  */
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { columns, fetchJobs, statusTone, type Job } from "../../lib/jobsClient";
-import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
-import { RosterStrip } from "./RosterStrip";
 import { JobDetail } from "./JobDetail";
 import { JiraPicker } from "./JiraPicker";
 
@@ -51,11 +49,9 @@ const JobCard = memo(function JobCard({ job, onOpen }: { job: Job; onOpen: (id: 
 export interface JobBoardProps {
   /** Bumped on every job.changed frame + SSE resync — drives the authoritative re-read. */
   liveNonce: number;
-  /** Forwarded to RosterStrip, which reacts to `roster.changed` (a mid-job hire) itself. */
-  lastEvent?: RuntimeEvent | null;
 }
 
-export function JobBoard({ liveNonce, lastEvent }: JobBoardProps) {
+export function JobBoard({ liveNonce }: JobBoardProps) {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -91,10 +87,6 @@ export function JobBoard({ liveNonce, lastEvent }: JobBoardProps) {
       {/* Background is inert while the dialog is open (bg is not inert under aria-modal alone).
           display:contents keeps the flex layout identical — the wrapper generates no box. */}
       <div style={{ display: "contents" }} inert={openId ? true : undefined}>
-        {/* The roster, INCLUDING anyone HR hired mid-job. This is the 10.2 component reused, not
-            re-implemented: a second hire card is a second thing that can misstate a writeScope. */}
-        <RosterStrip lastEvent={lastEvent ?? null} />
-
         {/* 13.2 — the OTHER door into a Job. Ash takes a brief in words; this takes a ticket
             that already exists. Both end at the same board, and neither drives the swarm. */}
         <JiraPicker liveNonce={liveNonce} />

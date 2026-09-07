@@ -14,6 +14,7 @@ import { getWorkspace, setWorkspace, displayPath, ghLabel, ghTone, type Workspac
 import { PolicyEditor } from "./PolicyEditor";
 import { AdapterSettings } from "./AdapterSettings";
 import { UserManagement } from "../auth/UserManagement";
+import { RosterStrip } from "../board/RosterStrip";
 
 function Section({ icon, title, desc, children }: { icon: React.ReactNode; title: string; desc: string; children: React.ReactNode }) {
   return (
@@ -384,6 +385,19 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </Section>
 
             <WorkspaceSection />
+
+            {/* 2026-09-07 — the roster's single home. It was mounted on BOTH the squad board
+                and the Job board; it is the RULE, reference data that changes about once a
+                day, while a scope BREACH now reaches the operator through the queue strip.
+                The component is reused verbatim, never re-implemented: a second thing that
+                renders a writeScope is a second thing that can misstate one. */}
+            <Section
+              icon={<ShieldCheck size={15} />}
+              title="Roster"
+              desc="Every seat on the team and the paths it may write. The broker enforces this server-side; a seat that writes outside it has its files refused, and the refusal now surfaces in the Inbox queue strip."
+            >
+              <RosterStrip lastEvent={null} />
+            </Section>
 
             <PolicyEditor />
 
