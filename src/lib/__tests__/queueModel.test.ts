@@ -6,6 +6,7 @@ import {
   MAX_AGENT_CHIPS,
   agentChips,
   applyQueueEvent,
+  failureReasons,
   fromSnapshot,
   isQueueEvent,
   queueCounts,
@@ -273,4 +274,43 @@ test("QM-D5: a detail change alone is a NEW state — the identity check must se
   );
   assert.notEqual(next, first, "same reference — a changed detail was treated as no change");
   assert.equal(next.tasks.task_t9.detail, "new");
+});
+
+// The strip is a summary, not a log. 1000 identical refusals are ONE problem the operator
+// solves once, so reasons group on (kind, detail).
+test("QM-D6: identical failure reasons collapse into one row with a count", () => {
+  const state = fromSnapshot([
+    { taskId: "a", agentId: "x", status: "failed", error: { kind: "empty-diff", msg: "out of scope: src/a.ts" } },
+    { taskId: "b", agentId: "y", status: "failed", error: { kind: "empty-diff", msg: "out of scope: src/a.ts" } },
+    { taskId: "c", agentId: "z", status: "failed", error: { kind: "test-failed", msg: "2 assertions failed" } },
+  ]);
+  const rows = failureReasons(state);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].count, 2, "the most common reason comes first");
+  assert.equal(rows[0].kind, "empty-diff");
+  assert.match(rows[0].detail ?? "", /src\/a\.ts/);
+  assert.equal(rows[1].count, 1);
+});
+
+test("QM-D7: failures with no detail still produce a row, keyed on kind alone", () => {
+  const state = fromSnapshot([
+    { taskId: "a", agentId: "x", status: "failed", error: { kind: "no-output" } },
+  ]);
+  const rows = failureReasons(state);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, "no-output");
+  assert.equal(rows[0].detail, null);
+});
+
+test("QM-D8: a queue with no failures yields no rows", () => {
+  const state = fromSnapshot([{ taskId: "a", agentId: "x", status: "claimed" }]);
+  assert.deepEqual(failureReasons(state), []);
+});
+
+test("QM-D9: the same kind with DIFFERENT details stays two rows — the path is the point", () => {
+  const state = fromSnapshot([
+    { taskId: "a", agentId: "x", status: "failed", error: { kind: "empty-diff", msg: "out of scope: src/a.ts" } },
+    { taskId: "b", agentId: "y", status: "failed", error: { kind: "empty-diff", msg: "out of scope: src/b.ts" } },
+  ]);
+  assert.equal(failureReasons(state).length, 2);
 });

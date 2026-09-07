@@ -168,3 +168,37 @@ export function agentChips(state: QueueState): AgentChip[] {
     .sort((a, b) => (b.total !== a.total ? b.total - a.total : a.agentId.localeCompare(b.agentId)))
     .slice(0, MAX_AGENT_CHIPS);
 }
+
+/** One distinct failure reason across the queue, with how many tasks share it. */
+export interface FailureReason {
+  kind: string;
+  detail: string | null;
+  count: number;
+}
+
+/** Max reason rows the strip lists. It is a summary, not a log. */
+export const MAX_FAILURE_REASONS = 4;
+
+/**
+ * PURE. Distinct failure reasons, most frequent first, ties broken by kind so the order
+ * is deterministic.
+ *
+ * Grouping is on (kind, detail): two seats refused for the SAME path are one problem the
+ * operator solves once, while the same kind with DIFFERENT paths stays separate — the
+ * path is the whole point of the row.
+ */
+export function failureReasons(state: QueueState): FailureReason[] {
+  const byKey = new Map<string, FailureReason>();
+  for (const t of Object.values(state.tasks)) {
+    if (t.bucket !== "failed") continue;
+    const kind = t.kind || "unknown";
+    const detail = t.detail || null;
+    const key = `${kind} ${detail ?? ""}`;
+    const hit = byKey.get(key);
+    if (hit) hit.count += 1;
+    else byKey.set(key, { kind, detail, count: 1 });
+  }
+  return [...byKey.values()]
+    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.kind.localeCompare(b.kind)))
+    .slice(0, MAX_FAILURE_REASONS);
+}
