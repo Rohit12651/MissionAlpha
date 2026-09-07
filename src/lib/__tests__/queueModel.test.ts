@@ -244,3 +244,33 @@ test("QM-D3: a failure with no msg is null detail, NOT the string 'undefined'", 
   ]);
   assert.equal(state.tasks.t3.detail, null);
 });
+
+test("QM-D4: a live task.failed event keeps the detail", () => {
+  const s = applyQueueEvent(
+    EMPTY_QUEUE,
+    ev("task.failed", {
+      taskId: "task_t9",
+      agentId: "sr-backend",
+      kind: "empty-diff",
+      detail: "wrote 3 path(s) OUTSIDE the appliable scope: src/db.mjs",
+    }),
+  );
+  assert.equal(s.tasks.task_t9.kind, "empty-diff");
+  assert.match(s.tasks.task_t9.detail ?? "", /OUTSIDE the appliable scope/);
+});
+
+// The short-circuit below compares agentId/bucket/kind to return the SAME reference and
+// skip a re-render. If `detail` is not part of that comparison, a task whose message
+// changed but whose bucket did not would freeze the OLD words on screen.
+test("QM-D5: a detail change alone is a NEW state — the identity check must see it", () => {
+  const first = applyQueueEvent(
+    EMPTY_QUEUE,
+    ev("task.failed", { taskId: "task_t9", agentId: "a", kind: "empty-diff", detail: "old" }),
+  );
+  const next = applyQueueEvent(
+    first,
+    ev("task.failed", { taskId: "task_t9", agentId: "a", kind: "empty-diff", detail: "new" }),
+  );
+  assert.notEqual(next, first, "same reference — a changed detail was treated as no change");
+  assert.equal(next.tasks.task_t9.detail, "new");
+});

@@ -102,9 +102,13 @@ export function applyQueueEvent(state: QueueState, e: RuntimeEvent): QueueState 
   if (!taskId) return state;
   const agentId = str(e.data.agentId) || "unknown";
   const kind = bucket === "failed" ? str(e.data.kind) || "unknown" : null;
+  const detail = bucket === "failed" ? str(e.data.detail) || null : null;
   const prev = state.tasks[taskId];
-  if (prev && prev.bucket === bucket && prev.agentId === agentId && prev.kind === kind) return state;
-  return { tasks: { ...state.tasks, [taskId]: { agentId, bucket, kind } } };
+  // `detail` is part of the identity: a task whose message changed but whose bucket did
+  // not is a CHANGED task, and returning the same reference would freeze the old words
+  // on screen.
+  if (prev && prev.bucket === bucket && prev.agentId === agentId && prev.kind === kind && prev.detail === detail) return state;
+  return { tasks: { ...state.tasks, [taskId]: { agentId, bucket, kind, detail } } };
 }
 
 /** One task row of GET /runtime/engine/runs. */
