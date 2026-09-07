@@ -402,3 +402,64 @@ fourth came from checking a vendor's docs instead of my memory of them.
     **Run the contract SERIALLY, record the host's load beside the numbers, and re-run any
     failure in isolation before calling it a regression** — a timeout is not an assertion
     failure (#8), and the fastest way to manufacture one is to race yourself.
+
+---
+
+## Write-scope visibility (2026-09-07)
+
+Found while answering a BOSS question about UI placement — "why is the Roster on the page at
+all?" The panel was a symptom; four new classes came out of chasing it.
+
+57. **A value can be composed, stored, and then DROPPED one layer before the screen.** The
+    runtime built a precise sentence — *"the agent wrote N path(s) OUTSIDE the appliable scope:
+    src/x.ts (out-of-scope for seat sr-backend)"* — persisted it as `error.msg`, and one mapper
+    (`queueModel.ts:126`) kept only `error.kind` on the way to the surface the operator actually
+    watches. A second layer (`queue.mjs:172`) dropped it again on the live SSE path. The control
+    worked; its REPORT was severed twice, and the operator read `empty-diff` for weeks.
+    This is #1's mirror image: not a control that enforces nothing, but a control that enforces
+    correctly and **cannot say so**. **For every message the system composes, grep for the
+    render site.** A string that is written and never displayed is not a diagnostic.
+
+58. **An identity short-circuit must compare every field it carries.** `applyQueueEvent`
+    returned the SAME state reference when `agentId`, `bucket` and `kind` matched — a deliberate
+    re-render optimisation. Adding `detail` to the payload without adding it to that comparison
+    would have frozen the FIRST message ever seen for that task, forever, while looking correct
+    in review and in a naive test. Pinned by QM-D5, which asserts `next !== first` on a
+    detail-only change. **When you widen a memoised record, widen its equality check in the same
+    edit, and test the change-only case.**
+
+59. **A retry brief that contradicts the refusal teaches the agent to repeat the failure.**
+    `engine.mjs:311` enriched every `empty-diff` retry with *"prior attempt produced no diff;
+    make the concrete file edit in the working directory NOW."* When the cause was an
+    out-of-scope write that is FALSE — the seat did write, and the broker refused the paths — so
+    the brief instructed it to do exactly what had just been rejected. Live on the Tech Lead
+    station. The fix NARROWS rather than replaces, and ships with ENG-SC2 pinning that an honest
+    empty diff keeps the original wording. **A generic retry hint over a specific failure is a
+    lie with a loop around it. Branch the hint on the cause, and pin the unaffected branch too.**
+
+60. **The test suite dirties a TRACKED file.** A full `npm run test:runtime` leaves
+    `.claude/agents/notifications-engineer.md` modified: the hr-live test re-hires the seat and
+    HR rewrites its durable record with a fresh timestamp. So `git write-tree ==
+    HEAD^{tree}` is FALSE immediately after any contract run, and the repo-untouched invariant
+    this project leans on reports a false negative until someone reads the diff. **A suite must
+    write only into fixtures and temp dirs; assert the tree is clean AFTER the contract, not
+    only before.**
+
+### Method notes that paid off this round
+
+* **Mutate each ratchet SEPARATELY.** QM-D4/D5 and QM-D6/D9 were each proven by their own
+  mutation, producing `fail 1` rather than `fail 3` — which is what proves a ratchet is not
+  redundant with its neighbour. A single mutation that reds three tests proves only that one of
+  them works.
+* **Put the BAD/GOOD/UNRELATED trio INSIDE the test.** RM-2 asserts that the mount counter sees
+  a real `<RosterStrip`, ignores a comment and an import naming it, and does not false-positive
+  on `<RosterStripHeader />`. That proof runs on every CI pass instead of living in a commit
+  message (#13 asked for exactly this; it is cheap and should be the default).
+* **#9 fired again, on my own probe.** "All three failures pass in isolation" was nearly claimed
+  after running `job-gate.test.mjs` — but `JOBHTTP-8/9` live in `hr-live-http.test.mjs` and
+  `manager-dispatch-http.test.mjs`. The green run did not contain the tests it was meant to
+  clear. **Confirm the file you ran actually holds the test you are clearing.**
+* **#56 recurred, unprovoked.** Host load reached 199 (a VM at 98% CPU) mid-contract; three
+  timing tests that pass at 601–11426 ms clean took 6.7–47 s and failed. Baseline timings from
+  the same day made the attribution provable in minutes instead of hours. **Keep the clean
+  run's output file — it is the control group.**
