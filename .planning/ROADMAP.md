@@ -92,6 +92,21 @@ why it stays open.
 | C13 | 1076 failures / 44 pending in the live queue | Accumulated from earlier runs. Triage before new work lands on top. | Medium | nothing |
 | C14 | `server.mjs` is 401 KB | One file every phase touches. It is why Phases 6–14 could not be split into per-phase commits. | Large | nothing |
 
+### Closed since this table was written (2026-09-07)
+
+Nothing in C1-C14 yet. One item NOT on the list was found and closed: the scope-breach message
+was composed, stored, then dropped before the screen (`queueModel.ts:126` + `queue.mjs:172`),
+and the out-of-scope retry brief told the agent it had produced no diff. Spec + plan + delivery
+report: `docs/superpowers/specs/2026-09-07-write-scope-visibility-design.md`. Defect classes
+57-60 appended to `docs/PES-ADDENDUM.md`.
+
+Two NEW items for the next plan, from that work:
+
+| # | Gap | Why it matters | Size |
+|---|-----|----------------|------|
+| C15 | Visual baselines not re-run after the Roster moved off the squad board | The snapshots still show the old layout; Playwright needs a quiet host | Small |
+| C16 | `npm run test:runtime` dirties a TRACKED file (`.claude/agents/notifications-engineer.md`) | `write-tree == HEAD^{tree}` reports a false negative after every contract run — addendum #60 | Small |
+
 Recommended order for the next plan: **C1, C2** first (real holes in something the BOSS
 touches immediately), then **C13** (triage the queue), then C5/C6 (cleanup), then C3/C4
 when the BOSS is available.
