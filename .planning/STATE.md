@@ -4081,3 +4081,144 @@ carry **no write scope at all**, which is worth a separate look.
 
 **Carried backlog (ROADMAP.md C1–C14) is unchanged by this work** except that none of its items
 were closed here. C13 (triage the live queue) is now materially easier.
+
+---
+
+# SESSION RECORD — 2026-09-07/08 · "commit everything" → write-scope visibility
+
+Written so a cold session can pick this up without reading the transcript. Everything below
+was verified at the time of writing, not recalled.
+
+## 1. The standing NO-COMMITS rule was LIFTED
+
+For the whole of Phases 6–14 the rule was *"NO COMMITS until the BOSS explicitly says commit."*
+On 2026-09-07 the BOSS said **"commit everything"**, then **"commit as you go"**. Both are spent
+instructions covering THIS session's work. **They do not carry forward.** A future session must
+ask again before committing.
+
+`git push` was NOT authorised and nothing has been pushed.
+
+## 2. Repo state at time of writing
+
+| Fact | Value |
+|---|---|
+| Repo | `/Users/RohitAnandeshi/Downloads/WaahyuFOLDER/MissonAlpha` (NOT WaahyuPython) |
+| Branch | `feat/multi-provider-credentials` |
+| Ahead of origin | **16 commits**, none pushed |
+| Working tree | clean apart from `docs/SESSION_MEMORY.md`, which the session-close hook appends to on its own |
+| `write-tree == HEAD^{tree}` | YES, verified after each commit |
+| PES addendum | **60 classes** (was 38 at session start) |
+| Stashes | `stash@{0}` is MINE (bisecting the self-heal failure), content restored, safe to drop. `stash@{1}` predates this session — LEAVE IT |
+
+## 3. What landed, in order
+
+### 3a. Phases 6–14 committed — 3 commits, 456 files
+
+| Commit | What |
+|---|---|
+| `8117369` | `chore:` ignore `.env.bak-*` |
+| `16af47b` | `docs:` PES addendum 14–56 + Phase 6–14 planning trail (37 files) |
+| `62312d5` | `feat(runtime):` Phases 6–14 (418 files, +48164 −586) |
+
+**Deliberately ONE code commit, not nine per-phase.** `server.mjs` is touched by every phase, so
+any per-phase slice fails to boot; splitting would have fabricated a history that was never
+green. Gates before committing: runtime **2615/0**, tsc 0, lint 0, dev servers stopped.
+
+**WaahyuPython was NOT touched** — the BOSS chose "MissionAlpha only". It still carries ~870
+uncommitted files on `feat/vendor-spice-port`; its `write-tree == HEAD^{tree}` was verified
+before and after, and a stray `git reset` that landed there was confirmed a no-op.
+
+### 3b. Phase 14.0 closed — the PR rung proven end to end
+
+All four rungs of the ship ladder proven against real binaries: commit → branch → **push**
+(sha matched on a local bare remote, zero GitHub effect) → **`gh pr create`** (PR #1 on a
+disposable private repo, read back with `gh pr view`).
+
+The push step produced the finding that `openJobPr` returned `mode: "branch"` for BOTH a
+successful push and a never-left-this-machine case. Fixed by adding `pushed`, carried into the
+job summary. Ratchets PJB-14/15 proven to fire.
+
+### 3c. Write-scope visibility — brainstorm → spec → plan → 8 tasks
+
+Triggered by a BOSS question about UI placement. Full record in the PES DELIVERY REPORT above.
+Artifacts: `docs/superpowers/specs/2026-09-07-write-scope-visibility-design.md`,
+`docs/superpowers/plans/2026-09-07-write-scope-visibility.md`, commits `acf533a`…`637c76a`.
+
+## 4. THE BLOCKER — read this before planning anything
+
+The new queue strip resolved the install's ~1084 failures on first sight:
+
+```
+NOT-CAPABLE x974   no active account cannot run the autonomous engine:
+                   no account is active. Add an account and set it active.
+EMPTY-DIFF  x24    ...OUTSIDE the appliable scope: src/build-sr-backend.txt
+EMPTY-DIFF  x24    ...src/build-notifications-engineer.txt
+EMPTY-DIFF  x21    no diff produced
+```
+
+**974 of 1084 failures are "no account is active".** The autonomous engine cannot run a single
+task. The swarm SYNC log shows this unchanged from 2026-09-05 through 2026-09-07.
+
+Consequences:
+* **14.3 (the unattended week) is IMPOSSIBLE until an account is active.** It is the last thing
+  holding Phase 14, and the whole Milestone 2 exit criterion.
+* Adding the account is a **BOSS action** — the agent never handles credentials.
+* Separately: **8 of 12 worker seats carry NO write scope at all** (`no write access` on the
+  roster card), so they cannot produce an appliable diff even once an account exists. Worth
+  auditing before the week starts.
+
+Note `backend=cli` at boot is NOT the same thing — the CLI backend is the chat road; the
+autonomous engine needs a configured, ACTIVE account.
+
+## 5. Gates — what is and is not proven
+
+| Suite | Result | Trust |
+|---|---|---|
+| unit | 595 / 0 | clean |
+| vendor | 54 / 0 | clean |
+| electron | 9 / 0 | clean |
+| tsc / lint | 0 / 0 | clean |
+| runtime | **2616 / 3** | **NOT clean — host load 82–199** |
+
+The 3 runtime failures are timeouts, all pass in isolation, none in a file this work touched.
+`self-heal` was additionally proven not-mine by reverting `engine.mjs`, `queue.mjs` AND
+`engine.test.mjs` to `62f5043` — it still failed. Baselines from the same day:
+
+| Test | Clean | Under load | Isolated |
+|---|---|---|---|
+| `self-heal: exhausts maxAttempts` | 796 ms | 6.7 s ✖ | 60/60 ✔ |
+| `JOBHTTP-8` | 11.4 s | 30.3 s ✖ | 18/18 ✔ |
+| `JOBHTTP-9` | 9.5 s | 47.0 s ✖ | 18/18 ✔ |
+
+**The contract has NOT been measured clean since `62312d5`. Do not claim the phase gate until
+one serial run on a quiet host returns 2619/0.** Keep `/tmp/ma-runtime.txt` (the clean 2615/0
+run) as the control group — it is what made the attribution provable in minutes.
+
+## 6. Open items, consolidated
+
+| Pri | Item | Owner | Blocked on |
+|---|---|---|---|
+| 1 | **Activate an LLM account** | BOSS | nothing — 5 minutes |
+| 2 | Clean runtime contract run | agent | a quiet host |
+| 3 | Visual baselines (C15) — roster left the squad board | agent | a quiet host |
+| 4 | C1 reject→re-plan on resume | agent | nothing |
+| 5 | Audit the 8 seats with no write scope | agent | nothing |
+| 6 | Push / PR decision — 16 commits local | BOSS | nothing |
+| 7 | Delete `Rohit1265/missionalpha-prproof` | BOSS | `gh auth refresh -h github.com -s delete_repo` |
+| 8 | 14.3 unattended week | both | item 1 |
+| 9 | C13 triage the live queue | agent | item 1 |
+
+Full carried backlog is `C1–C16` in `.planning/ROADMAP.md`. **Every next plan must carry that
+table forward** (BOSS instruction, 2026-09-07).
+
+## 7. Method notes worth keeping
+
+* **The working directory drifts.** Bash cwd returned to WaahyuPython mid-session and a
+  `git reset` landed in the wrong repo (harmless, verified). Every git command after that used
+  `git -C <abs path>`. **Do that from the start.**
+* **A 120 s Bash timeout is not a hang.** `npm run test:unit` was killed twice before it was
+  clear the suite simply takes ~17 s of CPU on a box at load 100. Background long runs and read
+  the file.
+* **Mutate ratchets ONE AT A TIME** — `fail 1` is what proves a ratchet is not redundant with
+  its neighbour.
+* Addendum classes **57–60** and the method notes under them came out of this work.
