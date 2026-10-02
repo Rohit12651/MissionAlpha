@@ -147,7 +147,12 @@ export function validateWorkspace(input, opts = {}) {
   if (/[\x00-\x1f]/.test(input)) return { ok: false, error: "repoPath contains control characters" };
   if (input.length > 4096) return { ok: false, error: "repoPath too long" };
 
-  const raw = resolve(input.trim());
+  // A leading "~" or "~/" is the home directory, as in a shell (Setup's placeholder is
+  // "~/code/my-app"); resolve() would treat it as a folder named "~" under the cwd.
+  // "~user" is not expanded. Every check below runs on the expanded path.
+  const trimmed = input.trim();
+  const expanded = /^~(?=$|\/)/.test(trimmed) ? (opts.homedir || homedir()) + trimmed.slice(1) : trimmed;
+  const raw = resolve(expanded);
   if (!existsSync(raw)) return { ok: false, error: `path does not exist: ${raw}` };
   let repoPath;
   try { repoPath = realpathSync(raw); } catch (e) { return { ok: false, error: `cannot resolve path: ${e.message}` }; }
