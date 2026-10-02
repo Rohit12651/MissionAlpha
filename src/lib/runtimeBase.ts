@@ -57,6 +57,10 @@ export function runtimeToken(): Promise<string> {
       : fetch("/api/runtime-token", { cache: "no-store" })
           .then((r) => (r.ok ? r.json() : { token: "" }))
           .then((j) => (j as { token?: string }).token ?? "").catch(() => "");
+    // A failure resolves to "" (never a valid token). Concurrent callers share this one
+    // attempt, but "" is not kept: the next call asks again instead of 401-ing until reload.
+    const attempt = tokenPromise;
+    void attempt.then((t) => { if (!t && tokenPromise === attempt) tokenPromise = null; });
   }
   return tokenPromise;
 }
