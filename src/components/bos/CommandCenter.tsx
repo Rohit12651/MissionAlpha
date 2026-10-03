@@ -5,12 +5,9 @@
 // hard gzip ceiling). Downloaded the first time the BOSS opens the Command Center.
 //
 // EVERY NUMBER IS REAL OR AN ADMITTED GAP (hallmark gate 56):
-//   • The four tiles ride GET /runtime/bos/kpis (window=1d), computed live from the
-//     deliveries + vault_records tables. A fetch failure shows "—" plus one retry — never
-//     a fabricated zero, which would read as "the business did nothing today".
-//   • Decisions / approvals are CROSS-VENTURE (deliveries have no venture column, v1) and
-//     labelled so; Records written is venture-scoped. Open follow-ups has no source until
-//     B6 → "—", never a fake 0.
+//   • Phase G (D-7): the four tiles are the mockup's questions bound to real routes —
+//     /runtime/jobs, the pending badge, /runtime/bos/kpis jobsShipped, /runtime/spend. A
+//     fetch failure shows "—", never a fabricated zero (see StatTiles.tsx).
 //   • The ventures panel and the needs-you panel are the REAL roster and the REAL pending
 //     queue, not fixtures. Choosing a venture re-scopes the whole app (ventureScope).
 //
@@ -20,6 +17,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getKpis, type Kpis } from "../../lib/kpiClient";
+import { fetchJobs } from "../../lib/jobsClient";
+import { getSpend } from "../../lib/ledgerClient";
 import { listInbox, type Delivery } from "../../lib/inboxClient";
 import { useVenture } from "../../lib/ventureScope";
 import { BosTopbar } from "./BosTopbar";
@@ -41,6 +40,8 @@ const NEEDS_LIMIT = 5;
 export interface CommandCenterProps {
   /** Pending-deliveries badge — doubles as the refetch nonce (a decision moves it). */
   pending: number;
+  /** False until the first authoritative pending read: the Need-you tile reads "—", not 0. */
+  pendingKnown: boolean;
   /** Bumped on every `vault.written` frame — records + ventures re-read live. */
   vaultNonce: number;
   /** Bumped on every `workflow.run` frame — a fired cadence can move the day's numbers. */
@@ -74,20 +75,9 @@ export interface CommandCenterProps {
   onToggleActivity: () => void;
 }
 
-/** A titled panel placeholder for the ventures column while loading / on error. */
-function PanelMsg({ title, msg }: { title: string; msg: string }) {
-  return (
-    <section className="bos-center-panel" aria-label={title}>
-      <header className="bos-center-panel-head">
-        <h2 className="bos-center-panel-title">{title}</h2>
-      </header>
-      <p className="bos-center-empty helm-mono">{msg}</p>
-    </section>
-  );
-}
-
 export function CommandCenter({
   pending,
+  pendingKnown,
   vaultNonce,
   workflowNonce,
   resyncNonce,
@@ -175,75 +165,62 @@ export function CommandCenter({
     return () => { live = false; };
   }, [selfGradeNonce, pending, resyncNonce, retryNonce]);
 
+  // ── Phase G (D-7) — the mockup's "Active jobs" and "Spend today" tiles. Each has its
+  // own error: one route failing must not blank the other three numbers.
+  const [activeJobs, setActiveJobs] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetchJobs()
+      .then((js) => { if (live) setActiveJobs(js.filter((j) => j.status !== "shipped" && j.status !== "blocked").length); })
+      .catch(() => { if (live) setActiveJobs(null); });
+    return () => { live = false; };
+  }, [pending, workflowNonce, resyncNonce, retryNonce]);
+
+  const [spendToday, setSpendToday] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    getSpend("24h")
+      .then((sp) => { if (live) setSpendToday(sp.error ? null : sp.usd); })
+      .catch(() => { if (live) setSpendToday(null); });
+    return () => { live = false; };
+  }, [pending, resyncNonce, retryNonce]);
+
   const scopeName = venture ? (kpis?.ventures.find((v) => v.id === venture)?.name || venture) : null;
   const scopeLabel = scopeName ?? "All ventures";
 
   return (
-    <div className="bos-center">
+    // Phase G (ADR G-2): the mockup's Command-center page, top to bottom.
+    <section className="page" aria-labelledby="h-center">
       <BosTopbar
-        eyebrow={`COMMAND CENTER · ${scopeLabel.toUpperCase()}`}
+        eyebrow={`Command center · ${scopeLabel}`}
         title="Command center"
+        tagline="what the team did, as it happened"
+        headingId="h-center"
         clock
         chips={
-          <span className="helm-chip" data-tone={venture ? "green" : "muted"}>
-            {scopeLabel}
+          <span className={activityConnected ? "chip ok" : "chip warn"}>
+            <span className={activityConnected ? "dot ok live" : "dot warn"} />
+            {activityConnected ? "Live" : "Offline"}
           </span>
         }
       />
-
-      {/* Phase 2 — ABOVE the tiles: whether the swarm can act at all outranks what it did
-          today. An operator who reads the numbers first and the blocker second has already
-          queued work that cannot run. */}
-      <EngineReadinessBanner
-        readiness={readiness}
-        error={readinessError}
-        onOpenAccounts={onOpenAccounts}
-        onRetry={retry}
-      />
-
-      {/* Directly UNDER the readiness banner, and excluding the check that banner already
-          owns. Two stacked lines both saying "no active account" is how an operator learns
-          to skip the whole region — see doctorStatus.ts READINESS_OWNED. */}
-      <DoctorStrip report={doctorReport} onRecheck={retry} />
-
-      {/* Posture sits with health, above the activity numbers: "can this install be
-          trusted to act" outranks "what did it do today", the same ordering argument the
-          readiness banner already makes against the KPI tiles. */}
-      <SelfGradeTile grade={selfGrade} lastFrame={selfGradeFrame} />
-
-      <StatTiles kpis={kpis} error={kpiError} ventureLabel={scopeLabel} />
-      {kpiError && (
-        <p className="bos-center-note helm-mono">
-          numbers unavailable — runtime not reachable
-          <button type="button" className="bos-center-retry helm-mono" onClick={retry}>
-            Retry
-          </button>
-        </p>
-      )}
-
-      <div className="bos-center-cols">
-        {kpiError ? (
-          <PanelMsg title="Ventures" msg="ventures unavailable — runtime not reachable" />
-        ) : kpis === null ? (
-          <PanelMsg title="Ventures" msg="reading the numbers…" />
-        ) : (
-          <VenturesPanel ventures={kpis.ventures} current={venture} onChoose={setVenture} />
-        )}
-        <NeedsYouPanel deliveries={needs} error={needsError} onOpen={onOpenDelivery} onRetry={retry} />
-      </div>
-
-      {/* Phase 5 — the activity rail. A collapsible row under the columns rather than a
-          fixed side rail: .bos-center is a single scrolling column, and a third grid
-          track would collapse to unusable width at 768px, where this page already
-          stacks. Collapsed state persists in settings (App owns the key). */}
-      <div className="bos-center-activity">
-        <ActivityStream
-          rows={activity}
-          connected={activityConnected}
-          open={activityOpen}
-          onToggle={onToggleActivity}
+      <div className="stack">
+        {/* Whether the swarm can act at all outranks what it did today. */}
+        <EngineReadinessBanner readiness={readiness} error={readinessError} onOpenAccounts={onOpenAccounts} onRetry={retry} />
+        <DoctorStrip report={doctorReport} readiness={readiness} onRecheck={retry} />
+        <SelfGradeTile grade={selfGrade} lastFrame={selfGradeFrame} />
+        <StatTiles
+          activeJobs={activeJobs}
+          needYou={pendingKnown ? pending : null}
+          shippedToday={kpiError || !kpis ? null : (kpis.jobsShipped ?? null)}
+          spendToday={spendToday}
         />
+        <div className="grid2">
+          <VenturesPanel ventures={kpis?.ventures ?? null} error={kpiError} current={venture} onChoose={setVenture} onRetry={retry} />
+          <NeedsYouPanel deliveries={needs} waiting={pending} error={needsError} onOpen={onOpenDelivery} onRetry={retry} />
+        </div>
+        <ActivityStream rows={activity} connected={activityConnected} open={activityOpen} onToggle={onToggleActivity} />
       </div>
-    </div>
+    </section>
   );
 }

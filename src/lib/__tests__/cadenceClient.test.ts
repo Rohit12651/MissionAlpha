@@ -13,7 +13,7 @@ import {
   cadenceStatus,
   nextRunLabel,
   lastRunLabel,
-  scheduleBuckets,
+  watchSlots,
   cadenceRow,
   type Cadence,
 } from "../cadenceClient.ts";
@@ -87,25 +87,62 @@ test("lastRunLabel: 'never' until it has run, then a relative stamp", () => {
   assert.equal(lastRunLabel(T0 - 2 * DAY, T0), "2d ago");
 });
 
-test("scheduleBuckets groups the next 24h chronologically by UTC hour, dropping on-demand rows", () => {
+// T0 is a Thursday, 06:00 UTC. TODAY0 is that day's UTC midnight.
+const TODAY0 = Date.UTC(2026, 6, 30);
+const MONDAY_9 = Date.UTC(2026, 7, 3, 9); // the next Monday, 09:00 UTC
+
+test("watchSlots lays every timed cadence on today's clock, by hour, dropping on-demand and drifting rows", () => {
   const rows: Cadence[] = [
-    mk({ id: "a", skill: "workflow-audit", next_run: T0 + 1 * HOUR }),   // 07:00
-    mk({ id: "b", skill: "repo-health-check", next_run: T0 + 1 * HOUR + 600_000 }), // 07:10 (same bucket as a)
-    mk({ id: "c", skill: "repo-read", next_run: T0 + 6 * HOUR }),         // 12:00
-    mk({ id: "d", skill: "claude-code-handoff", expr: "ondemand", hour: null, next_run: null }), // excluded
-    mk({ id: "e", skill: "data-summary", next_run: T0 + 40 * HOUR }),      // beyond 24h → excluded
+    mk({ id: "late", skill: "data-summary", hour: 18, next_run: TODAY0 + 18 * HOUR }),
+    mk({ id: "od", expr: "ondemand", hour: null, next_run: null }),
+    mk({ id: "drift", expr: "daily", hour: null, next_run: T0 + DAY }), // no hour: the runtime fires it every 24h from whenever, not at a clock slot
+    mk({ id: "twice", skill: "repo-read", expr: "2xdaily", hour: 3, next_run: TODAY0 + 15 * HOUR }),
+    mk({ id: "early", skill: "repo-health-check", hour: 2, next_run: TODAY0 + DAY + 2 * HOUR }),
   ];
-  const buckets = scheduleBuckets(rows, T0, DAY);
-  assert.equal(buckets.length, 2, "two hour-buckets inside the window");
-  assert.deepEqual(buckets.map((b) => b.hour), [7, 12], "chronological hour order");
-  assert.deepEqual(buckets[0].items.map((i) => i.cadence.id), ["a", "b"], "same-hour rows share a bucket, in time order");
-  assert.equal(buckets[1].items.length, 1);
-  assert.equal(buckets[0].label, "07:00");
+  const slots = watchSlots(rows, T0);
+  assert.deepEqual(slots.map((s) => [s.cadence.id, s.hour]), [["early", 2], ["twice", 3], ["twice", 15], ["late", 18]]);
+  assert.equal(slots[0].title, "Repo health check");
 });
 
-test("scheduleBuckets on an all-on-demand set is empty (nothing scheduled)", () => {
-  const rows: Cadence[] = [mk({ id: "x", expr: "ondemand", hour: null, next_run: null })];
-  assert.deepEqual(scheduleBuckets(rows, T0, DAY), []);
+test("watchSlots: a 2×daily with no hour sits at 00:00 and 12:00, where the runtime fires it", () => {
+  const sweep = mk({ id: "stuck-story-sweep", expr: "2xdaily", hour: null, next_run: TODAY0 + 12 * HOUR });
+  assert.deepEqual(watchSlots([sweep], T0).map((s) => s.hour), [0, 12]);
+});
+
+test("watchSlots: a passed slot is done only when the runtime fired THAT slot and it did not fail", () => {
+  const ran = mk({ hour: 2, last_fired_slot: TODAY0 + 2 * HOUR, last_run: TODAY0 + 2 * HOUR + 5_000, last_status: "dispatched" });
+  const failed = mk({ hour: 3, last_fired_slot: TODAY0 + 3 * HOUR, last_status: "error" });
+  const missed = mk({ hour: 4, last_fired_slot: TODAY0 - DAY + 4 * HOUR });
+  const runNow = mk({ hour: 5, last_fired_slot: TODAY0 + 5 * HOUR + 1_234, last_run: TODAY0 + 5 * HOUR + 1_234 }); // a manual run, not the slot
+  const ahead = mk({ hour: 9 });
+  const atNow = mk({ hour: 6 }); // exactly now: still upcoming (the mockup's rule)
+  assert.deepEqual(watchSlots([ran, failed, missed, runNow, ahead, atNow], T0).map((s) => s.state),
+    ["done", "failed", "missed", "no record", "upcoming", "upcoming"]);
+});
+
+test("watchSlots: the earlier slot of a 2×daily whose later slot fired has no record of its own", () => {
+  const twice = mk({ expr: "2xdaily", hour: 0, last_fired_slot: TODAY0 + 12 * HOUR });
+  const now = TODAY0 + 13 * HOUR;
+  assert.deepEqual(watchSlots([twice], now).map((s) => [s.hour, s.state]), [[0, "no record"], [12, "done"]]);
+});
+
+test("watchSlots: a weekly cadence names its weekday and claims today only when today is its slot", () => {
+  const monday = mk({ skill: "weekly-dependency-sweep", expr: "weekly", hour: 9, next_run: MONDAY_9 });
+  const thursday = mk({ skill: "repo-read", expr: "weekly", hour: 9, next_run: TODAY0 + 9 * HOUR });
+  const nextThursday = mk({ skill: "data-summary", expr: "weekly", hour: 9, next_run: TODAY0 + 7 * DAY + 9 * HOUR }); // enabled today: first due next week
+  const [a, b, c] = watchSlots([monday, thursday, nextThursday], T0);
+  assert.equal(a.title, "Weekly dependency sweep (Mondays)");
+  assert.equal(a.state, "not today");
+  assert.equal(b.title, "Read Repo (Thursdays)");
+  assert.equal(b.state, "upcoming");
+  assert.equal(c.state, "not today");
+});
+
+test("watchSlots: a paused cadence keeps its slot, says so, and never claims a run", () => {
+  const paused = mk({ skill: "release-notes-digest", expr: "weekly", hour: 16, enabled: false, next_run: MONDAY_9 });
+  const [s] = watchSlots([paused], T0);
+  assert.equal(s.title, "Release notes digest (paused)");
+  assert.equal(s.state, "paused");
 });
 
 test("cadenceRow composes the table row view-model from a raw cadence", () => {

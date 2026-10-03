@@ -17,7 +17,15 @@
 
 import { formatRelative } from "../../lib/formatRelative";
 import { useTick } from "../../lib/ticker";
-import { PILL_LABEL, PILL_TONE, type LogRow } from "../../lib/briefClient";
+import { PILL_LABEL, type BriefPill, type LogRow } from "../../lib/briefClient";
+import { stationById } from "../../lib/stationMeta";
+
+/** The mockup's feed dot per outcome. */
+const DOT: Record<BriefPill, string> = { logged: "indigo", completed: "ok", "needs-review": "warn", failed: "bad" };
+const two = (n: number) => String(n).padStart(2, "0");
+const hhmm = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "—" : `${two(d.getHours())}:${two(d.getMinutes())}`; };
+/** The log windows the mockup offers, in hours. */
+export const LOG_WINDOWS: readonly [number, string][] = [[24, "Last 24h"], [168, "7 days"]];
 
 export interface AgentLogProps {
   /** Newest-first rows, or null while the first read is in flight. */
@@ -26,59 +34,51 @@ export interface AgentLogProps {
   onRetry: () => void;
   /** Deep-link a needs-review row into the Inbox with that delivery selected. */
   onOpenDelivery: (deliveryId: string) => void;
+  /** The log window in hours (one of LOG_WINDOWS). */
+  windowHours: number;
+  onWindow: (hours: number) => void;
 }
 
-export function AgentLog({ rows, error, onRetry, onOpenDelivery }: AgentLogProps) {
-  // The LEAF subscribes to the shared 1s tick (ticker.tsx) so the ages count live
-  // without re-rendering the console input beside it — the same rule LiveFeed follows.
+// Phase G (ADR G-2): the mockup's Agent-log card — a window segment and `.feed-row`s:
+// a dot for the outcome, the station, the line, the time. The needs-review deep-link and
+// the kind/venture meta are kept (app-only).
+export function AgentLog({ rows, error, onRetry, onOpenDelivery, windowHours, onWindow }: AgentLogProps) {
+  // The LEAF subscribes to the shared 1s tick so a row's age tooltip stays live without
+  // re-rendering the console beside it.
   const nowMs = useTick();
-
   return (
-    <section className="bos-brief-log" aria-labelledby="bos-brief-log-title">
-      <div className="bos-brief-log-head">
-        <h3 id="bos-brief-log-title" className="bos-brief-h3">Agent log</h3>
-        <span className="helm-chip">Last 24h</span>
-      </div>
-
-      {error ? (
-        <p className="bos-vault-note helm-mono">
-          could not read the log{" "}
-          <button type="button" className="bos-vault-retry" onClick={onRetry}>Retry</button>
-        </p>
-      ) : rows === null ? (
-        <p className="bos-vault-note helm-mono">reading…</p>
-      ) : rows.length === 0 ? (
-        <p className="bos-vault-note helm-mono">Quiet watch — nothing logged yet.</p>
-      ) : (
-        <ul className="bos-brief-rows">
-          {rows.map((r) => (
-            <li key={r.key} className="bos-brief-row">
-              <span className="bos-brief-agent helm-mono">{r.agent}</span>
-              <span className="bos-brief-row-main">
-                <span className="bos-brief-row-title">{r.title}</span>
-                <span className="bos-brief-row-meta helm-mono">
-                  {r.kind}
-                  {r.venture ? ` · ${r.venture}` : ""}
-                </span>
-              </span>
-              {r.pill === "needs-review" && r.deliveryId ? (
-                <button
-                  type="button"
-                  className="helm-chip bos-brief-pill-cta"
-                  data-tone={PILL_TONE[r.pill]}
-                  onClick={() => onOpenDelivery(r.deliveryId as string)}
-                  title="Open this delivery in the Inbox"
-                >
-                  {PILL_LABEL[r.pill]} →
-                </button>
-              ) : (
-                <span className="helm-chip" data-tone={PILL_TONE[r.pill]}>{PILL_LABEL[r.pill]}</span>
-              )}
-              <span className="bos-brief-row-age helm-mono">{formatRelative(r.ts, nowMs)}</span>
-            </li>
+    <div className="card">
+      <div className="card-h">
+        <h2>Agent log</h2>
+        <div className="seg" aria-label="Window">
+          {LOG_WINDOWS.map(([h, label]) => (
+            <button key={h} type="button" aria-pressed={windowHours === h} onClick={() => onWindow(h)}>{label}</button>
           ))}
-        </ul>
-      )}
-    </section>
+        </div>
+      </div>
+      <ol className="list stream" style={{ maxHeight: 520, position: "relative" }}>
+        {error ? (
+          <li className="empty-note">{"Could not read the log. "}<button type="button" className="linkish" onClick={onRetry}>Retry</button></li>
+        ) : rows === null ? (
+          <li className="empty-note" role="status">Reading the log…</li>
+        ) : rows.length === 0 ? (
+          <li className="empty-note">Nothing in this window.</li>
+        ) : (
+          rows.map((r) => (
+            <li key={r.key} className="feed-row" title={`${r.kind}${r.venture ? ` · ${r.venture}` : ""} · ${formatRelative(r.ts, nowMs)}`}>
+              <span className={`dot ${DOT[r.pill]}`} />
+              <span>
+                <span className="who">{stationById(r.agent)?.name ?? r.agent}</span>
+                {` ${r.title}`}
+                {r.pill === "needs-review" && r.deliveryId && (
+                  <>{" "}<button type="button" className="linkish" data-app-only="open-delivery" onClick={() => onOpenDelivery(r.deliveryId as string)}>{`${PILL_LABEL[r.pill]} →`}</button></>
+                )}
+              </span>
+              <time dateTime={r.ts}>{hhmm(r.ts)}</time>
+            </li>
+          ))
+        )}
+      </ol>
+    </div>
   );
 }

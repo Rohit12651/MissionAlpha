@@ -13,21 +13,20 @@ export const STORAGE_KEY = "ma-theme";
 export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
- * Reads the persisted/system-preferred theme. Order: localStorage → prefers-
- * color-scheme → dark (Tesla cinematic default). Pure + SSR-safe-guarded.
+ * Reads the persisted theme, else the mockup's cream default (Phase G, D-8).
+ * Pure + SSR-safe-guarded.
  */
 export function resolveInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "dark" || stored === "light") return stored;
   } catch {
     // localStorage may throw in privacy mode — fall through to media query.
   }
-  if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-    return "light";
-  }
-  return "dark";
+  // Phase G (D-8): the approved mockup is cream until the BOSS toggles, whatever the OS
+  // prefers — it has no prefers-color-scheme rule, so neither does the app.
+  return "light";
 }
 
 /** Subscribe to the active theme. Throws if used outside ThemeProvider. */

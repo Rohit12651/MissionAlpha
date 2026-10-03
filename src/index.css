@@ -8,10 +8,24 @@
 @import "./theme/helm.css";
 /* Business-OS shell (B0). Same additive contract, scoped to [data-skin="helm"] .bos-*. */
 @import "./theme/bos.css";
+/* Phase G (ADR G-2) — the approved mockup's stylesheet, ported verbatim. */
+@import "./theme/sketchbook.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Phase G — inside the frameless Electron window only: clear the macOS traffic lights.
+   A browser render keeps the mockup's 16px (test/visual/parity.spec.mjs). */
+[data-shell="electron"] .titlebar {
+  padding-left: var(--traffic-light-inset);
+}
+/* Phase G: a single-choice `.seg` is a radiogroup in the app (the mockup uses toggle
+   buttons); it wears the mockup's pressed look. */
+.sk .seg button[aria-checked="true"] { background: var(--brand); color: var(--color-pure-white); }
+/* Phase G: a Schedule slot is a div in the mockup and a button in the app (it opens the
+   workflow drawer); a button does not inherit letter-spacing, so it would set tighter. */
+.sk .tl .row-btn { letter-spacing: inherit; }
 
 /* Skip link (WCAG 2.4.1 bypass-blocks) — visually hidden until keyboard focus,
    then a real focusable chip at top-left that jumps to #ma-main. A dedicated rule
@@ -63,6 +77,79 @@
   font-weight: 700;
   font-display: swap;
   src: url("./fonts/lato-700.woff2") format("woff2");
+}
+
+
+/*
+  Phase G (ADR G-2, D-2) — the mockup's four families, self-hosted (OFL, latin subset) so
+  font-src 'self' holds. Declared exactly as the Google Fonts CSS the mockup loads declares
+  them (one face per weight, same unicode-range, display:swap), so face selection and any
+  synthesis match the mockup byte-for-byte. Caveat/Inter/Jost are variable files: several
+  weights intentionally share one src.
+*/
+@font-face {
+  font-family: "Bebas Neue";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/bebas-neue-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/caveat-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/caveat-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/jost-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/jost-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /*

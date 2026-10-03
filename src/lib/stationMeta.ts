@@ -220,3 +220,9 @@ export function deckOrder(agents: readonly AgentState[]): AgentState[] {
 export function stationOrdinal(index: number): string {
   return `STATION ${String(index + 1).padStart(2, "0")}`;
 }
+
+/** The mockup's avatar text: initials of the station's display name (Phase G). */
+export function stationInitials(agentId: string): string {
+  const name = stationById(agentId)?.name ?? agentId;
+  return name.replace(/[^A-Za-z ]/g, "").split(" ").filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
+}

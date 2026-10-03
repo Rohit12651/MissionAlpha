@@ -41,7 +41,6 @@ export function SwarmHero({
   openAgentId = null,
   onSelectAgent,
   renderChat,
-  variant = "full",
   onCommand,
 }: {
   open: boolean;
@@ -54,8 +53,6 @@ export function SwarmHero({
   onSelectAgent?: (id: string | null) => void;
   /** Slot returning the existing ChatPane for an agent (App-owned; no chat code lives here). */
   renderChat?: (agentId: string) => ReactNode;
-  /** "dock" = small embedded live-ops view on the cockpit home (canvas only; App owns the chrome). */
-  variant?: "full" | "dock";
   /** P2-1: gated agent actions (Ack / Re-dispatch) in the panel via the EXISTING AgentAction +
    *  PermissionGate + sendCommand path. Omit → display-only (no actions). */
   onCommand?: (cmd: CommandRequest) => Promise<CommandResult>;
@@ -133,7 +130,7 @@ export function SwarmHero({
   }, [feed, agents]);
 
   useEffect(() => {
-    if (!open && variant !== "dock") return; // dock animates whenever mounted
+    if (!open) return;
     const cv = cvRef.current;
     if (!cv) return;
     const ctx = cv.getContext("2d");
@@ -494,16 +491,6 @@ export function SwarmHero({
     // canvas never tears down on a poll. Rebuild only when the agent SET changes (agentSig).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, agentSig]);
-
-  if (variant === "dock") {
-    // Canvas-only — the App owns the draggable title bar (grip handle + expand + close) around this.
-    return (
-      <div className="relative h-full w-full overflow-hidden" style={{ backgroundColor: "#0a0b14" }}>
-        <canvas ref={cvRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
-        <p className="sr-only">Live agent swarm preview. Use the expand button for the full interactive view; detailed agent data is in the roster and board.</p>
-      </div>
-    );
-  }
 
   if (!open) return null;
 

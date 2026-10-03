@@ -17,8 +17,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTick } from "../../lib/ticker";
+import { agoLabel } from "../../lib/storiesClient";
 import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
 import {
+  cadenceLabel,
   cadenceRow,
   listCadences,
   type Cadence,
@@ -33,6 +35,29 @@ export interface WorkflowsPageProps {
   lastEvent: RuntimeEvent | null;
   /** Bumped on every SSE resync — triggers the authoritative re-read. */
   liveNonce: number;
+}
+
+const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const two = (n: number) => String(n).padStart(2, "0");
+
+/** The mockup's cadence words: "Daily · 02:00"; a weekly row names its day from next_run.
+ *  All times on this page are UTC, the clock the cadence hour is defined on. */
+function cadenceText(c: Cadence): string {
+  const h = c.hour === null || c.hour === undefined ? "" : `${two(c.hour)}:00`;
+  if (c.expr === "weekly" && c.next_run !== null) return `${DAY[new Date(c.next_run).getUTCDay()]}${h ? ` · ${h}` : ""}`;
+  const base = cadenceLabel(c);
+  return base.charAt(0) + base.slice(1).toLowerCase();
+}
+
+/** The mockup's Next column: paused, an hour slot, or "in N min" when it is close. */
+function nextText(c: Cadence, now: number): string {
+  if (!c.enabled) return "paused";
+  if (c.next_run === null) return "on demand";
+  const d = c.next_run - now;
+  if (d <= 0) return "due now";
+  if (d < 3_600_000) return `in ${Math.max(1, Math.round(d / 60_000))} min`;
+  const at = new Date(c.next_run);
+  return `${two(at.getUTCHours())}:${two(at.getUTCMinutes())}`;
 }
 
 export function WorkflowsPage({ venture, lastEvent, liveNonce }: WorkflowsPageProps) {
@@ -75,74 +100,56 @@ export function WorkflowsPage({ venture, lastEvent, liveNonce }: WorkflowsPagePr
     [rows, venture],
   );
   const activeCount = scoped ? scoped.filter((c) => c.enabled).length : 0;
-  const scopeLabel = (venture ?? "all ventures").toUpperCase();
   const open = openId && scoped ? scoped.find((c) => c.id === openId) ?? null : null;
 
   const onChanged = useCallback(() => setRetryNonce((n) => n + 1), []);
 
+  // Phase G (ADR G-2): the mockup's Workflows page — one `table.tbl` of cadences; a row
+  // opens the workflow drawer.
   return (
-    <div className="bos-deck bos-wf">
+    <section className="page" aria-labelledby="h-workflows">
       <BosTopbar
-        eyebrow={`AUTOMATION · ${scopeLabel}`}
+        eyebrow={`Automation · ${venture ?? "All ventures"}`}
         title="Workflows"
-        chips={
-          <span className="helm-chip" data-tone={activeCount > 0 ? "green" : "muted"}>
-            ● {scoped === null ? "—" : `${activeCount} active`}
-          </span>
-        }
+        tagline="the standing cadences"
+        headingId="h-workflows"
+        clock
+        chips={<span className="chip" data-app-only="active-count">{scoped === null ? "—" : `${activeCount} active`}</span>}
       />
-
       {error ? (
-        <p className="bos-wf-note helm-mono">
-          workflows unavailable — runtime not reachable{" "}
-          <button type="button" className="bos-vault-retry" onClick={() => setRetryNonce((n) => n + 1)}>Retry</button>
-        </p>
+        <div className="empty-note"><span className="script">Not reachable.</span><br />{"The runtime did not answer. "}<button type="button" className="linkish" onClick={() => setRetryNonce((n) => n + 1)}>Retry</button></div>
       ) : scoped === null ? (
-        <p className="bos-wf-note helm-mono">reading…</p>
+        <div className="empty-note" role="status">Reading the cadences…</div>
       ) : scoped.length === 0 ? (
-        <p className="bos-wf-note helm-mono">no cadences in this venture — the stations have nothing scheduled here yet</p>
+        <div className="empty-note"><span className="script">Nothing scheduled.</span><br />The stations have no standing cadence in this venture yet.</div>
       ) : (
-        <div className="bos-wf-table" role="table" aria-label="Workflow cadences">
-          <div className="bos-wf-row bos-wf-row--head" role="row">
-            <span role="columnheader" className="helm-mono">WORKFLOW</span>
-            <span role="columnheader" className="helm-mono">STATION</span>
-            <span role="columnheader" className="helm-mono">CADENCE</span>
-            <span role="columnheader" className="helm-mono">LAST RUN</span>
-            <span role="columnheader" className="helm-mono">STATUS</span>
-          </div>
-          {scoped.map((c) => {
-            const vm = cadenceRow(c, nowMs);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                role="row"
-                className="bos-wf-row bos-wf-row--data"
-                onClick={() => setOpenId(c.id)}
-                aria-label={`${vm.name} — ${vm.station}, ${vm.cadence}`}
-              >
-                <span role="cell" className="bos-wf-cell-name">{vm.name}</span>
-                <span role="cell" className="bos-wf-cell-station helm-mono">{vm.station}</span>
-                <span role="cell" className="bos-wf-cell-cadence helm-mono">{vm.cadence}</span>
-                <span role="cell" className="bos-wf-cell-last helm-mono">{vm.lastRun}</span>
-                <span role="cell" className="bos-wf-cell-status">
-                  <span className="helm-chip" data-tone={vm.status.tone}>● {vm.status.label}</span>
-                </span>
-              </button>
-            );
-          })}
+        <div className="card table-wrap">
+          <table className="tbl">
+            <caption className="sr">Standing cadences</caption>
+            <thead><tr><th scope="col">Workflow</th><th scope="col">Cadence</th><th scope="col">Owner</th><th scope="col">Last run</th><th scope="col">Next</th><th scope="col">State</th></tr></thead>
+            <tbody>
+              {scoped.map((c) => {
+                const vm = cadenceRow(c, nowMs);
+                const openRow = () => setOpenId(c.id);
+                return (
+                  <tr key={c.id} className="click" tabIndex={0} aria-label={`${vm.name}, ${vm.station}, ${vm.cadence}`} onClick={openRow}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRow(); } }}>
+                    <td><b>{vm.name}</b></td>
+                    <td>{cadenceText(c)}</td>
+                    <td>{vm.station}</td>
+                    <td title={vm.status.label}><span className={c.last_run === null ? "dot muted" : c.last_status === "error" ? "dot bad" : "dot ok"} style={{ display: "inline-block", marginRight: 6 }} />{c.last_run !== null && <span className="sr-only">{c.last_status === "error" ? "failed, " : `${c.last_status ?? "ran"}, `}</span>}{c.last_run === null ? "never" : agoLabel(c.last_run)}</td>
+                    <td>{nextText(c, nowMs)}</td>
+                    {/* The mockup's state is the schedule's own (active / paused); how the last
+                        run went is the dot beside "Last run". */}
+                    <td><span className={c.enabled ? "chip ok" : "chip warn"}>{c.enabled ? "active" : "paused"}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-
-      {open && (
-        <WorkflowDrawer
-          cadence={open}
-          now={nowMs}
-          history={history[open.id] ?? []}
-          onClose={() => setOpenId(null)}
-          onChanged={onChanged}
-        />
-      )}
-    </div>
+      {open && <WorkflowDrawer cadence={open} now={nowMs} history={history[open.id] ?? []} onClose={() => setOpenId(null)} onChanged={onChanged} />}
+    </section>
   );
 }

@@ -377,3 +377,12 @@ export function manualAdvance(story: Pick<Story, "stage" | "status"> | null | un
   }
   return null;
 }
+
+/** Phase G — the mockup's card time (mockup ago()): "Ns ago" / "Nm ago" / "Nh ago". */
+export function agoLabel(ms: number, now: number = Date.now()): string {
+  if (!Number.isFinite(ms)) return "—";
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m}m ago` : `${Math.round(m / 60)}h ago`;
+}

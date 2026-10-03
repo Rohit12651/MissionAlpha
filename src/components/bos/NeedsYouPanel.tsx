@@ -1,63 +1,63 @@
-// B5 — the Command Center's "needs you" panel: the top pending deliveries, so the
-// cross-venture home surfaces what is waiting on a decision without leaving for the
-// Inbox. Clicking a row deep-links into the Inbox with that delivery selected (the B3
-// initialSelectedId plumb). Presentational — the container fetches, this renders.
-//
-// HONESTY: the rows are the REAL pending deliveries (inboxClient list), not a fixture.
-// An empty list says "all clear" rather than inventing work; a fetch failure shows a
-// retry, never a fabricated queue.
+// B5 — the top of the REAL pending queue. Phase G (ADR G-2, D-7): the mockup's Needs-you
+// card — an avatar, the title, "<kind> · <station>", and the SLA countdown — deep-linking
+// into the Inbox with the item selected.
 
-import { avatarFor, sourceLabel, type Delivery } from "../../lib/inboxClient";
+import { useEffect, useState } from "react";
+import type { Delivery } from "../../lib/inboxClient";
+import { inboxKindOf, slaText } from "../../lib/inboxTally";
+import { stationById, stationInitials } from "../../lib/stationMeta";
 
 export interface NeedsYouPanelProps {
   /** Top pending deliveries (already limited by the container). */
   deliveries: readonly Delivery[];
+  /** Every pending item — the "N waiting" count, not just the ones listed. */
+  waiting: number;
   error: boolean;
-  /** Deep-link into the Inbox with this delivery selected (B3 initialSelectedId). */
   onOpen: (id: string) => void;
   onRetry: () => void;
 }
 
-export function NeedsYouPanel({ deliveries, error, onOpen, onRetry }: NeedsYouPanelProps) {
-  return (
-    <section className="bos-center-panel" aria-labelledby="bos-center-needs-title">
-      <header className="bos-center-panel-head">
-        <h2 id="bos-center-needs-title" className="bos-center-panel-title">Needs you</h2>
-        <span className="bos-center-panel-sub helm-mono">pending decisions</span>
-      </header>
+function useSecond(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
 
-      {error ? (
-        <div className="bos-center-needs-error">
-          <p className="bos-center-empty helm-mono">inbox unavailable — runtime not reachable</p>
-          <button type="button" className="bos-center-retry helm-mono" onClick={onRetry}>
-            Retry
-          </button>
-        </div>
-      ) : deliveries.length === 0 ? (
-        <p className="bos-center-empty helm-mono">Nothing needs you — all clear.</p>
-      ) : (
-        <div className="bos-center-needs" role="list">
-          {deliveries.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              role="listitem"
-              className="bos-center-needs-row"
-              onClick={() => onOpen(d.id)}
-              title={`Open “${d.title}” in the Inbox`}
-            >
-              <span className="bos-center-needs-avatar helm-mono" aria-hidden>{avatarFor(d.agentId)}</span>
-              <span className="bos-center-needs-body">
-                <span className="bos-center-needs-title">{d.title}</span>
-                <span className="bos-center-needs-meta helm-mono">
-                  {d.agentId} · {sourceLabel(d.source)}
-                </span>
-              </span>
-              <span className="bos-center-needs-cue" aria-hidden>→</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
+export function NeedsYouPanel({ deliveries, waiting, error, onOpen, onRetry }: NeedsYouPanelProps) {
+  const now = useSecond(deliveries.some((d) => d.slaDeadline));
+  return (
+    <div className="card">
+      <div className="card-h"><h2>Needs you</h2><span className="sub">{`${waiting} waiting`}</span></div>
+      <ul className="list">
+        {error ? (
+          <li className="empty-note">
+            <span className="script">Not reachable.</span><br />
+            {"The Inbox did not answer. "}<button type="button" className="linkish" onClick={onRetry}>Retry</button>
+          </li>
+        ) : deliveries.length === 0 ? (
+          <li className="empty-note"><span className="script">All clear.</span><br />Nothing waits for you.</li>
+        ) : (
+          deliveries.map((d) => {
+            const sla = d.slaDeadline ? slaText(d.slaDeadline, now) : null;
+            return (
+              <li key={d.id}>
+                <button className="row-btn" type="button" onClick={() => onOpen(d.id)}>
+                  <span className="ava" aria-hidden="true">{stationInitials(d.agentId)}</span>
+                  <span>
+                    <b>{d.title}</b>
+                    <span className="sub" style={{ display: "block" }}>{`${inboxKindOf(d.kind)} · ${stationById(d.agentId)?.name ?? d.agentId}`}</span>
+                  </span>
+                  {sla && <span className="sla">{sla}</span>}
+                </button>
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </div>
   );
 }

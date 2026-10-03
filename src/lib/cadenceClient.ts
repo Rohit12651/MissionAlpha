@@ -115,39 +115,61 @@ export function lastRunLabel(lastRun: number | null, now: number): string {
   return `${Math.round(d / DAY_MS)}d ago`;
 }
 
-// ── schedule bucketer (the Schedule timeline) ───────────────────────────────
-export interface ScheduleItem {
+// ── the watch (the Schedule timeline) ───────────────────────────────────────
+export type SlotState = "done" | "failed" | "missed" | "no record" | "upcoming" | "paused" | "not today";
+export interface WatchSlot {
   cadence: Cadence;
-  /** absolute-UTC ms of the fire. */
-  at: number;
-}
-export interface ScheduleBucket {
-  /** UTC hour-of-day (0..23) of the fires in this bucket. */
+  /** UTC hour-of-day (0..23) of this slot. */
   hour: number;
-  /** `HH:00` label. */
-  label: string;
-  items: ScheduleItem[];
+  /** The skill, qualified when the slot does not fire every day: "(paused)", "(Mondays)". */
+  title: string;
+  state: SlotState;
+}
+
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The UTC hours a cadence fires at, as agent-runtime/cadence.mjs nextRun() aligns them. */
+function slotHours(c: Cadence): number[] {
+  const h = c.hour === null || c.hour === undefined || !Number.isFinite(c.hour) ? null : c.hour;
+  // 2×daily with no hour runs at 00:00 and 12:00; daily/weekly with no hour drift from
+  // whenever they were enabled, so they have no clock slot to draw.
+  if (c.expr === "2xdaily") { const base = h ?? 0; return [base, (base + 12) % 24]; }
+  return (c.expr === "daily" || c.expr === "weekly") && h !== null ? [h] : [];
 }
 
 /**
- * The next `windowMs` (default 24h) of scheduled fires, grouped by UTC hour and kept in
- * chronological order. On-demand rows (next_run null) and fires beyond the window are
- * dropped — the Schedule page shows what the swarm will actually do, not a fabricated grid.
+ * The standing watch laid on today's UTC clock: every cadence with a clock slot, at that
+ * hour, in hour order. A slot only claims a run state when the cadence fires today, and the
+ * claim comes from `last_fired_slot` — the slot the runtime actually fired (a manual Run-now
+ * stamps an unaligned time, so it never counts as a slot's run):
+ *   upcoming   the slot is still ahead
+ *   done       the runtime fired this slot and it did not fail
+ *   failed     it fired this slot and the run errored
+ *   missed     no fire since the slot passed
+ *   no record  something fired after the slot (a later slot, a manual run), so this one's
+ *              own outcome is not recorded
+ * A paused cadence, and a weekly one on a day that is not its slot, say so instead.
  */
-export function scheduleBuckets(rows: Cadence[], now: number, windowMs: number = DAY_MS): ScheduleBucket[] {
-  const items: ScheduleItem[] = rows
-    .filter((c) => c.next_run !== null && c.next_run !== undefined && c.next_run <= now + windowMs)
-    .map((c) => ({ cadence: c, at: c.next_run as number }))
-    .sort((a, b) => a.at - b.at);
-
-  const buckets: ScheduleBucket[] = [];
-  for (const it of items) {
-    const hour = new Date(it.at).getUTCHours();
-    const last = buckets[buckets.length - 1];
-    if (last && last.hour === hour) last.items.push(it);
-    else buckets.push({ hour, label: `${pad2(hour)}:00`, items: [it] });
+export function watchSlots(rows: Cadence[], now: number): WatchSlot[] {
+  const today0 = now - (now % DAY_MS);
+  const slots: WatchSlot[] = [];
+  for (const c of rows) {
+    const weekday = c.expr === "weekly" && c.next_run !== null ? new Date(c.next_run).getUTCDay() : null;
+    const title = skillLabel(c.skill) + (!c.enabled ? " (paused)" : weekday !== null ? ` (${WEEKDAY[weekday]}s)` : "");
+    for (const hour of slotHours(c)) {
+      const at = today0 + hour * HOUR_MS;
+      const fired = c.last_fired_slot ?? null;
+      const today = c.expr !== "weekly" || c.next_run === at || fired === at;
+      const state: SlotState = !c.enabled ? "paused"
+        : !today ? "not today"
+        : at >= now ? "upcoming"
+        : fired === at ? (c.last_status === "error" ? "failed" : "done")
+        : fired !== null && fired > at ? "no record"
+        : "missed";
+      slots.push({ cadence: c, hour, title, state });
+    }
   }
-  return buckets;
+  return slots.sort((a, b) => a.hour - b.hour);
 }
 
 // ── row view-model (the Workflows table) ────────────────────────────────────

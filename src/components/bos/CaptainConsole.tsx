@@ -22,24 +22,6 @@ export interface CaptainConsoleProps {
 }
 
 /** The 88px dial. Decorative — the H3 beside it carries the meaning. */
-function Dial() {
-  return (
-    <svg className="bos-brief-dial" viewBox="0 0 88 88" fill="none" aria-hidden focusable="false">
-      <circle cx="44" cy="44" r="41" stroke="var(--helm-line)" strokeWidth="1" />
-      <circle
-        className="bos-brief-dial-pulse"
-        cx="44" cy="44" r="34"
-        stroke="var(--helm-brass)" strokeWidth="1.4"
-      />
-      <circle cx="44" cy="44" r="25" stroke="var(--helm-brass)" strokeWidth="0.7" opacity="0.4" />
-      {/* cardinal ticks */}
-      <path d="M44 6v7M44 75v7M6 44h7M75 44h7" stroke="var(--helm-brass)" strokeWidth="1.2" opacity="0.7" />
-      {/* needle */}
-      <path d="M56 32 42.4 39 32 56l13.6-7L56 32Z" fill="var(--helm-brass-bright)" />
-      <circle cx="44" cy="44" r="2.4" fill="var(--helm-brass-bright)" />
-    </svg>
-  );
-}
 
 export function CaptainConsole({ onRouted }: CaptainConsoleProps) {
   const [text, setText] = useState("");
@@ -55,6 +37,8 @@ export function CaptainConsole({ onRouted }: CaptainConsoleProps) {
   // no second code path, and the browser's own validation/AT semantics stay intact.
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // Ask stays enabled, as the mockup draws it; an empty or over-long order says why.
+    if (!trimmed) { setError("Write the question or order first."); return; }
     if (!canSend) return;
     setBusy(true);
     setError(null);
@@ -81,41 +65,42 @@ export function CaptainConsole({ onRouted }: CaptainConsoleProps) {
     }
   }
 
+  // Phase G (ADR G-2): the mockup's Captain console — the dial, the question box, Ask.
+  // HONESTY: the mockup's line says the Captain answers with a verdict; this app's Captain
+  // files the order and routes it to the station that owns it, and the line says so.
   return (
-    <section className="bos-brief-console" aria-labelledby="bos-brief-console-title">
-      <Dial />
-      <div className="bos-brief-console-body">
-        <h3 id="bos-brief-console-title" className="bos-brief-h3">Talk to the Captain</h3>
-        <p className="bos-brief-help">
-          Type what you want handled. The Captain files it in shared memory and hands it to the station
-          that owns it — matched on a fixed keyword list, not a model, so the reason is always visible.
-        </p>
-
-        <form className="bos-brief-form" onSubmit={onSubmit}>
-          <input
-            type="text"
-            className="helm-input bos-brief-input"
-            placeholder="e.g. check what our competitors changed this week"
-            aria-label="Give the Captain an order"
+    <div className="card console">
+      <svg className="dial" viewBox="0 0 110 110" aria-hidden="true">
+        <circle className="ring" cx="55" cy="55" r="40" fill="none" stroke="currentColor" strokeWidth="1.2" />
+        <use href="#i-captain" x="13" y="13" width="84" height="84" />
+      </svg>
+      <div>
+        <div className="card-h"><h2>Talk to the Captain</h2><span className="sub">CEO · strategy only</span></div>
+        <form className="stack" style={{ gap: 10 }} onSubmit={onSubmit}>
+          <label className="sr" htmlFor="cap-in">Ask the Captain</label>
+          <textarea
+            id="cap-in"
+            rows={3}
+            className="field-ta"
+            placeholder="Should we ship dark mode before the onboarding emails?"
             aria-invalid={tooLong || undefined}
             maxLength={MAX_CAPTAIN_TEXT + 1}
             value={text}
             disabled={busy}
             onChange={(e) => { setText(e.target.value); setError(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
           />
-          <button type="submit" className="bos-deck-cta bos-brief-send" disabled={!canSend} data-busy={busy || undefined}>
-            {busy ? "Sending…" : "Send"}
-          </button>
+          <div className="row">
+            <button className="btn btn-primary" type="submit" disabled={busy} aria-busy={busy || undefined}>{busy ? "Sending…" : "Ask"}</button>
+            <span className="sub">The Captain files it in shared memory and routes it to its station.</span>
+          </div>
         </form>
-
-        {tooLong && (
-          <p className="bos-brief-error helm-mono" role="alert">
-            {trimmed.length} characters — {MAX_CAPTAIN_TEXT} maximum. Shorten it; nothing is sent truncated.
-          </p>
-        )}
-        {error && <p className="bos-brief-error helm-mono" role="alert">{error}</p>}
-        {ack && !error && <p className="bos-brief-ack helm-mono" role="status">{ack}</p>}
+        <div className="stack" style={{ gap: 10, marginTop: 16 }} aria-live="polite">
+          {tooLong && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: 0 }}>{`${trimmed.length} characters, ${MAX_CAPTAIN_TEXT} maximum. Shorten it; nothing is sent truncated.`}</p>}
+          {error && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: 0 }}>{error}</p>}
+          {ack && !error && <p className="sub" role="status" style={{ margin: 0 }}>{ack}</p>}
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

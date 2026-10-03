@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ACTIVITY_CAP,
   agentsIn,
   filterActivity,
   type ActivityRow,
 } from "../../lib/activityStream";
+import { stationById } from "../../lib/stationMeta";
 
 /*
   PHASE 5 — the activity stream.
@@ -25,10 +26,10 @@ import {
   raises a "N new" pill; clicking the pill (or leaving) resumes. A feed that yanks the
   viewport out from under someone mid-read is worse than no feed.
 
-  MOTION. New rows fade+slide 140ms once. Under `prefers-reduced-motion: reduce` the
-  transform is dropped entirely and the row simply appears — no opacity theatre either,
-  because a 500-row feed crossfading is exactly the vestibular load the query exists to
-  avoid. NO_MOTION is read live (matchMedia listener), not just at mount.
+  MOTION. A row that arrives fades+slides in once (the mockup's 320ms `.feed-row`
+  transition). Under `prefers-reduced-motion: reduce` the row simply appears — no opacity
+  theatre either, because a 500-row feed crossfading is exactly the vestibular load the
+  query exists to avoid. The preference is read live (matchMedia listener).
 */
 
 export interface ActivityStreamProps {
@@ -47,17 +48,12 @@ const TONE_LABEL: Record<ActivityRow["tone"], string> = {
   bad: "failed",
 };
 
-/** Relative time from two client-clock readings. Never claims server precision. */
-function relTime(receivedAt: number, now: number): string {
-  const s = Math.max(0, Math.round((now - receivedAt) / 1000));
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
-}
+const two = (n: number) => String(n).padStart(2, "0");
+/** The mockup's row time: the browser's receipt time as hh:mm. */
+const hhmm = (ms: number) => { const d = new Date(ms); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+
+/** Event tone → the mockup's dot colour. */
+const DOT: Record<ActivityRow["tone"], string> = { neutral: "indigo", good: "ok", warn: "warn", bad: "bad" };
 
 // Stable empties for the collapsed rail. Module constants, not fresh literals: a new []
 // on every render would defeat the very memoisation they exist to serve.
@@ -78,20 +74,11 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-/** A ticking clock for relative times. One interval for the whole panel, 15s. */
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => setNow(Date.now()), 15_000);
-    return () => clearInterval(t);
-  }, [active]);
-  return now;
-}
-
 export function ActivityStream({ rows, connected, open, onToggle }: ActivityStreamProps) {
   const [agent, setAgent] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
+  // Pause pressed explicitly: holds until Resume, whatever the pointer or focus does.
+  const [pinned, setPinned] = useState(false);
   // Hover is a READING SIGNAL in its own right, and it has to be readable by the blur
   // handler — Fable verification, phase 5. Resuming on focus-leave while the pointer is
   // still over the rail re-sticks the feed and shifts rows under a stationary cursor,
@@ -102,7 +89,6 @@ export function ActivityStream({ rows, connected, open, onToggle }: ActivityStre
   const listRef = useRef<HTMLOListElement | null>(null);
   const lastTopSeq = useRef<number | null>(null);
   const reduced = useReducedMotion();
-  const now = useNow(open);
 
   // BOTH ARE GATED ON `open` — code-review MEDIUM. Hooks cannot sit behind the collapsed
   // early return below, so a closed rail still paid for a full Set+sort over the buffer
@@ -158,107 +144,119 @@ export function ActivityStream({ rows, connected, open, onToggle }: ActivityStre
     setPaused(el.scrollTop > 8);
   }, []);
 
-  if (!open) {
-    return (
-      <button type="button" className="helm-activity-tab" onClick={onToggle} aria-expanded={false}>
-        Activity
-        {rows.length ? <span className="helm-activity-count">{rows.length}</span> : null}
-      </button>
-    );
-  }
+  // The mockup's prependFeed(): a row that ARRIVES (not the ones already there when the
+  // feed mounts) starts at [data-entering] and loses it two frames later, so the
+  // `.feed-row` transition (sketchbook.css) slides it in. Reduced motion: no entering.
+  const seenRows = useRef<Set<string> | null>(null);
+  useLayoutEffect(() => {
+    const ol = listRef.current;
+    if (!ol) return;
+    const fresh: HTMLElement[] = [];
+    const first = seenRows.current === null;
+    const seen = seenRows.current ?? new Set<string>();
+    for (const li of ol.querySelectorAll<HTMLElement>("li[data-row]")) {
+      const id = li.dataset.row ?? "";
+      if (!seen.has(id) && !first && !reduced) fresh.push(li);
+      seen.add(id);
+    }
+    seenRows.current = seen;
+    if (!fresh.length) return;
+    for (const li of fresh) li.setAttribute("data-entering", "");
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => { for (const li of fresh) li.removeAttribute("data-entering"); });
+    });
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); for (const li of fresh) li.removeAttribute("data-entering"); };
+  }, [visible, reduced]);
 
+  // Phase G (ADR G-2): the mockup's Activity-stream card — a <details> whose summary
+  // carries the title and the Pause control, rows as `.feed-row`. The agent filter, the
+  // "N new" pill and the buffer note are app-only (data-app-only), restyled in its tokens.
+  const togglePinned = () => {
+    if (pinned) { setPinned(false); resume(); } else { setPinned(true); setPaused(true); }
+  };
   return (
-    <section
-      className="helm-activity"
-      aria-label="Activity stream"
-      data-reduced={reduced ? "true" : undefined}
-      onMouseEnter={() => { setHovered(true); setPaused(true); }}
-      onMouseLeave={(e) => {
-        setHovered(false);
-        // Symmetric to onBlurCapture: the pointer leaving does not mean the operator
-        // stopped reading if the keyboard is still inside the rail.
-        const active = document.activeElement;
-        if (active && e.currentTarget.contains(active)) return;
-        if (listRef.current && listRef.current.scrollTop <= 8) resume();
-      }}
-      onFocusCapture={() => setPaused(true)}
-      // A KEYBOARD USER MUST BE ABLE TO LEAVE — code-review MEDIUM. Focus entering the
-      // rail paused it, and only the MOUSE could un-pause it. Tabbing in and then onward
-      // left the feed paused for the rest of the session, silently piling up an unseen
-      // count with no visible cause. relatedTarget is where focus is going: still inside
-      // means we are only moving between the rail's own controls.
-      onBlurCapture={(e) => {
-        const to = e.relatedTarget as Node | null;
-        if (to && e.currentTarget.contains(to)) return;
-        if (hovered) return; // the pointer is still on the rail — still reading
-        if (listRef.current && listRef.current.scrollTop > 8) return; // still reading
-        resume();
-      }}
-    >
-      <header className="helm-activity-head">
-        <span className="helm-activity-title">Activity</span>
-        {/* A disconnected feed is stale, and saying so is the whole point of the dot. */}
-        <span
-          className="helm-activity-live"
-          data-live={connected ? "true" : "false"}
-          role="status"
-        >
-          {connected ? "live" : "reconnecting"}
-        </span>
-        <button type="button" className="helm-btn helm-btn-slim" data-variant="quiet" onClick={onToggle} aria-expanded>
-          Hide
-        </button>
-      </header>
-
-      {agents.length > 1 ? (
-        <div className="helm-activity-filter">
-          <label className="sr-only" htmlFor="activity-agent">Filter activity by agent</label>
-          <select
-            id="activity-agent"
-            className="helm-input helm-activity-select"
-            value={agent ?? ""}
-            onChange={(e) => setAgent(e.target.value || null)}
+    <details className="card" open={open} aria-label="Activity stream" data-reduced={reduced ? "true" : undefined}>
+      <summary
+        className="card-h"
+        style={{ cursor: "pointer", listStyle: "none" }}
+        onClick={(e) => { e.preventDefault(); onToggle(); }}
+      >
+        <h2>Activity stream</h2>
+        <span className="sub">
+          {connected ? "live events · " : "reconnecting · "}
+          <button
+            className="linkish"
+            type="button"
+            aria-pressed={pinned}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); togglePinned(); }}
           >
-            <option value="">All agents</option>
-            {agents.map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
+            {pinned ? "Resume" : "Pause"}
+          </button>
+        </span>
+      </summary>
+      {open && (
+        <div
+          onMouseEnter={() => { setHovered(true); setPaused(true); }}
+          onMouseLeave={(e) => {
+            setHovered(false);
+            if (pinned) return;
+            const active = document.activeElement;
+            if (active && e.currentTarget.contains(active)) return;
+            if (listRef.current && listRef.current.scrollTop <= 8) resume();
+          }}
+          onFocusCapture={() => setPaused(true)}
+          // A keyboard user must be able to leave: focus moving out un-pauses, unless the
+          // pointer is still over the feed, the operator scrolled away, or Pause is pinned.
+          onBlurCapture={(e) => {
+            const to = e.relatedTarget as Node | null;
+            if (to && e.currentTarget.contains(to)) return;
+            if (hovered || pinned) return;
+            if (listRef.current && listRef.current.scrollTop > 8) return;
+            resume();
+          }}
+        >
+          {(agents.length > 1 || unseen > 0) && (
+            <div className="pills" data-app-only="activity-filter" style={{ marginBottom: 8 }}>
+              {agents.length > 1 && (
+                <>
+                  <label className="sr-only" htmlFor="activity-agent">Filter activity by agent</label>
+                  <select id="activity-agent" className="pill" value={agent ?? ""} onChange={(e) => setAgent(e.target.value || null)}>
+                    <option value="">All agents</option>
+                    {agents.map((a) => <option key={a} value={a}>{stationById(a)?.name ?? a}</option>)}
+                  </select>
+                </>
+              )}
+              {unseen > 0 && <button type="button" className="pill" onClick={resume}>{`${unseen} new`}</button>}
+            </div>
+          )}
+          {visible.length === 0 ? (
+            <p className="empty-note"><span className="script">Quiet watch.</span><br />Nothing logged yet.</p>
+          ) : (
+            // position:relative contains each row's absolutely-positioned .sr-only span; without it
+            // they escape this scroller's clipping and stretch .content with blank scroll space.
+            <ol className="stream list" ref={listRef} onScroll={onScroll} tabIndex={0} aria-live="polite" aria-relevant="additions" style={{ position: "relative" }}>
+              {visible.map((r) => (
+                <li key={r.id} className="feed-row" data-row={r.id}>
+                  <span className={`dot ${DOT[r.tone]}`} />
+                  <span>
+                    <span className="who">{r.agentId ? (stationById(r.agentId)?.name ?? r.agentId) : "runtime"}</span>
+                    {` ${r.verb}${r.target ? ` ${r.target}` : ""}`}
+                    {TONE_LABEL[r.tone] ? <span className="sr-only">{` — ${TONE_LABEL[r.tone]}`}</span> : null}
+                  </span>
+                  <time
+                    dateTime={new Date(r.receivedAt).toISOString()}
+                    title="Received by this browser. The event stream does not carry a server timestamp."
+                  >
+                    {hhmm(r.receivedAt)}
+                  </time>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="sub" data-app-only="activity-buffer" style={{ margin: "8px 0 0" }}>{`${visible.length} shown · newest ${ACTIVITY_CAP} kept`}</p>
         </div>
-      ) : null}
-
-      {unseen > 0 ? (
-        <button type="button" className="helm-activity-new" onClick={resume}>
-          {`${unseen} new`}
-        </button>
-      ) : null}
-
-      {visible.length === 0 ? (
-        <p className="helm-activity-empty">Quiet watch — nothing logged yet.</p>
-      ) : (
-        <ol className="helm-activity-list" ref={listRef} onScroll={onScroll} tabIndex={0}>
-          {visible.map((r) => (
-            <li key={r.id} className="helm-activity-row" data-tone={r.tone}>
-              <span className="helm-activity-who helm-mono">{r.agentId ?? "unattributed"}</span>
-              <span className="helm-activity-what">
-                {r.verb}
-                {r.target ? <span className="helm-activity-target"> {r.target}</span> : null}
-                {TONE_LABEL[r.tone] ? <span className="sr-only">{` — ${TONE_LABEL[r.tone]}`}</span> : null}
-              </span>
-              <span
-                className="helm-activity-when"
-                title={`Received by this browser at ${new Date(r.receivedAt).toLocaleTimeString()}. The event stream does not carry a server timestamp.`}
-              >
-                {relTime(r.receivedAt, now)}
-              </span>
-            </li>
-          ))}
-        </ol>
       )}
-
-      <footer className="helm-activity-foot">
-        {`${visible.length} shown · newest ${ACTIVITY_CAP} kept`}
-      </footer>
-    </section>
+    </details>
   );
 }

@@ -1,90 +1,35 @@
-// B5 — the Command Center's four KPI tiles. Presentational: the container owns the
-// fetch, this renders the numbers.
-//
-// EVERY NUMBER IS REAL OR AN ADMITTED GAP (hallmark gate 56):
-//   • Decisions today / Deliveries approved are CROSS-VENTURE (deliveries have no
-//     venture column in v1) — labelled "all ventures" so the number is never mistaken
-//     for a per-venture figure.
-//   • Records written is venture-scoped — its note names the current scope.
-//   • S0 removed the "Open follow-ups" tile with the leads store that fed it. A tile with
-//     no store behind it is not rendered at all — it is never kept alive on a faked 0.
-//   • No sparkline and no delta are drawn: v1 computes no prior-window series, and a
-//     fabricated trend is exactly the dishonesty this phase refuses (hasTrend gates it).
-//
-// dataviz treatment: calm, no gridlines, tabular-nums, one number per tile.
-
-import { prNote, tile, type Kpis } from "../../lib/kpiClient";
+// B5 — the Command Center's four numbers. Phase G (ADR G-2, D-7): the mockup's `.tiles`
+// (label over a display number) and the mockup's four questions, each bound to the real
+// field that answers it:
+//   Active jobs    — GET /runtime/jobs, status neither shipped nor blocked
+//   Need you       — every pending inbox item (the same count the title bar shows)
+//   Shipped today  — GET /runtime/bos/kpis window=1d → jobsShipped
+//   Spend today    — GET /runtime/spend window=24h → usd (null = no price, never $0)
+// A value the runtime could not give is "—", never a fabricated zero.
 
 export interface StatTilesProps {
-  kpis: Kpis | null;
-  /** True when the KPI fetch failed — every tile shows "—" plus one faint note. */
-  error: boolean;
-  /** The current scope (null = all ventures) — names the Records-written tile's note. */
-  ventureLabel: string;
+  activeJobs: number | null;
+  needYou: number | null;
+  shippedToday: number | null;
+  /** Metered spend in USD; `null` when unknown or unpriced. */
+  spendToday: number | null;
 }
 
-interface TileDef {
-  key: string;
-  label: string;
-  value: string;
-  note: string;
-  title: string;
-}
+const num = (n: number | null): string => (n === null ? "—" : String(n));
 
-function tilesFrom(kpis: Kpis | null, error: boolean, ventureLabel: string): TileDef[] {
-  // A failed fetch renders "—" everywhere — never a zero the BOSS would read as truth.
-  const dash = (): string => "—";
-  const v = (n: number): string => (error || !kpis ? dash() : tile(n));
-  return [
-    {
-      key: "decisions",
-      label: "Decisions today",
-      value: v(kpis?.decisionsToday ?? 0),
-      note: "all ventures",
-      title: "Approvals, rejections and change requests you made in the last 24h (across every venture)",
-    },
-    {
-      key: "records",
-      label: "Records written",
-      value: v(kpis?.recordsWritten ?? 0),
-      note: ventureLabel,
-      title: "Knowledge-vault records written in the last 24h, in the current scope",
-    },
-    {
-      key: "approved",
-      label: "Deliveries approved",
-      value: v(kpis?.deliveriesApproved ?? 0),
-      note: "all ventures",
-      title: "Deliveries you approved in the last 24h (across every venture)",
-    },
-    {
-      // 14.2 — THE MILESTONE'S NUMBER. M2-LIVE is "≥ 5 jobs shipped as PRs in one week", and
-      // it was not readable off the running system anywhere.
-      //
-      // The tile shows PRs, and the note carries the total shipped when the two DISAGREE —
-      // which is exactly the case that matters: with no `gh` the ship ladder stops at a local
-      // branch and says so, so "3 PRs" with "5 shipped" is the honest reading of a week where
-      // the work landed and the PRs did not. Collapsing them into one number would report a
-      // branch as a PR.
-      key: "prs",
-      label: "PRs shipped",
-      value: v(kpis?.prsShipped ?? 0),
-      note: prNote(kpis, error),
-      title: "Jobs shipped as a pull request in the window. A job that shipped to a local "
-        + "branch (no gh) is counted in the note, never as a PR.",
-    },
+export function StatTiles({ activeJobs, needYou, shippedToday, spendToday }: StatTilesProps) {
+  const tiles: [string, string][] = [
+    ["Active jobs", num(activeJobs)],
+    ["Need you", num(needYou)],
+    ["Shipped today", num(shippedToday)],
+    ["Spend today", spendToday === null ? "—" : `$${spendToday.toFixed(2)}`],
   ];
-}
-
-export function StatTiles({ kpis, error, ventureLabel }: StatTilesProps) {
-  const tiles = tilesFrom(kpis, error, ventureLabel);
   return (
-    <div className="bos-center-tiles" role="list" aria-label="Key numbers">
-      {tiles.map((t) => (
-        <div key={t.key} className="bos-center-tile" role="listitem" title={t.title}>
-          <span className="bos-center-tile-value helm-mono">{t.value}</span>
-          <span className="bos-center-tile-label helm-mono">{t.label}</span>
-          <span className="bos-center-tile-note helm-mono">{t.note}</span>
+    <div className="tiles">
+      {tiles.map(([label, value]) => (
+        <div key={label} className="tile">
+          <span className="label">{label}</span>
+          <p className="big num">{value}</p>
         </div>
       ))}
     </div>

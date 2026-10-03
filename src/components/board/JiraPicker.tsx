@@ -69,7 +69,7 @@ export function JiraPicker({ liveNonce = 0 }: JiraPickerProps) {
   }, []);
 
   return (
-    <section className="bos-jira-picker" aria-labelledby="jira-picker-h" data-live={liveNonce || undefined}>
+    <section className="card bos-jira-picker" aria-labelledby="jira-picker-h" data-live={liveNonce || undefined} style={{ marginBottom: 16 }}>
       <h3 id="jira-picker-h" className="bos-job-h helm-mono">FROM JIRA</h3>
 
       <form

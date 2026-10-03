@@ -1,24 +1,19 @@
-// B4 — the Schedule page (nav id `schedule`). The next 24h of the swarm's autonomous
-// watch as a vertical timeline: each scheduled cadence at its UTC fire time, grouped by
-// hour, with a "now" hairline. Row click opens the same WorkflowDrawer as Workflows.
+// B4 — the Schedule page (nav id `schedule`). Phase G (ADR G-2): the approved mockup's
+// `data-page="schedule"` — today's watch, hour by hour: one `.tl` card of `.tl-row`s (time ·
+// station · state chip) with the orange `.nowline` before the first slot still ahead. A row
+// opens the same WorkflowDrawer as Workflows.
 //
 // LAZY BY CONSTRUCTION (App React.lazy) — kept out of the main index chunk.
 //
-// HONEST SCOPE: times are UTC (the schedule is UTC, drift-free) and the ‹ Today › control
-// is a STATIC label — there is no day-navigation backend in v1 (disclosed). On-demand
-// cadences never appear here (they carry no schedule). A fetch failure shows a note + Retry.
-// NO innerHTML anywhere.
+// D-7: every row is a real cadence at its UTC hour (watchSlots); a slot claims "done" only
+// when the runtime fired THAT slot without an error, and a paused or off-day weekly slot
+// says so instead of "upcoming". On-demand cadences carry no slot. NO innerHTML anywhere.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTick } from "../../lib/ticker";
 import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
-import {
-  scheduleBuckets,
-  skillLabel,
-  stationName,
-  listCadences,
-  type Cadence,
-} from "../../lib/cadenceClient";
+import { listCadences, stationName, watchSlots, type Cadence, type SlotState } from "../../lib/cadenceClient";
+import { stationInitials } from "../../lib/stationMeta";
 import { BosTopbar } from "./BosTopbar";
 import { WorkflowDrawer, type RunEvent } from "./WorkflowDrawer";
 
@@ -28,11 +23,10 @@ export interface SchedulePageProps {
   liveNonce: number;
 }
 
-const dayLabel = (ms: number): string => {
-  const d = new Date(ms);
-  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
-  return `${mon} ${d.getUTCDate()}`;
-};
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+const two = (n: number) => String(n).padStart(2, "0");
+const CHIP: Record<SlotState, string> = { done: "chip ok", failed: "chip bad", missed: "chip bad", "no record": "chip", upcoming: "chip", paused: "chip warn", "not today": "chip" };
 
 export function SchedulePage({ venture, lastEvent, liveNonce }: SchedulePageProps) {
   const nowMs = useTick();
@@ -69,75 +63,47 @@ export function SchedulePage({ venture, lastEvent, liveNonce }: SchedulePageProp
     () => (rows === null ? null : venture ? rows.filter((c) => c.venture === venture) : rows),
     [rows, venture],
   );
-  const buckets = useMemo(() => (scoped ? scheduleBuckets(scoped, nowMs) : []), [scoped, nowMs]);
-  const scopeLabel = (venture ?? "all ventures").toUpperCase();
+  const slots = useMemo(() => (scoped ? watchSlots(scoped, nowMs) : []), [scoped, nowMs]);
   const open = openId && scoped ? scoped.find((c) => c.id === openId) ?? null : null;
   const onChanged = useCallback(() => setRetryNonce((n) => n + 1), []);
 
-  // The "now" hairline sits before the first bucket whose fire time is still ahead.
-  const nowIndex = buckets.findIndex((b) => b.items[0].at > nowMs);
+  // The now line sits before the first slot still ahead of today's UTC clock (the mockup's rule).
+  const hNow = (nowMs % DAY_MS) / HOUR_MS;
+  const at = slots.findIndex((s) => s.hour > hNow);
+  const nowText = `${two(Math.floor(hNow))}:${two(Math.floor((hNow % 1) * 60))}`;
+  const nowLine = (
+    <div className="nowline" key="now" role="separator" aria-label={`Now ${nowText}`}><span>{`now ${nowText}`}</span><i /></div>
+  );
+  const rowEls = slots.map((s) => (
+    <div className="tl-row" key={`${s.cadence.id}-${s.hour}`}>
+      <time>{`${two(s.hour)}:00`}</time>
+      <button className="row-btn" type="button" onClick={() => setOpenId(s.cadence.id)}>
+        <span className="ava" aria-hidden="true">{stationInitials(s.cadence.agent)}</span>
+        <span><b>{s.title}</b><span className="sub" style={{ display: "block" }}>{stationName(s.cadence.agent)}</span></span>
+        <span className={CHIP[s.state]}>{s.state}</span>
+      </button>
+    </div>
+  ));
+  const timeline = at < 0 ? [...rowEls, nowLine] : [...rowEls.slice(0, at), nowLine, ...rowEls.slice(at)];
 
   return (
-    <div className="bos-deck bos-sched">
+    <section className="page" aria-labelledby="h-schedule">
       <BosTopbar
-        eyebrow={`TODAY'S WATCH · ${scopeLabel}`}
+        eyebrow={`Automation · ${venture ?? "All ventures"}`}
         title="Schedule"
-        chips={
-          <span className="bos-sched-day helm-mono" title="Day navigation lands in a later phase — this is today, UTC">
-            ‹ {dayLabel(nowMs)} · UTC ›
-          </span>
-        }
+        tagline="today's watch, hour by hour"
+        headingId="h-schedule"
+        clock
+        chips={<span className="chip" title="Times are UTC, the clock the cadences run on">Today's watch</span>}
       />
-
       {error ? (
-        <p className="bos-wf-note helm-mono">
-          schedule unavailable — runtime not reachable{" "}
-          <button type="button" className="bos-vault-retry" onClick={() => setRetryNonce((n) => n + 1)}>Retry</button>
-        </p>
+        <div className="empty-note"><span className="script">Not reachable.</span><br />{"The runtime did not answer. "}<button type="button" className="linkish" onClick={() => setRetryNonce((n) => n + 1)}>Retry</button></div>
       ) : scoped === null ? (
-        <p className="bos-wf-note helm-mono">reading…</p>
-      ) : buckets.length === 0 ? (
-        <p className="bos-wf-note helm-mono">Nothing scheduled — the stations rest.</p>
+        <div className="empty-note" role="status">Reading the watch…</div>
+      ) : slots.length === 0 ? (
+        <div className="empty-note"><span className="script">Nothing scheduled.</span><br />No station has a timed cadence in this venture.</div>
       ) : (
-        <ol className="bos-sched-timeline" aria-label="Today's scheduled cadences (UTC)">
-          {buckets.map((b, bi) => (
-            <li key={`${b.hour}-${bi}`} className="bos-sched-bucket">
-              {bi === nowIndex && (
-                <div className="bos-sched-now" aria-hidden>
-                  <span className="bos-sched-now-dot" />
-                  <span className="bos-sched-now-line" />
-                </div>
-              )}
-              <span className="bos-sched-time helm-mono">{b.label}</span>
-              <div className="bos-sched-items">
-                {b.items.map((it) => (
-                  <button
-                    key={it.cadence.id}
-                    type="button"
-                    className="bos-sched-item"
-                    onClick={() => setOpenId(it.cadence.id)}
-                    aria-label={`${skillLabel(it.cadence.skill)} — ${stationName(it.cadence.agent)}`}
-                  >
-                    <span className="bos-sched-item-title">{skillLabel(it.cadence.skill)}</span>
-                    <span className="bos-sched-item-meta helm-mono">
-                      {stationName(it.cadence.agent)} · {it.cadence.skill}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </li>
-          ))}
-          {nowIndex === -1 && (
-            <li className="bos-sched-bucket" aria-hidden>
-              <div className="bos-sched-now">
-                <span className="bos-sched-now-dot" />
-                <span className="bos-sched-now-line" />
-              </div>
-              <span className="bos-sched-time helm-mono bos-sched-time--faint">now</span>
-              <div className="bos-sched-items" />
-            </li>
-          )}
-        </ol>
+        <div className="card"><div className="tl">{timeline}</div></div>
       )}
 
       {open && (
@@ -149,6 +115,6 @@ export function SchedulePage({ venture, lastEvent, liveNonce }: SchedulePageProp
           onChanged={onChanged}
         />
       )}
-    </div>
+    </section>
   );
 }

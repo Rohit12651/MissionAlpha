@@ -49,37 +49,6 @@ export type AuditFormat = "json" | "csv";
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
-
-/** A compact UTC stamp for when an artifact was produced (`Jul 30 · 14:00 UTC`); `—` for a
- *  missing/invalid time. */
-export function whenLabel(ms: number): string {
-  if (ms === null || ms === undefined || !Number.isFinite(ms)) return "—";
-  const d = new Date(ms);
-  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
-  return `${mon} ${d.getUTCDate()} · ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} UTC`;
-}
-
-export interface OutputRowVM {
-  /** The icon key (the artifact kind) — the page maps it to a brass-well glyph. */
-  icon: string;
-  label: string;
-  /** The faint meta line: `venture · when`. */
-  meta: string;
-}
-
-/** The produced-row view-model: the kind icon + label + `venture · when` meta. A global
- *  artifact (venture null) reads "all ventures", honestly. */
-export function outputRow(o: OutputRecord): OutputRowVM {
-  const segs = [o.venture || "all ventures", whenLabel(o.createdAt)].filter((s) => s && s !== "—");
-  return { icon: o.kind, label: o.label, meta: segs.join(" · ") };
-}
-
-/** The generator-row view-model: the kind icon + label + the capability description. */
-export function generatorRow(g: OutputGenerator): OutputRowVM {
-  return { icon: g.kind, label: g.label, meta: g.desc };
-}
-
 // ── fetchers (cadenceClient.ts token pattern) ───────────────────────────────
 async function authedJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await runtimeToken();

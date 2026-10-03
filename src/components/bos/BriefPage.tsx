@@ -56,9 +56,8 @@ function LastBriefChip({ rows }: { rows: LogRow[] | null }) {
   const nowMs = useTick();
   const label = lastBriefLabel(rows, nowMs);
   return (
-    <span className="helm-chip" data-tone={label === "—" ? undefined : "brass"}>
-      Last brief {label}
-    </span>
+    // APP-ONLY: when the Captain last briefed (the mockup's header carries only the clock).
+    <span className="chip" data-app-only="last-brief">{`Last brief ${label}`}</span>
   );
 }
 
@@ -66,16 +65,17 @@ export function BriefPage({ venture, lastEvent, liveNonce, onOpenDelivery }: Bri
   const [rows, setRows] = useState<LogRow[] | null>(null);
   const [error, setError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [windowHours, setWindowHours] = useState<number>(DEFAULT_BRIEF_HOURS);
 
   // ── authoritative read (mount · SSE resync · Retry) ───────────────────────
   useEffect(() => {
     let live = true;
     setError(false);
-    getBriefLog(DEFAULT_BRIEF_HOURS)
+    getBriefLog(windowHours)
       .then((r) => { if (live) setRows(logRows(r.events)); })
       .catch(() => { if (live) { setRows(null); setError(true); } });
     return () => { live = false; };
-  }, [liveNonce, retryNonce]);
+  }, [liveNonce, retryNonce, windowHours]);
 
   // ── live tail ─────────────────────────────────────────────────────────────
   // A frame outside the closed brief catalog maps to null and is ignored, so the log
@@ -96,24 +96,28 @@ export function BriefPage({ venture, lastEvent, liveNonce, onOpenDelivery }: Bri
     setRows((prev) => prependRow(prev ?? [], routedRow(r, text)));
   }, []);
 
-  const scopeLabel = (venture ?? "all ventures").toUpperCase();
-
+  // Phase G (ADR G-2): the mockup's CEO-brief page.
   return (
-    <div className="bos-deck bos-brief">
+    <section className="page" aria-labelledby="h-brief">
       <BosTopbar
-        eyebrow={`CAPTAIN'S CONSOLE · ${scopeLabel}`}
-        title="Daily brief"
+        eyebrow={`CEO brief · ${venture ?? "All ventures"}`}
+        title="CEO brief"
+        tagline="ask before anything moves"
+        headingId="h-brief"
+        clock
         chips={<LastBriefChip rows={rows} />}
       />
-      <div className="bos-brief-grid">
+      <div className="grid2">
         <CaptainConsole onRouted={onRouted} />
         <AgentLog
           rows={rows}
           error={error}
           onRetry={() => setRetryNonce((n) => n + 1)}
           onOpenDelivery={onOpenDelivery}
+          windowHours={windowHours}
+          onWindow={setWindowHours}
         />
       </div>
-    </div>
+    </section>
   );
 }

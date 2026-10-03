@@ -42,6 +42,7 @@ export function StationMemoryPanel({ memoryLiveNonce }: StationMemoryPanelProps)
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [savedAt, setSavedAt] = useState("");
   const [retryNonce, setRetryNonce] = useState(0);
 
   // ui-audit MED-2: blank the box the instant the station changes, so the previous
@@ -56,7 +57,8 @@ export function StationMemoryPanel({ memoryLiveNonce }: StationMemoryPanelProps)
     setLoading(true);
     setLoadError(false);
     setSaveError(null);
-    setSaved(false);
+    // `saved` is NOT reset here: a save emits memory.changed, and this re-read must not
+    // erase the "Saved at" line it just earned (a station change resets it, above).
     getMemory(agentId)
       .then((doc) => {
         if (!live) return;
@@ -78,6 +80,8 @@ export function StationMemoryPanel({ memoryLiveNonce }: StationMemoryPanelProps)
     try {
       const r = await putMemory(agentId, text);
       if (r.error) { setSaveError(memoryErrorMessage(r.error)); return; }
+      const d = new Date();
+      setSavedAt(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
       setSaved(true);
     } catch {
       setSaveError("could not reach the runtime — nothing was saved");
@@ -86,72 +90,37 @@ export function StationMemoryPanel({ memoryLiveNonce }: StationMemoryPanelProps)
     }
   };
 
+  // Phase G (ADR G-2): the mockup's Station memory card. APP-ONLY: the character count
+  // against the server's cap (a save over it would be refused).
   return (
-    <section className="bos-vault-memory" aria-label="Station memory">
-      <p className="bos-vault-files-head helm-mono">STATION MEMORY</p>
-      <p className="bos-vault-blurb">
-        BOSS-authored notes injected into the station's system prompt on every wake.
-      </p>
-
-      <label className="bos-editor-field">
-        <span className="helm-mono bos-editor-label">STATION</span>
-        <select
-          className="bos-editor-select"
-          value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
-          disabled={saving}
-        >
+    <div className="card">
+      <div className="card-h"><h2>Station memory</h2><span className="sub">what a station always knows</span></div>
+      <div className="field">
+        <label className="label" htmlFor="vt-st">Station</label>
+        <select id="vt-st" value={agentId} onChange={(e) => setAgentId(e.target.value)} disabled={saving}>
           {ROSTER.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-      </label>
-
+      </div>
       {loadError ? (
-        <p className="bos-vault-note helm-mono">
-          could not read station memory{" "}
-          <button type="button" className="bos-vault-retry" onClick={() => setRetryNonce((n) => n + 1)}>
-            Retry
-          </button>
-        </p>
+        <div className="empty-note" style={{ marginTop: 10 }}>{"Could not read this station's memory. "}<button type="button" className="linkish" onClick={() => setRetryNonce((n) => n + 1)}>Retry</button></div>
       ) : (
         <>
-          <label className="bos-editor-field">
-            <span className="helm-mono bos-editor-label">MEMORY</span>
-            <textarea
-              className="bos-editor-textarea bos-editor-body"
-              value={text}
-              onChange={(e) => { setText(e.target.value); setSaved(false); }}
-              disabled={loading || saving}
-              rows={10}
-              aria-label={`${agentId} station memory`}
-            />
-          </label>
-
-          <div className="bos-vault-memory-actions">
-            <span
-              className="bos-vault-memory-counter helm-mono"
-              data-over={overCap ? "true" : undefined}
-            >
-              {loading ? "reading…" : `${text.length} / ${max}`}
-            </span>
-            <button
-              type="button"
-              className="bos-wf-toggle"
-              onClick={() => void onSave()}
-              disabled={loading || saving || overCap}
-              data-busy={saving || undefined}
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label className="label" htmlFor="vt-mem">Memory</label>
+            <textarea id="vt-mem" rows={5} className="field-ta" value={text} onChange={(e) => { setText(e.target.value); setSaved(false); }} disabled={loading || saving} aria-describedby="vt-mem-scope" />
+            {/* APP-ONLY: the most privileged prompt surface says what it is. */}
+            <p className="hint" id="vt-mem-scope" data-app-only="memory-scope" style={{ margin: 0 }}>Injected into this station's system prompt on every wake.</p>
+          </div>
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="btn btn-primary" type="button" onClick={() => void onSave()} disabled={loading || saving || overCap}>{saving ? "Saving…" : "Save memory"}</button>
+            <span className="sub" role="status">{saved && !saveError ? `Saved at ${savedAt} · used from the station's next wake` : ""}</span>
+            <span className="sub" data-app-only="memory-count" style={overCap ? { color: "var(--bad-ink)" } : undefined}>{loading ? "reading…" : `${text.length} / ${max}`}</span>
           </div>
         </>
       )}
-
-      {saveError && <p className="bos-wf-error helm-mono" role="alert">{saveError}</p>}
-      {saved && !saveError && (
-        <p className="bos-wf-ack helm-mono" role="status">saved — picked up on the station's next wake</p>
-      )}
-    </section>
+      {saveError && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: "8px 0 0" }}>{saveError}</p>}
+    </div>
   );
 }

@@ -174,3 +174,15 @@ test("manualAdvance offers START only at idea, and RETRY only when blocked", () 
   assert.equal(manualAdvance({ stage: "design", status: "rejected" }), null);
   assert.equal(manualAdvance(null), null);
 });
+
+// Phase G — the mockup's card time: "Ns ago" / "Nm ago" / "Nh ago" (mockup ago()).
+import { agoLabel } from "../storiesClient.ts";
+
+test("agoLabel speaks the mockup's relative time", () => {
+  const now = 1_786_500_000_000;
+  assert.equal(agoLabel(now - 42_000, now), "42s ago");
+  assert.equal(agoLabel(now - 31 * 60_000, now), "31m ago");
+  assert.equal(agoLabel(now - 3 * 3_600_000, now), "3h ago");
+  assert.equal(agoLabel(now + 5_000, now), "0s ago", "a clock-skewed future time never reads negative");
+  assert.equal(agoLabel(Number.NaN, now), "—", "an unknown time is a dash, never 'just now'");
+});
