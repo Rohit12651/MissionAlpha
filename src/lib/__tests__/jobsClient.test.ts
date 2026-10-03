@@ -101,6 +101,17 @@ test("JC-10: a task with no seat reads as unassigned — never as someone", () =
   assert.equal(taskTone("done"), "green");
 });
 
+test("JC-TONE-ANS: a task waiting on a PEER reads as in motion — not idle, and not as needing the BOSS", () => {
+  // Phase D · task 13. `awaiting-answer` fell through to `muted`, the tone of a task nobody has
+  // touched — while that task is mid-conversation and holding its write scope. Amber is wrong
+  // too: in this palette amber means YOU must act (held, awaiting-you), and nobody needs the BOSS
+  // here — a peer is producing the answer. Brass is the truth: work in motion.
+  assert.equal(taskTone("awaiting-answer"), "brass");
+  assert.notEqual(taskTone("awaiting-answer"), taskTone("held"), "it must not borrow the tone that asks the BOSS to act");
+  // UNRELATED: an unknown status still reads as muted, never as a real outcome.
+  assert.equal(taskTone("something-new"), "muted");
+});
+
 test("JC-11: a detail payload that is junk is an empty detail, never a throw", () => {
   for (const bad of [null, 7, "x", { job: "nope" }]) {
     const d = parseJobDetail(bad);
@@ -127,4 +138,85 @@ test("JC-12: the thread is parsed, and a row with no id is dropped like every ot
 test("JC-13: a detail with no log at all is an EMPTY thread, never undefined", () => {
   const d = parseJobDetail({ job: J(), tasks: [], gates: [] });
   assert.deepEqual(d.log, [], "the drawer must be able to map() it without a guard");
+});
+
+// Phase B · Task 5 — the one word the board shows for a shipped job. Codex F12: "shipped" could
+// not be told apart from a prepared local branch. Mutation proof (2026-09-17): outcomeTone("pr") → "amber" →
+// ✖ JOBS-OUTCOME-2 actual: 'amber', expected: 'green'. Restored, md5 matched.
+import { outcomeTone, outcomeLabel } from "../jobsClient.ts"; // parseJobs is already imported above
+
+test("JOBS-OUTCOME-1: shipOutcome is parsed from summary.ship.outcome and only the three known words survive", () => {
+  const rows = parseJobs({ jobs: [
+    { id: "job_1", title: "a", status: "shipped", summary: { ship: { outcome: "pr" } } },
+    { id: "job_2", title: "b", status: "shipped", summary: { ship: { outcome: "pushed" } } },
+    { id: "job_3", title: "c", status: "shipped", summary: { ship: { outcome: "local-branch" } } },
+    { id: "job_4", title: "d", status: "shipped", summary: { ship: { outcome: "banana" } } },
+    { id: "job_5", title: "e", status: "building" },
+  ] });
+  assert.deepEqual(rows.map((r) => r.shipOutcome), ["pr", "pushed", "local-branch", null, null]);
+});
+
+test("JOBS-OUTCOME-2: tone and label are semantic — pr is green, pushed brass, local-branch amber", () => {
+  assert.equal(outcomeTone("pr"), "green");
+  assert.equal(outcomeTone("pushed"), "brass");
+  assert.equal(outcomeTone("local-branch"), "amber");
+  assert.equal(outcomeLabel("pr"), "PR");
+  assert.equal(outcomeLabel("pushed"), "pushed");
+  assert.equal(outcomeLabel("local-branch"), "local branch");
+});
+
+// ── Phase F · task 20 — the CEO's verdict on the card ────────────────────────────
+// A job's `summary.strategy.verdict` is the CEO's answer. It is read on EVERY status after
+// strategy (a killed job is `blocked`; a proceeded one moves on), so it is a property of the job,
+// not of a column. Only the three real words survive — addendum #2: never state a fact we lack.
+import { verdictTone, verdictLabel } from "../jobsClient.ts";
+
+test("JC-STRAT-1: the CEO's verdict is parsed from summary.strategy.verdict — only the three words survive", () => {
+  const jobs = parseJobs({ jobs: [
+    { id: "job_a", title: "a", status: "clarify", summary: { strategy: { verdict: "proceed", why: "w" } } },
+    { id: "job_b", title: "b", status: "blocked", summary: { strategy: { verdict: "kill" } } },
+    { id: "job_c", title: "c", status: "awaiting-you", summary: { strategy: { verdict: "defer" } } },
+    { id: "job_d", title: "d", status: "clarify", summary: { strategy: { verdict: "yolo" } } },
+    { id: "job_e", title: "e", status: "strategy" },
+  ] });
+  assert.deepEqual(jobs.map((j) => j.strategyVerdict), ["proceed", "kill", "defer", null, null]);
+});
+
+test("JC-STRAT-2: verdict tones are semantic, and `strategy` itself is work in motion", () => {
+  assert.equal(verdictTone("proceed"), "green");
+  assert.equal(verdictTone("defer"), "amber", "defer puts a question to the BOSS");
+  assert.equal(verdictTone("kill"), "red");
+  assert.equal(statusTone("strategy"), "brass", "the CEO is thinking — not idle, not waiting on the BOSS");
+  assert.equal(isGateStatus("strategy"), false, "amber means the BOSS must act; the CEO's turn is not that");
+  assert.equal(verdictLabel("kill"), "CEO: kill");
+  const col = columns(parseJobs({ jobs: [{ id: "job_s", title: "s", status: "strategy" }] })).find((c) => c.status === "strategy");
+  assert.equal(col?.label, "Strategy");
+  assert.equal(col?.jobs.length, 1, "a strategy job lands in its own column, not in `unplaced`");
+});
+
+test("JC-STRAT-3: the board has a Strategy column between Intake and Clarify", () => {
+  const i = JOB_STATUSES.indexOf("strategy");
+  assert.equal(JOB_STATUSES[i - 1], "intake");
+  assert.equal(JOB_STATUSES[i + 1], "clarify");
+});
+
+// ── #4 (2026-09-27) — answering a job's questions from the Inbox ─────────────────────────────
+import { buildJobAnswers } from "../jobsClient.ts";
+
+test("JC-ANS-1: the job's questions are parsed — the Inbox asks exactly what the Manager asked", () => {
+  const { job } = parseJobDetail({ job: J({ questions: ["Which DB?", "", 7, "Dark mode?"] }) });
+  assert.deepEqual(job?.questions, ["Which DB?", "Dark mode?"]);
+  assert.deepEqual(parseJobs({ jobs: [J()] })[0].questions, [], "no questions ⇒ an empty list, never undefined");
+});
+
+test("JC-ANS-2: answers pair each question with its text, trimmed", () => {
+  const r = buildJobAnswers(["Which DB?", "Dark mode?"], ["  sqlite ", "yes"]);
+  assert.deepEqual(r, { ok: true, answers: [{ q: "Which DB?", a: "sqlite" }, { q: "Dark mode?", a: "yes" }] });
+});
+
+test("JC-ANS-3: every question must be answered — a blank answer is refused, naming the question", () => {
+  const r = buildJobAnswers(["Which DB?", "Dark mode?"], ["sqlite", "   "]);
+  assert.equal(r.ok, false);
+  assert.match(r.ok ? "" : r.error, /Dark mode\?/);
+  assert.equal(buildJobAnswers([], []).ok, false, "a gate with no questions has nothing to answer");
 });

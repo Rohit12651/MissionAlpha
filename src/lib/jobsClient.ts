@@ -22,7 +22,7 @@ import { runtimeToken, runtimeUrl } from "./runtimeBase.ts";
  *  jobsClient.test.ts JC-6 asserts this list IS the runtime's, so a status added there and
  *  forgotten here fails at once instead of silently hiding a whole column. */
 export const JOB_STATUSES = [
-  "intake", "clarify", "planned", "building", "review", "awaiting-you", "shipped", "blocked",
+  "intake", "strategy", "clarify", "planned", "building", "review", "awaiting-you", "shipped", "blocked",
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
@@ -35,8 +35,62 @@ export interface Job {
   status: string;
   prUrl: string | null;
   blockedOn: string | null;
+  /** Phase B · Task 5 — the ONE word for a shipped job: did a PR open, did the branch reach
+   *  the remote, or did it stay local. Parsed from summary.ship.outcome; unknown → null. */
+  shipOutcome: ShipOutcome | null;
+  /** Phase F · 20 — the CEO's verdict, from summary.strategy.verdict; unknown → null. Carried on
+   *  every status after `strategy` (a killed job sits in `blocked`), so it is the job's, not a column's. */
+  strategyVerdict: StrategyVerdict | null;
+  /** #4 — what the Manager asked. The Inbox answers exactly these, in order. */
+  questions: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+export type StrategyVerdict = "proceed" | "defer" | "kill";
+const STRATEGY_VERDICTS: readonly StrategyVerdict[] = ["proceed", "defer", "kill"];
+function parseStrategyVerdict(rec: Record<string, unknown>): StrategyVerdict | null {
+  const summary = rec.summary;
+  if (!summary || typeof summary !== "object") return null;
+  const strat = (summary as { strategy?: unknown }).strategy;
+  if (!strat || typeof strat !== "object") return null;
+  const v = (strat as { verdict?: unknown }).verdict;
+  return typeof v === "string" && (STRATEGY_VERDICTS as readonly string[]).includes(v) ? (v as StrategyVerdict) : null;
+}
+
+/** PURE. proceed is a go, defer puts a question to the BOSS, kill stopped the job. */
+export function verdictTone(v: StrategyVerdict): Tone {
+  if (v === "proceed") return "green";
+  if (v === "defer") return "amber";
+  return "red";
+}
+
+export function verdictLabel(v: StrategyVerdict): string {
+  return `CEO: ${v}`;
+}
+
+export type ShipOutcome = "pr" | "pushed" | "local-branch";
+const SHIP_OUTCOMES: readonly ShipOutcome[] = ["pr", "pushed", "local-branch"];
+function parseShipOutcome(rec: Record<string, unknown>): ShipOutcome | null {
+  const summary = rec.summary;
+  if (!summary || typeof summary !== "object") return null;
+  const ship = (summary as { ship?: unknown }).ship;
+  if (!ship || typeof ship !== "object") return null;
+  const v = (ship as { outcome?: unknown }).outcome;
+  return typeof v === "string" && (SHIP_OUTCOMES as readonly string[]).includes(v) ? (v as ShipOutcome) : null;
+}
+
+/** PURE. Tone for the ship outcome: a PR is the finished thing, a pushed branch is visible
+ *  to others, a local branch is on this machine only. */
+export function outcomeTone(o: ShipOutcome): Tone {
+  if (o === "pr") return "green";
+  if (o === "pushed") return "brass";
+  return "amber";
+}
+export function outcomeLabel(o: ShipOutcome): string {
+  if (o === "pr") return "PR";
+  if (o === "pushed") return "pushed";
+  return "local branch";
 }
 
 export interface JobTask {
@@ -98,6 +152,9 @@ function parseJob(raw: unknown): Job | null {
     status: str(rec.status, "unknown"),
     prUrl: nullableStr(rec.prUrl),
     blockedOn: nullableStr(rec.blockedOn),
+    shipOutcome: parseShipOutcome(rec),
+    strategyVerdict: parseStrategyVerdict(rec),
+    questions: strings(rec.questions),
     createdAt: num(rec.createdAt),
     updatedAt: num(rec.updatedAt),
   };
@@ -174,6 +231,7 @@ export function parseJobDetail(raw: unknown): { job: Job | null; tasks: JobTask[
 
 const LABELS: Record<JobStatus, string> = {
   intake: "Intake",
+  strategy: "Strategy",
   clarify: "Clarify",
   planned: "Planned",
   building: "Building",
@@ -197,7 +255,8 @@ export function statusTone(status: string): Tone {
   if (status === "awaiting-you") return "amber";
   if (status === "blocked") return "red";
   if (status === "shipped") return "green";
-  if (status === "building" || status === "review") return "brass";
+  // `strategy` is the CEO's turn in progress — work in motion, like building (Phase F · 20).
+  if (status === "building" || status === "review" || status === "strategy") return "brass";
   return "muted";
 }
 
@@ -205,7 +264,10 @@ export function statusTone(status: string): Tone {
 export function taskTone(status: string): Tone {
   if (status === "blocked") return "red";
   if (status === "done") return "green";
-  if (status === "running" || status === "queued") return "brass";
+  // `awaiting-answer` (Phase D · task 13) is work IN MOTION: a peer is producing the answer and
+  // the task holds its write scope. Brass, not amber — amber means the BOSS must act, and here
+  // nobody is waiting on the BOSS.
+  if (status === "running" || status === "queued" || status === "awaiting-answer") return "brass";
   if (status === "held") return "amber";
   return "muted";
 }
@@ -254,4 +316,46 @@ export async function fetchJob(id: string): Promise<{ job: Job | null; tasks: Jo
   });
   if (!res.ok) throw new Error(`job: HTTP ${res.status}`);
   return parseJobDetail(await res.json());
+}
+
+/** Phase B · Task 6 — POST /runtime/jobs/:id/resume. Approver-only on the server; the caller
+ *  renders the refusal text rather than guessing at roles. Returns the job as the server now has it. */
+export async function resumeJob(id: string): Promise<{ ok: true; job: Job | null } | { ok: false; error: string }> {
+  const token = await runtimeToken();
+  const res = await fetch(runtimeUrl(`/runtime/jobs/${encodeURIComponent(id)}/resume`), { method: "POST", cache: "no-store", headers: { "x-runtime-token": token } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: String(body?.error || `resume failed (${res.status})`) };
+  return { ok: true, job: parseJobs({ jobs: [body?.job] })[0] ?? null };
+}
+
+// ── #4 (2026-09-27) — answer a job's questions from its Inbox gate ────────────────────────────
+
+export interface JobAnswer { q: string; a: string }
+
+/** PURE. Pair each question with its typed answer. Every question must be answered: a job
+ *  plans on these facts, and a blank one is a fact the Manager will have to guess. */
+export function buildJobAnswers(questions: readonly string[], texts: readonly string[]):
+  { ok: true; answers: JobAnswer[] } | { ok: false; error: string } {
+  if (!questions.length) return { ok: false, error: "this job has no open questions" };
+  const answers: JobAnswer[] = [];
+  for (let i = 0; i < questions.length; i++) {
+    const a = String(texts[i] ?? "").trim();
+    if (!a) return { ok: false, error: `Answer every question — missing: "${questions[i]}"` };
+    answers.push({ q: questions[i], a });
+  }
+  return { ok: true, answers };
+}
+
+/** POST /runtime/jobs/:id/answer. Approver-only on the server; its refusal text is shown as-is
+ *  (e.g. the CEO's deferred job wants a plain yes or no). */
+export async function answerJob(id: string, answers: JobAnswer[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await runtimeToken();
+  const res = await fetch(runtimeUrl(`/runtime/jobs/${encodeURIComponent(id)}/answer`), {
+    method: "POST", cache: "no-store",
+    headers: { "x-runtime-token": token, "Content-Type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: String(body?.error || `answer failed (${res.status})`) };
+  return { ok: true };
 }

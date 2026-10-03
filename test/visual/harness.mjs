@@ -157,10 +157,11 @@ export const STUB_SSE_JS = `
   })();
 `;
 
-// Onboarding gate. src/components/onboarding/Onboarding.tsx shows a full-screen modal
-// (`fixed inset-0 z-[90]`) once per browser, keyed on localStorage `ma.onboarded.v1`.
+// Onboarding gate. Without `ma.onboarded.v1` the app opens on the first-run Landing
+// (src/lib/firstRun.ts, src/components/landing/Landing.tsx) instead of the cockpit; the
+// old full-screen tour that used this key was deleted (Landing + Setup, ADR-LS4).
 // A fresh Playwright context has empty localStorage, so WITHOUT this seed every capture
-// is a picture of the onboarding modal and every nav click is intercepted by its overlay.
+// is a picture of the landing; test/visual/first-run.spec.mjs removes it on purpose.
 // Discovered the hard way: `document.elementFromPoint` over the sidebar returned the
 // modal backdrop, not the nav button.
 export const ONBOARDED_KEY = "ma.onboarded.v1";

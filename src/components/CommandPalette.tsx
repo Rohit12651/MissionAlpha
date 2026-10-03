@@ -21,18 +21,27 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // What had focus before the palette opened; it gets focus back when the palette closes,
+  // BEFORE the chosen command runs (choose() defers run() a frame), so a command that opens
+  // a dialog records the right opener instead of <body>.
+  const returnTo = useRef<Element | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
 
   const results = useMemo(() => filterCommands(commands, query), [commands, query]);
 
-  // Reset + focus on open.
+  // Open: reset + focus the input. Close: give focus back to what had it.
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setActive(0);
-      // focus after paint so the dialog is mounted
-      requestAnimationFrame(() => inputRef.current?.focus());
+    if (!open) {
+      const el = returnTo.current as HTMLElement | null;
+      returnTo.current = null;
+      if (el?.isConnected) el.focus();
+      return;
     }
+    returnTo.current = document.activeElement;
+    setQuery("");
+    setActive(0);
+    // focus after paint so the dialog is mounted
+    requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
   // Document-level Escape (capture) — closes even if focus somehow left the input.
