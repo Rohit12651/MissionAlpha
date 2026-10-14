@@ -5,6 +5,7 @@
 //   restart → rows survive → Last-Event-ID replays what was missed.
 // Plus the adversarial sweep: no-token 401, evil-Host 403, ticket replay/expiry,
 // unknown id 404, double-decide 409.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { STATION_IDS, RETIRED_STATION_IDS } from "../seed-stations.mjs";

@@ -4,6 +4,7 @@
 // this project's defects have actually lived: a PATCH route that existed but was 405'd by
 // the method allowlist, a bulk route that sat outside routeNeedsApprover. A correct
 // aggregate nobody can reach is worth nothing.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

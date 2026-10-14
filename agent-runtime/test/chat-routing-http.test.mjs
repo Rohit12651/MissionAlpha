@@ -3,6 +3,7 @@
 // mode:"api"), while a Claude/swarm (or no) active account takes the existing CLI/mock
 // path (mode:"mock" under the mock backend). Hermetic: the adapter account has NO model
 // set, so the adapter fails closed with a friendly message and never touches the network.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

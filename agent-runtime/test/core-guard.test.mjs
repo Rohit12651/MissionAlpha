@@ -17,11 +17,17 @@
 // the tool that edits the broker.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyAllowed, CORE_GUARD, SEED_DIRS } from "../guards.mjs";
+import { applyAllowed, CORE_GUARD, RUNTIME_FLOOR, SEED_DIRS } from "../guards.mjs";
 
-test("CG-1: the swarm can now apply work under agent-runtime/ and docs/", () => {
-  assert.equal(applyAllowed("agent-runtime/providers/credentials.mjs"), true);
-  assert.equal(applyAllowed("agent-runtime/adapters/slack.mjs"), true);
+test("CG-1: the swarm can apply work under agent-runtime's test dirs and docs/", () => {
+  // Phase E · 16 CHANGED THIS EXAMPLE. It was `agent-runtime/providers/credentials.mjs` — the
+  // credential store — cited as ordinary work. providers/ is now a CORE_GUARD directory clause
+  // (GUARD-3), so the example is an ordinary runtime file instead.
+  // 2026-09-24: engine.mjs joined the floor; kpis.mjs (pure KPI arithmetic) is the ordinary example now.
+  // Decision #1 (2026-09-27): agent-runtime/ is deny-by-default — its modules are no longer ordinary
+  // work, only its test dirs are (runtime-floor.test.mjs RTF-1..7 pins the whole tree).
+  assert.equal(applyAllowed("agent-runtime/kpis.mjs"), false);
+  assert.equal(applyAllowed("agent-runtime/adapters/slack.mjs"), false);
   assert.equal(applyAllowed("agent-runtime/test/queue.test.mjs"), true);
   assert.equal(applyAllowed("docs/adr/ADR-099-something.md"), true);
   // …and everything that was appliable before still is.
@@ -69,10 +75,15 @@ test("CG-4: the guard is case-insensitive and cannot be dodged by path shape", (
 });
 
 test("CG-5: a neighbouring name is NOT swept up — the guard is exact, not a prefix", () => {
-  // `guards.mjs` is guarded; a file that merely starts the same way is ordinary work.
-  assert.equal(applyAllowed("agent-runtime/guardsHelper.mjs"), true);
-  assert.equal(applyAllowed("agent-runtime/broker-notes.md"), true);
-  assert.equal(applyAllowed("agent-runtime/providers/pr-helpers.mjs"), true);
+  // `guards.mjs` is guarded; a file that merely starts the same way is not CORE_GUARD. The regex
+  // must stay exact because fatalScopeProblem uses it to reject a LITERAL scope entry.
+  // Decision #1 (2026-09-27): those neighbours are still refused by applyAllowed — by RUNTIME_FLOOR,
+  // not by CORE_GUARD — so the exactness is asserted on the regex itself.
+  for (const p of ["agent-runtime/guardsHelper.mjs", "agent-runtime/broker-notes.md", "agent-runtime/providers-legacy/pr-helpers.mjs"]) {
+    assert.equal(CORE_GUARD.test(p), false, p);
+    assert.equal(RUNTIME_FLOOR.test(p), true, p);
+    assert.equal(applyAllowed(p), false, p);
+  }
 });
 
 test("CG-6: exec and secret surfaces stay out of scope entirely", () => {

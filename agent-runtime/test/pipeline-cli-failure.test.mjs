@@ -16,6 +16,7 @@
 // The stub below reproduces that frame BYTE-FOR-BYTE from the real observed output. What
 // is pinned: the pipeline REFUSES. No spec, no advance, no gate — and one visible,
 // diff-less failure Delivery that names the cause.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

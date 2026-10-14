@@ -13,11 +13,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRoster, matchesWriteScope } from "../roster.mjs";
 import { SEED_DIRS } from "../guards.mjs";
+import { SKILL_CATALOG } from "../factory.mjs";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const SKILLS = new Set(["repo-read", "research-brief", "ui", "api", "db", "test", "notifications"]);
+// The GOVERNED catalog, derived exactly as server.mjs:2371 derives it. This was a hardcoded
+// 7-id copy until 2026-09-17, when adding the `ceo` seat (skill "strategy-gate") to the real
+// roster.json made the copy stale and this file threw AT IMPORT — `pass 0`, not `fail 1`.
+// A cache of a source of truth that lives two files away buys nothing and goes stale silently.
+const SKILLS = new Set(SKILL_CATALOG.map((sk) => sk.id));
 const seedFile = new URL("../roster.json", import.meta.url).pathname;
 
 function load(writeScope) {

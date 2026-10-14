@@ -26,6 +26,8 @@
 import { readFile, writeFile, lstat } from "node:fs/promises";
 import { resolve, relative, extname } from "node:path";
 
+import { assertCanonicalInside } from "./workdir-guard.mjs";
+
 /** Extensions a codemod may touch. Closed set. */
 export const CODEMOD_EXTS = Object.freeze(new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]));
 /** Abort threshold — beyond this it is not a mechanical task any more. */
@@ -171,6 +173,10 @@ export async function applyCodemod({ workdir, intent, files, io = {} }) {
     let st;
     try { st = await stat(abs); } catch { skipped.push({ file: rel, why: "unreadable" }); continue; }
     if (st.isSymbolicLink && st.isSymbolicLink()) { skipped.push({ file: rel, why: "symlink" }); continue; }
+    // Phase C · task 11 — a symlinked PARENT is not caught by lstat'ing the file: the file
+    // itself is real, it just lives somewhere else (CANON-3). One shared canonical check.
+    const canon = await assertCanonicalInside(workdir, rel);
+    if (!canon.ok) { skipped.push({ file: rel, why: canon.error }); continue; }
 
     let src;
     try { src = String(await read(abs, "utf8")); } catch { skipped.push({ file: rel, why: "unreadable" }); continue; }

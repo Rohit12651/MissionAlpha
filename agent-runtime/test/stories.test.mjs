@@ -252,3 +252,22 @@ test("STORY_STAGES is the 8-stage closed pipeline and STORY_STATUSES is the 5-va
     }
   }
 });
+
+test("STORIES-MAILLOG-1: appendMailLog persists mail-forged and mail-invalid — the audit rows Task 3 emits are not dropped", () => {
+  // Security review of Task 3 (2026-09-17), HIGH: the whitelist admitted only "mail" and
+  // "mail-refused", so a forged outbox file was dropped correctly and recorded nowhere.
+  // Mutation proof (2026-09-17): "mail-forged" removed from MAIL_LOG_EVENTS → ✖ STORIES-MAILLOG-1
+  //   mail-forged must persist  actual: 'object' (null), expected: 'number'. Restored, md5 matched.
+  const { s, cleanup } = harness();
+  try {
+    const story = s.createStory({ title: "t", idea: "i" });
+    const forged = s.appendMailLog(story.id, { event: "mail-forged", byAgent: "sr-backend", toAgent: "hr", ref: "hire-request", ts: 1 });
+    const invalid = s.appendMailLog(story.id, { event: "mail-invalid", byAgent: "sr-frontend", toAgent: null, ref: null, ts: 2 });
+    const unknown = s.appendMailLog(story.id, { event: "banana", byAgent: "x", toAgent: "y", ref: null, ts: 3 });
+    assert.equal(typeof forged, "number", "mail-forged must persist");
+    assert.equal(typeof invalid, "number", "mail-invalid must persist");
+    assert.equal(unknown, null, "the whitelist is still closed");
+    const events = s.getLog(story.id).map((r) => r.event);
+    assert.ok(events.includes("mail-forged") && events.includes("mail-invalid"), JSON.stringify(events));
+  } finally { cleanup(); }
+});

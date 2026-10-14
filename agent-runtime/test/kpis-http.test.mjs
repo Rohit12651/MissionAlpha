@@ -4,6 +4,7 @@
 //   fake 0) → a written vault record moves recordsWritten, venture-scoped → a malformed
 //   window is a 400 (not a silent default) → wrong method 405.
 // Plus the adversarial sweep: no-token 401, evil Host 403.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

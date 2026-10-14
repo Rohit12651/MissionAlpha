@@ -59,6 +59,11 @@ export const KINDS = Object.freeze(["code", "doc", "post", "command", "failure",
 // broker, a worktree or an engine goal, because a gate has no diff and no task to advance;
 // its ONLY side effect is the Story transition, which the pipeline owns via onDecided.
 export const GATE_KINDS = Object.freeze(new Set(["question", "design-approval", "release-approval", "job-approval"]));
+
+/** #4 — a job's CLARIFY gate (slot `<job>-q`): the Manager's questions, ANSWERED through
+ *  /runtime/jobs/:id/answer. Its other question gates (-hire, -esc-N, -blocked-T) are decisions. */
+export const isJobClarifyGate = (row) =>
+  row?.kind === "question" && !!row?.jobId && row?.taskId === `${row.jobId}-q`;
 // Every placeholder the scrub layer can substitute into reviewed text. Their presence
 // means the reviewer is NOT looking at the bytes on disk, which makes the file
 // un-editable (Phase 4). Keep in step with factory.mjs and secret-scrub.mjs.

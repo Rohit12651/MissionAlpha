@@ -7,6 +7,7 @@
 // A handler nobody can call is not a feature, so the auth-gate line and the handler are
 // tested together here, plus the adversarial sweep (no token → 401, evil Host → 403).
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

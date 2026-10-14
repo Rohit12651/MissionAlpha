@@ -76,6 +76,23 @@ export function createEngine(deps = {}) {
   // P4 — injectable timers so the wake gate below is unit-testable without real sleeps.
   // The default is an UNREF'd setTimeout: the loop must never be the reason the process
   // stays alive.
+  // C23 — THE ENGINE MUST SAY WHAT IT IS DOING. Before this, engine.mjs held exactly one
+  // console.warn in the whole file. The Phase C live run lost a job to a task that sat in
+  // `claimed`/`EDITING` for 16 minutes, and there was no record of the dispatch starting, the
+  // watchdog firing, or a retry being scheduled — three hypotheses had to be eliminated by
+  // building loops instead of by reading evidence. Defaults to a no-op so nothing else changes.
+  const log = deps.log || (() => {});
+  // C23 (2026-09-19) — THE LAST-RESORT BOUND. Never reproduced in three red-capable loops, and
+  // every mechanism around it is coherent: the scheduler releases its slot, `running.delete`
+  // sits in a `finally`, and reclaimExpiredLeases deliberately SKIPS a task still in `running`
+  // because re-queuing a live task would put a second writer on its worktree. That coherence is
+  // the trap — if the watchdog ever fails to fire, nothing else can intervene, and live run 1
+  // sat in claimed/EDITING for 16 minutes with no process and a leaked slot.
+  //
+  // So this bounds the CLASS rather than a diagnosed cause: a task held past twice its own
+  // watchdog is a contract violation whatever produced it. 0 disables (tests, and any install
+  // that turns the watchdog off).
+  const stuckAfterMs = deps.stuckAfterMs ?? 0;
   const setTimer = deps.setTimer || ((fn, ms) => { const t = setTimeout(fn, ms); if (typeof t?.unref === "function") t.unref(); return t; });
   const clearTimer = deps.clearTimer || ((t) => { try { clearTimeout(t); } catch { /* not a real timer */ } });
 
@@ -104,6 +121,9 @@ export function createEngine(deps = {}) {
     );
     watchdogMs = clamped;
   }
+  // Default the reaper bound to TWICE the (possibly clamped) watchdog: far enough out that it
+  // can never race honest work, close enough that a stuck task is minutes, not forever.
+  const reapAfterMs = stuckAfterMs || (watchdogMs > 0 ? watchdogMs * 2 : 0);
 
   if (goalsDir) {
     mkdirSync(goalsDir, { recursive: true });
@@ -165,6 +185,10 @@ export function createEngine(deps = {}) {
   // `tier` itself is unchanged for every existing caller.
   function enqueueGoal(opts = {}) {
     const { agentId, priority = "normal", steps, storyId = null } = opts;
+    // Phase D · task 13 — a REPLY turn: its whole job is to send one mail, so writing nothing is
+    // success rather than `empty-diff`, and anything it does write is discarded (runStep). Only
+    // the literal `true` opts in; a truthy string from some caller must not change semantics.
+    const replyOnly = opts.replyOnly === true;
     const tier = opts.tier === undefined ? "sonnet" : opts.tier;
     if (!Array.isArray(steps) || !steps.length) throw new Error("enqueueGoal: steps[] required");
     const requestedTier = requestedTierOf(opts.tier);
@@ -174,7 +198,12 @@ export function createEngine(deps = {}) {
     // panel can find the goal by story. It never touches computeIdemKey (task identity is the
     // work unit, not its owning story). Sanitized to a safe id charset.
     const sid = storyId ? String(storyId).replace(/[^a-z0-9_-]/gi, "").slice(0, 80) || null : null;
-    const plan = { goalId, agentId, tier, requestedTier, priority, storyId: sid, steps: steps.map((s) => String(s).slice(0, 4000)) };
+    // Phase C · task 9 — an OPTIONAL base for this goal's worktrees. Ship-as-you-go commits
+    // each finished task onto `ma/job/<id>` and bases the next task on that tip, so a task can
+    // see the work ordered before it (probe P-F08). Sanitised to a ref-safe charset; absent,
+    // worktree.create resolves the base exactly as it always did.
+    const baseRef = opts.baseRef ? String(opts.baseRef).replace(/[^a-z0-9._/-]/gi, "").slice(0, 200) || null : null;
+    const plan = { goalId, agentId, tier, requestedTier, priority, storyId: sid, baseRef, replyOnly, steps: steps.map((s) => String(s).slice(0, 4000)) };
     const r = queue.enqueue({ goalId, stepIndex: 0, attempt: 0, agentId, tier, priority, storyId: sid, task: plan.steps[0] });
     if (r.error) return { error: r.error }; // backlog full → do NOT persist a goal that can't start
     tagRequestedTier(r, requestedTier);
@@ -222,6 +251,7 @@ export function createEngine(deps = {}) {
       // NOT dead: re-queuing it would put a second writer on its worktree and orphan
       // the first child (its kill handle would be gone from `running`). Skip those.
       try { queue.reclaimExpiredLeases((taskId) => running.has(taskId)); } catch { /* best-effort */ }
+      try { reapStuck(); } catch { /* best-effort — a reaper fault must never stop the loop */ }
       tick();
       armNextWake(); // more gates still closed? keep the loop self-driving.
     }, ms);
@@ -236,7 +266,19 @@ export function createEngine(deps = {}) {
       const at = Date.parse(t.notBefore);
       if (Number.isFinite(at) && at > now() && at < soonest) soonest = at;
     }
-    if (soonest !== Infinity) scheduleWake(soonest - now());
+    // C23 — a task in `running` also deserves a wake: it is the ONLY thing that will notice a
+    // step held past its bound. Without this the reaper never runs, because a job whose single
+    // task is claimed has nothing queued and therefore nothing to wake for — which is exactly
+    // the shape live run 1 was stuck in.
+    if (reapAfterMs) {
+      for (const id of running.keys()) {
+        const since = Date.parse(queue.get(id)?.claimedAt ?? "");
+        if (!Number.isFinite(since)) continue;
+        const due = since + reapAfterMs + 1;
+        if (due < soonest) soonest = due;
+      }
+    }
+    if (soonest !== Infinity) scheduleWake(Math.max(1, soonest - now()));
   }
 
   function withWatchdog(promise, ms, onTimeout) {
@@ -299,9 +341,39 @@ export function createEngine(deps = {}) {
 
   // Retryable failure: discard worktree, mark this attempt failed, re-enqueue a fresh
   // attempt (new idemKey + new worktree) with backoff + self-heal re-prompt enrichment.
+  /**
+   * C23 — end any task held past `reapAfterMs`. Kills the child FIRST (so a later requeue can
+   * never put a second writer on the worktree) and marks the handle killed, which makes a
+   * late-settling runStep return at its existing `if (handle.killed)` guards instead of writing
+   * over the row this just failed.
+   */
+  function reapStuck() {
+    if (!reapAfterMs) return 0;
+    let n = 0;
+    for (const [id, handle] of [...running.entries()]) {
+      const row = queue.get(id);
+      if (!row) { running.delete(id); continue; }
+      const since = Date.parse(row.claimedAt ?? "");
+      if (!Number.isFinite(since)) continue;
+      const heldFor = now() - since;
+      if (heldFor <= reapAfterMs) continue;
+      log({ event: "task-reaped", taskId: id, agentId: row.agentId ?? null, heldForMs: heldFor, reapAfterMs, watchdogMs, at: now() });
+      handle.killed = true;
+      try { handle.kill?.(); } catch { /* the child may already be gone */ }
+      running.delete(id);
+      try {
+        handleRetryable(row, "timeout", `the engine held this task for ${Math.round(heldFor / 1000)}s — past ${Math.round(reapAfterMs / 1000)}s, twice its own ${Math.round(watchdogMs / 1000)}s watchdog. The step watchdog did not fire; reaped so the job can move.`);
+      } catch (e) { log({ event: "task-reap-failed", taskId: id, error: e?.message }); }
+      n++;
+    }
+    return n;
+  }
+
   function handleRetryable(task, kind, reason, refused = []) {
+    const attempts0 = (task.attempts ?? 0) + 1;
+    log({ event: "task-failed", taskId: task.taskId, agentId: task.agentId, kind, attempt: attempts0, reason: String(reason).slice(0, 300), at: now() });
     worktreeMgr?.remove(task.taskId);
-    const attempts = (task.attempts ?? 0) + 1;
+    const attempts = attempts0;
     queue.update(task.taskId, { status: "failed", engineState: "FAILED", error: { kind, msg: reason }, attempts });
     if (!shouldRetry(kind, attempts, task.maxAttempts ?? 3)) {
       return failTerminal(task, kind, reason, attempts); // exhausted
@@ -348,12 +420,18 @@ export function createEngine(deps = {}) {
     // DISPATCHED — create per-task git worktree (ADR-026).
     let workdir = null, wtInfo = {};
     if (worktreeMgr) {
-      try { wtInfo = worktreeMgr.create(id); workdir = wtInfo.path; }
+      // Phase C · task 9 — the goal's base, when it has one, decides what this checkout sits on.
+      const goalBase = goalPlans.get(cur.goalId)?.baseRef || null;
+      try { wtInfo = worktreeMgr.create(id, goalBase ? { baseRef: goalBase } : {}); workdir = wtInfo.path; }
       catch (e) { return handleRetryable(task, "spawn", `worktree create failed: ${e.message}`); }
     }
     queue.update(id, { engineState: "EDITING", branch: wtInfo.branch || null, baseRef: wtInfo.baseRef || null, claimedAt: cur.claimedAt });
     const handle = { killed: false, kill: null };
     running.set(id, handle);
+    // C23 — arm the reaper's wake the moment this task becomes in-flight. Nothing else will:
+    // armNextWake ran only on gate/retry paths, so a job whose one task is claimed had nothing
+    // queued, nothing to wake for, and therefore nothing that could ever notice it was stuck.
+    if (reapAfterMs) { try { armNextWake(); } catch { /* best-effort */ } }
 
     try {
       // EDITING — dispatch the agent (writes into the worktree), watchdog-guarded.
@@ -363,8 +441,12 @@ export function createEngine(deps = {}) {
         // quality gate runs below, inside this function) from everything else (which has
         // never had one). Without it a post-edit gate would run the container twice per
         // story turn to reach one verdict.
-        const ctx = { taskId: id, agentId: task.agentId, tier: task.tier, requestedTier: task.requestedTier ?? null, task: task.task, storyId: task.storyId ?? null, workdir, registerKill: (fn) => { handle.kill = fn; } };
-        res = await withWatchdog(dispatchFn(ctx), watchdogMs, () => { handle.kill?.(); });
+        const ctx = { taskId: id, agentId: task.agentId, tier: task.tier, requestedTier: task.requestedTier ?? null, task: task.task, storyId: task.storyId ?? null, goalId: task.goalId ?? null, workdir, registerKill: (fn) => { handle.kill = fn; } };
+        log({ event: "task-dispatch", taskId: id, agentId: task.agentId, goalId: task.goalId ?? null, storyId: task.storyId ?? null, attempt: task.attempts ?? 0, watchdogMs, at: now() });
+        res = await withWatchdog(dispatchFn(ctx), watchdogMs, () => {
+          log({ event: "task-watchdog", taskId: id, agentId: task.agentId, ms: watchdogMs, at: now() });
+          handle.kill?.();
+        });
       } catch (e) {
         return handleRetryable(task, e.__timeout ? "timeout" : "spawn", e.message);
       }
@@ -388,6 +470,19 @@ export function createEngine(deps = {}) {
         ? await broker.listChangesDetailed(id)
         : { changes: await broker.listChanges(id), refused: [] };
       const changes = detailed.changes;
+      // A REPLY turn ends here, whatever it wrote. Its product is the mail it sent; a file it
+      // touched is outside its contract and is DISCARDED with the worktree — never minted as a
+      // delivery, never held for review, never applied (ENG-REPLY-2). Recorded, not silent.
+      if (goalPlans.get(task.goalId)?.replyOnly) {
+        const touched = [...changes.map((c) => c.path), ...(detailed.refused || [])];
+        worktreeMgr?.remove(id);
+        queue.update(id, {
+          status: "done", engineState: "REPLIED",
+          result: touched.length ? `reply turn — discarded ${touched.length} file(s): ${touched.slice(0, 5).join(", ")}` : "reply turn — no files",
+        });
+        log({ event: "task-replied", taskId: id, agentId: task.agentId, goalId: task.goalId ?? null, discarded: touched.length, at: now() });
+        return;
+      }
       if (!changes.length) {
         const refused = detailed.refused || [];
         const why = refused.length
@@ -569,5 +664,25 @@ export function createEngine(deps = {}) {
     scheduler.start(runStep);
   }
 
-  return { enqueueGoal, runStep, tick, start, cancel, onOperatorApplied, reconcile, sweep, _goalPlans: goalPlans };
+  /**
+   * C23 — every task this process believes it is running, with its age. `running` is the
+   * engine's own in-memory truth; a row that is `claimed` with no entry here is an ORPHAN
+   * (the process that claimed it is gone), which is precisely the state the live run hit and
+   * could not name.
+   */
+  function stuckTasks() {
+    const out = [];
+    for (const id of running.keys()) {
+      const row = queue.get(id);
+      if (!row) continue;
+      const since = Date.parse(row.claimedAt ?? "");
+      out.push({
+        taskId: id, agentId: row.agentId ?? null, status: row.status, engineState: row.engineState ?? null,
+        claimedForMs: Number.isFinite(since) ? Math.max(0, now() - since) : null,
+      });
+    }
+    return out;
+  }
+
+  return { enqueueGoal, runStep, tick, start, cancel, onOperatorApplied, reconcile, sweep, stuckTasks, _goalPlans: goalPlans };
 }

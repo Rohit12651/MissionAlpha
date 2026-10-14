@@ -13,6 +13,7 @@
 //   4. A refused edit leaves the row PENDING and the repo untouched (fail closed).
 //   5. The route is still token-gated and Host-gated — no new unauthenticated surface.
 //   6. The on-disk patch record is rewritten, so the audit trail shows what was approved.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

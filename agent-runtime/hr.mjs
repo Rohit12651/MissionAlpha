@@ -90,7 +90,10 @@ export function createHr({ roster, mailbox, hrId = "hr", managerId = "tech-lead"
     const existing = roster.match(skills);
     if (existing.length) {
       log({ event: "hr-reused", jobId, agentId: existing[0].id, skills });
-      reply(msg.from, "hire-done", jobId, { agentId: existing[0].id, reused: true });
+      // `skills` is the REQUEST's skills, echoed so the Manager can tell which of its parked
+      // tasks this answers (Phase C · task 8). Without it a reuse fans out across every
+      // awaiting-hire task in the job.
+      reply(msg.from, "hire-done", jobId, { agentId: existing[0].id, reused: true, skills });
       return { reused: existing[0].id };
     }
 
@@ -124,7 +127,7 @@ export function createHr({ roster, mailbox, hrId = "hr", managerId = "tech-lead"
     }
 
     log({ event: "hr-hired", jobId, agentId: added.id, skills: added.skills, writeScope: added.writeScope });
-    reply(msg.from, "hire-done", jobId, { agentId: added.id, skills: added.skills });
+    reply(msg.from, "hire-done", jobId, { agentId: added.id, skills });
     return { hired: added.id };
   }
 

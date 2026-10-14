@@ -100,11 +100,34 @@ test("codex does NOT get the flag — --setting-sources is a claude flag and wou
   assert.equal(args[0], "exec", "the codex contract is unchanged");
 });
 
-test("the CHAT path is UNCHANGED — cliReply never gains --setting-sources", () => {
+test("the CHAT path keeps the operator's rules — cliReply never passes `project`", () => {
   const chat = fnNamed("cliReply");
   assert.ok(chat, "cliReply must still exist — this test is worthless if the function was renamed");
-  assert.ok(!literals(chat).includes("--setting-sources"),
+  assert.ok(!literals(chat).includes("project"),
     "the operator's chat thread keeps the operator's own global rules; only the autonomous seat is dieted");
+});
+
+// Phase E (security pass, HIGH) — the chat path spawns `claude -p` with cwd = REPO_ROOT when tools
+// are none/read. `-p` skips workspace trust (code.claude.com/docs/en/security: "Trust verification
+// is disabled when running non-interactively with the -p flag"), so on a FOREIGN target the CLI
+// loads that repo's `.claude/settings.json` — hooks included — and runs them on the host just
+// because the operator chatted. On an untrusted target the chat spawn loads `user` only: the
+// operator's rules stay (the point of the test above), the target's project/local scopes go.
+// Trust is the SAME decision as Task 17's repo scripts: repoScripts.trusted.
+test("SETSRC-FOREIGN-1: cliReply drops the target's project settings when the target is not trusted", () => {
+  const chat = fnNamed("cliReply");
+  let guarded = null;
+  for (const n of walk(chat)) {
+    if (n.type !== "IfStatement") continue;
+    const testsTrust = [...walk(n.test)].some((x) => x.type === "MemberExpression" && x.object?.name === "repoScripts" && x.property?.name === "trusted");
+    const negated = n.test.type === "UnaryExpression" && n.test.operator === "!";
+    if (!testsTrust || !negated) continue;
+    const lits = literals(n.consequent);
+    if (lits.includes("--setting-sources")) guarded = lits;
+  }
+  assert.ok(guarded, "cliReply must pass --setting-sources under `if (!repoScripts.trusted)`");
+  const i = guarded.indexOf("--setting-sources");
+  assert.equal(guarded[i + 1], "user", "only the operator's own scope may load on a foreign target");
 });
 
 test("the CALL SITE is wired — engineDispatch spawns what this test asserts, not a parallel argv", () => {

@@ -1,6 +1,7 @@
 // ADR-038/039 end-to-end — full tool loop through a booted runtime. Proves: SAFE
 // auto-runs in the sandbox; FORBIDDEN refused; SENSITIVE → pending → approve → jailed
 // run; session-grant skips re-approval; deny blocks; auth required. Docker-gated.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

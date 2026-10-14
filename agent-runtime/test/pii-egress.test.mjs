@@ -7,6 +7,7 @@
 // Those pull in opposite directions on purpose, which is exactly why the policy is
 // per-destination rather than one blanket redaction.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

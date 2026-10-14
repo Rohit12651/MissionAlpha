@@ -5,6 +5,7 @@
 // body; a probe-capable api_key only persists AFTER the probe accepts; non-probe types
 // (minimax/zai/custom) persist store-and-ready. The stub probe rejects any secret that
 // starts with "bad-" so probe-gating is provable without hitting a live model.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

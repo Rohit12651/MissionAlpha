@@ -9,6 +9,7 @@
 // by a `delivery.created` (kind='failure') for the cadence's station, all on one SSE stream.
 // Plus the adversarial sweep: no-token 401, evil Host 403, viewer POST 403, unknown id 404,
 // missing id / non-boolean enabled 400.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

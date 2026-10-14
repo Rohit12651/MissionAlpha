@@ -6,6 +6,7 @@
 // /runtime read. An earlier revision of this route sat OUTSIDE the needsAuth list and
 // answered 200 to an unauthenticated caller; these tests exist so that cannot recur.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -16,6 +16,7 @@
 //
 // Real booted runtime, cli backend, fake CLAUDE_BIN, throwaway repo. Nothing here touches
 // the live checkout.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";

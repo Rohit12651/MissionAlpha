@@ -5,6 +5,7 @@
 //   (nothing persisted) → wrong method 405.
 // The approver gate on PUT reuses the SAME routeNeedsApprover mechanism proven by the
 // vault/engine mutation tests; this file covers the endpoint contract + validation.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

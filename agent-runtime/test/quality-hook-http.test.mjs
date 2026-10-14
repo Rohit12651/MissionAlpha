@@ -11,6 +11,7 @@
 // and the container all line up. Where Docker is absent the test SKIPS OUT LOUD — a
 // silent pass on a machine that cannot run the thing under test is the vacuous-pass trap.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";

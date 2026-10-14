@@ -2,7 +2,7 @@
 // guards.mjs SEED_DIRS/CONFIG_GUARD integrity, no MCP grant from exec capability.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SKILL_CATALOG, validateSpec, isFactoryAgent } from "../factory.mjs";
+import { SKILL_CATALOG, validateSpec, isFactoryAgent, validateRosterSpec } from "../factory.mjs";
 const ALLOWED_TOOLS_SET = new Set(["Read", "Write", "Run"]); // mirrors factory's internal ALLOWED_TOOLS
 import { SEED_DIRS, CONFIG_GUARD, applyAllowed } from "../guards.mjs";
 
@@ -132,4 +132,36 @@ test("G3: isFactoryAgent — returns false for IDs not in registry", () => {
   // Unknown IDs must return false
   assert.equal(isFactoryAgent("ceo"), false, "built-in ceo must not be a factory agent");
   assert.equal(isFactoryAgent("some-random-unknown-id-xyz"), false, "unknown id must return false");
+});
+
+// ── C28 · the scope validator and the broker must agree ────────────────────
+// applyAllowed("README.md") is TRUE — the broker lands root-level files. But validateRosterSpec
+// refused them, because it checks `entry.split("/")[0]` against SEED_DIRS and "README.md" is not
+// a seed dir. So a seat could never be SCOPED to a file the runtime would happily apply, and the
+// live-run hire was scoped to src/lib/** for a README task (C28).
+test("SCOPE-ROOT-1: a root-level DOC file is a valid writeScope entry", () => {
+  // Mutation proof (2026-09-18): removing isRootDocFile from the check → ✖ SCOPE-ROOT-1 (fail 1).
+  const ok = validateRosterSpec({ skills: ["repo-edit"], writeScope: ["README.md"] });
+  assert.ok(!ok.error, `README.md must be scopable — the broker already applies it: ${ok.error}`);
+});
+
+test("SCOPE-ROOT-2: root CONFIG is still refused — a hire may not be scoped to build config", () => {
+  for (const entry of ["package.json", "tsconfig.json", ".env", "Makefile", "*"]) {
+    const r = validateRosterSpec({ skills: ["repo-edit"], writeScope: [entry] });
+    assert.ok(r.error, `${entry} must NOT be scopable by a plan sentence`);
+  }
+});
+
+test("SCOPE-ROOT-3: a root doc the BROKER refuses is not scopable either", () => {
+  // Found by the security pass on C28's own widening. applyAllowed("CLAUDE.md") is FALSE —
+  // agent-instruction files are already off limits — but isRootDocFile() says "doc", so a seat
+  // could be scoped to a file every write of which the broker refuses. That is C28's symptom in
+  // reverse: an endless empty-diff loop instead of a missing grant. The two must agree.
+  // Mutation proof (2026-09-18): dropping `&& applyAllowed(entry)` → ✖ SCOPE-ROOT-3 (fail 1).
+  for (const entry of ["CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md"]) {
+    const r = validateRosterSpec({ skills: ["repo-edit"], writeScope: [entry] });
+    assert.ok(r.error, `${entry} is refused by the broker, so scoping a seat to it is a trap`);
+  }
+  assert.ok(!validateRosterSpec({ skills: ["repo-edit"], writeScope: ["README.md"] }).error,
+    "README.md is appliable and must stay scopable");
 });

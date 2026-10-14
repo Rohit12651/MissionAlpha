@@ -25,6 +25,11 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const SERVER_PATH = join(__dir, "..", "server.mjs");
 const src = readFileSync(SERVER_PATH, "utf-8");
 const ast = parse(src, { ecmaVersion: "latest", sourceType: "module" });
+// Step 1 (2026-09-17) moved the mail env OUT of server.mjs into mail-env.mjs, so SEAT-12's
+// env literal no longer lives in `ast`. It now pins both halves: the spawn is WIRED to the
+// pure builder here, and the builder's shape is asserted on its own AST below.
+const MAIL_ENV_PATH = join(__dir, "..", "mail-env.mjs");
+const mailEnvAst = parse(readFileSync(MAIL_ENV_PATH, "utf-8"), { ecmaVersion: "latest", sourceType: "module" });
 const CURATED = join(__dir, "..", "..", ".claude", "skills-curated");
 
 function* walk(node) {
@@ -288,18 +293,38 @@ test("SEAT-12: the seat's identity is bound in the MCP env, and the roster's SCO
   // Asserted on the AST, not the source slice. A first version regex'd the slice for
   // "writeScope" and failed on this file's OWN comment saying "never the writeScope" — the
   // exact text-matching trap this file's header warns about (addendum #13/#22).
-  let envNode = null;
+  //
+  // 2026-09-17: the env object moved to mail-env.mjs (Step 1). This ratchet went RED and
+  // stayed red because the Phase A gate ran a SUBSET of test:runtime, not all 204 files —
+  // addendum #11 (fix where the class lives) applied to a RATCHET's own target. The env
+  // literal is now read from mail-env.mjs, and the spawn's CALL is pinned here, so moving
+  // the builder again breaks this test loudly instead of silently un-pinning the claim.
+  //
+  // Mutation proof (2026-09-17): see the two recorded red lines at the end of this test.
+  let wired = false;
   for (const n of walk(ast)) {
-    if (n.type !== "Property" || n.key?.name !== "env" || n.value?.type !== "ObjectExpression") continue;
-    if (n.value.properties.some((pr) => pr.key?.name === "MA_MAIL_AGENT_ID")) envNode = n.value;
+    if (n.type !== "Property" || n.key?.name !== "env") continue;
+    if (n.value?.type === "CallExpression" && n.value.callee?.name === "mailEnvFor") wired = true;
   }
-  assert.ok(envNode, "the mail MCP server must be spawned with a bound identity");
+  assert.ok(wired, "the mail MCP server must be spawned with env: mailEnvFor(...) — the binding is not wired");
+
+  let envNode = null;
+  for (const n of walk(mailEnvAst)) {
+    if (n.type !== "ObjectExpression") continue;
+    if (n.properties.some((pr) => pr.key?.name === "MA_MAIL_AGENT_ID")) envNode = n;
+  }
+  assert.ok(envNode, "mail-env.mjs must build an env with a bound identity");
   const keys = envNode.properties.map((pr) => pr.key?.name).sort();
-  assert.deepEqual(keys, ["MA_MAIL_AGENT_ID", "MA_MAIL_DIR", "MA_MAIL_JOB_ID", "MA_MAIL_ROLES", "MA_MAIL_TASK_ID"],
+  assert.deepEqual(keys,
+    ["MA_MAIL_AGENT_ID", "MA_MAIL_DIR", "MA_MAIL_GOAL_ID", "MA_MAIL_JOB_ID", "MA_MAIL_ROLES", "MA_MAIL_TASK_ID"],
     "the mail child gets identity + location + roles, and nothing else");
   // No VALUE expression anywhere in the env may read a writeScope.
   for (const n of walk(envNode)) {
     assert.notEqual(n.property?.name, "writeScope", "a seat's scopes must not ride into the mail child");
     assert.notEqual(n.value, "writeScope", "a seat's scopes must not ride into the mail child");
   }
+  // Mutation A: server.mjs `env: mailEnvFor({...})` → `env: {}` →
+  //   ✖ SEAT-12 ... the binding is not wired (fail 1). Restored, md5 matched.
+  // Mutation B: mail-env.mjs gains `MA_MAIL_SCOPE: seat.writeScope` →
+  //   ✖ SEAT-12 ... identity + location + roles, and nothing else (fail 1). Restored, md5 matched.
 });

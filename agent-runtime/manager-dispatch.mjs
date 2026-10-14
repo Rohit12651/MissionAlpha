@@ -12,10 +12,17 @@
 // Manager that reads `{}` as "no questions, no tasks" would mark a job planned with nothing
 // in it (PES: a fallback may say "unknown", it may never state a fact).
 
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { intakePrompt, clarifyPrompt, planPrompt, managePrompt, reviewPrompt } from "./manager-prompts.mjs";
+import { intakePrompt, clarifyPrompt, planPrompt, managePrompt, reviewPrompt, strategyPrompt, parseVerdict, STRATEGY_PROMPT_APPROVED } from "./manager-prompts.mjs";
+
+// Phase F · 20 — the CEO's persona lives in the RUNTIME's own repo, never the target's: a target
+// repo must not be able to choose who judges its jobs. Read per turn (it is small) so an edit by
+// the operator takes effect without a restart; unreadable ⇒ "" ⇒ strategyPrompt returns null.
+const CEO_MD = join(dirname(fileURLToPath(import.meta.url)), "..", ".claude", "agents", "ceo.md");
+const readCeo = () => { try { return readFileSync(CEO_MD, "utf8"); } catch { return ""; } };
 
 /** The Manager's tools. READ-ONLY: no Write, no Edit, and Bash is a command allow-list. */
 export const MANAGER_TOOLS = Object.freeze([
@@ -60,6 +67,7 @@ export function repoFacts(repoRoot, { seedDirs = ["src", "agent-runtime", "docs"
 
 const promptFor = (stage, job, ctx) => {
   if (stage === "intake") return intakePrompt(job, ctx.facts);
+  if (stage === "strategy") return strategyPrompt(job, readCeo(), ctx.findings);
   if (stage === "clarify") return clarifyPrompt(job, ctx.needs);
   if (stage === "plan") return planPrompt(job, ctx.roster, ctx.findings, ctx.answers, ctx.catalog);
   if (stage === "manage") return managePrompt(job, ctx.inbox, ctx.tasks);
@@ -78,6 +86,12 @@ const promptFor = (stage, job, ctx) => {
 export function createManagerDispatch({
   mode = "deterministic", spawn, repoRoot = process.cwd(), roster,
   jobs, mailbox, worktrees, managerId = "tech-lead", catalog = [], log = () => {},
+  // /cso 2026-09-24 — false when the target is not MissionAlpha (repo-scripts.mjs trust). The
+  // claude spawn loads `--setting-sources project`; only a worktree has had `.claude/` stripped.
+  repoTrusted = true,
+  // REV-8 — injectable ONLY so tests can reach the parse path; server.mjs must never pass it
+  // (REV-8-WIRED), so production follows the header's governing approval line.
+  strategyApproved = STRATEGY_PROMPT_APPROVED,
 } = {}) {
   async function deterministic({ stage, job, ctx: extra }) {
     const facts = repoFacts(repoRoot);
@@ -87,6 +101,13 @@ export function createManagerDispatch({
       return { ok: true, findings: facts.split("\n").slice(0, 3), needs };
     }
     if (stage === "clarify") return { ok: true, questions: job?.questions || [] };
+    // Phase F · 20 — the harness has no opinion about strategy: it proceeds, and says so. A brief
+    // containing the word "defer" is how a test drives the defer branch (the same convention as
+    // "ask" → a question at intake).
+    if (stage === "strategy") {
+      const defer = /\bdefer\b/i.test(job?.brief || "");
+      return { ok: true, verdict: defer ? "defer" : "proceed", why: "deterministic harness — no model consulted", costs: "", cheaper: defer ? "do nothing yet" : "", assumes: "" };
+    }
     if (stage === "plan") {
       const brief = String(job?.brief || "");
       const tasks = [];
@@ -139,6 +160,10 @@ export function createManagerDispatch({
 
   async function claude({ stage, job, ctx: extra }) {
     if (typeof spawn !== "function") return { ok: false, error: "no spawn function is wired for mode=claude" };
+    // REV-8 — the prompt gate is a refusal, not a sentence: an unapproved CEO prompt never reaches a model.
+    if (stage === "strategy" && !strategyApproved) {
+      return { ok: false, error: "strategy: the CEO prompt is awaiting the BOSS's approval (manager-prompts.mjs header)" };
+    }
     const ctx = {
       facts: repoFacts(repoRoot),
       needs: job?.questions || [],
@@ -155,7 +180,9 @@ export function createManagerDispatch({
       reviewTasks: extra?.tasks || [],
     };
     const prompt = promptFor(stage, job, ctx);
-    if (!prompt) return { ok: false, error: `unknown stage: ${stage}` };
+    if (!prompt) {
+      return { ok: false, error: stage === "strategy" ? "strategy: the CEO persona (.claude/agents/ceo.md) is missing or empty" : `unknown stage: ${stage}` };
+    }
 
     // A THROWAWAY read-only checkout, through the EXISTING worktree manager — no
     // worktree.mjs change and therefore no CORE_GUARD edit. "Read-only" is enforced by
@@ -168,9 +195,15 @@ export function createManagerDispatch({
         release = () => { try { worktrees.release?.(`mgr_${job.id}`); } catch { /* best effort */ } };
       } catch (e) { log({ event: "manager-worktree-failed", jobId: job.id, error: e?.message }); }
     }
+    // `-p` skips workspace trust: in the live target the CLI would run that repo's own
+    // `.claude/settings.json` hooks on the host. Untrusted + no isolated checkout ⇒ refuse.
+    if (cwd === repoRoot && !repoTrusted) {
+      log({ event: "manager-refused-untrusted-root", jobId: job.id, stage });
+      return { ok: false, error: "the Manager will not run inside an untrusted repo without an isolated worktree" };
+    }
     try {
       const text = await spawn({ prompt, tools: MANAGER_TOOLS, maxTurns: MANAGER_MAX_TURNS, cwd, stage, jobId: job.id });
-      const parsed = parseFencedJson(text);
+      const parsed = stage === "strategy" ? parseVerdict(text) : parseFencedJson(text);
       if (!parsed.ok) return { ok: false, error: parsed.error };
       return { ok: true, ...parsed.data };
     } catch (e) {

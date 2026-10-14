@@ -20,15 +20,31 @@ const ROSTER = [
   { id: "tech-lead", role: "manager", skills: ["repo-read"], writeScope: [] },
 ];
 
-test("MP-GATE: the BOSS checkpoint is recorded in the file header", () => {
+/** The GOVERNING approval is the FIRST one in the file; everything below it is history. */
+const governingApproval = (text) => /^\/\/ APPROVED-BY: (.+)$/m.exec(text)?.[1]?.trim() ?? null;
+
+test("MP-GATE: the BOSS checkpoint is recorded in the file header, and the GOVERNING line is the first one", () => {
   // The phase plan makes 9.0 BLOCKING: "9.3+ do not run live before this."
+  //
+  // 2026-09-20 — this test could not fail, and was cited as evidence twice. It tested the
+  // WHOLE FILE for `APPROVED-BY: BOSS <date>`, and the file keeps every prior approval as
+  // history, so a dated line from 2026-09-05 satisfied it while the governing line at the top
+  // said `_PENDING BOSS_`. Exactly addendum #5: a ratchet is only a ratchet once you have
+  // watched it fire. It now reads the FIRST line, which is the one that governs.
   const src = readFileSync(new URL("../manager-prompts.mjs", import.meta.url), "utf8");
-  assert.match(src, /APPROVED-BY:/, "the header must carry an approval line, pending or granted");
-  const approved = /APPROVED-BY: BOSS \d{4}-\d{2}-\d{2}/.test(src);
-  if (!approved) {
-    assert.match(src, /_PENDING BOSS_/,
-      "while unapproved the header must say so plainly, so nobody reads silence as consent");
-  }
+  const governing = governingApproval(src);
+  assert.ok(governing, "the header must carry an approval line, pending or granted");
+  assert.ok(/^BOSS \d{4}-\d{2}-\d{2}/.test(governing) || governing.startsWith("_PENDING BOSS_"),
+    `the governing line must be a granted date or a plain pending marker, not ${JSON.stringify(governing)}`);
+
+  // ANTI-VACUITY, run on every CI run rather than living in a commit message. The BAD case is
+  // the exact shape that made this test green for three phases while the gate was open.
+  const BAD = "// APPROVED-BY: _PENDING BOSS_\n//   re-opened\n// APPROVED-BY: BOSS 2026-01-01\n";
+  const GOOD = "// APPROVED-BY: BOSS 2026-01-02\n// APPROVED-BY: BOSS 2026-01-01\n";
+  assert.equal(governingApproval(BAD), "_PENDING BOSS_",
+    "a stale dated line further down must never read as consent for the text above it");
+  assert.equal(governingApproval(GOOD), "BOSS 2026-01-02");
+  assert.equal(governingApproval("// nothing here"), null);
 });
 
 test("MP-1: every prompt states the read-only rule — it is never left implied", () => {
@@ -226,4 +242,25 @@ test("MP-18: the review prompt says the diffs are UNAPPLIED — its own checkout
     "the prompt must say the Manager's OWN checkout is the base and will not show the change");
   assert.match(out, /diff is the (only )?evidence|judge (only )?(from|on) the diff/i,
     "the prompt must say the diff is the evidence, not the file on disk");
+});
+
+test("MP-STEPS-1: the plan prompt states the one-step rule in words, not just in the schema", () => {
+  // Phase C · task 7. validatePlan REFUSES a multi-step task; a planner that was never told
+  // so just gets a refusal it cannot act on. The rule is stated where the model reads it.
+  // Mutation proof (2026-09-17): removed the two prompt lines → ✖ MP-STEPS-1 (fail 1). Restored, md5 matched.
+  const p = planPrompt(JOB, ROSTER, ["x exists"], []);
+  assert.match(p, /EXACTLY ONE step/i);
+});
+
+test("MP-DEPS-1: the plan prompt asks for dependsOn IN WORDS, and shows it in the shape", () => {
+  // Phase D · C21. The dispatcher now runs every READY task at once and reads `dependsOn` to
+  // decide readiness, so a planner that has never been told the field exists produces plans
+  // whose dependencies are invisible to the runtime — the exact failure the one-step rule had
+  // (a refusal the model cannot act on), with a worse consequence: work that runs in parallel
+  // when it should not. The schema example alone is not the instruction; the words are.
+  const p = planPrompt(JOB, ROSTER, ["x exists"], [], ["api", "ui"]);
+  assert.match(p, /dependsOn/, "the field must be named");
+  assert.match(p, /task.{0,40}NUMBERS|NUMBERS of the tasks/i, "and what goes in it — numbers, not titles");
+  assert.match(p, /AT THE SAME TIME/i, "the model must know why it matters: unrelated tasks run concurrently");
+  assert.match(p, /"dependsOn": \[1\]/, "the JSON shape must show a real edge, not only an empty array");
 });

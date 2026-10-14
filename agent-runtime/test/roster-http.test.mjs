@@ -10,6 +10,7 @@
 // reconnaissance in the same sense selfgrade is.
 //
 // Shaped after selfgrade-http.test.mjs, which pins the same posture for its neighbour.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

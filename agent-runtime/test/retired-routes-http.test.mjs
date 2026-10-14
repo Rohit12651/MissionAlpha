@@ -14,6 +14,7 @@
 //   • `lead.moved` / `content.changed` stay RESERVED in the closed SSE catalog (disclosed
 //     decision: removing wire-contract names is riskier than leaving them dormant) — the
 //     catalog is asserted in test/events.test.mjs; nothing emits them any more.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -2,6 +2,7 @@
 // (mock backend, all state under tmp). Pins: the route joins the SAME auth gate as
 // /runtime/doctor (401 bare, 403 evil Host), is GET-only (405), and serves the ladder
 // snapshot shape the StatusStrip chip and the drawer read.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

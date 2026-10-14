@@ -16,11 +16,29 @@ import { createWorktreeMgr } from "../worktree.mjs";
 import { createBroker } from "../broker.mjs";
 import { createScheduler } from "../scheduler.mjs";
 import { createEngine } from "../engine.mjs";
+import { parse } from "acorn";
 
 let root, repoRoot, worktreeRoot, storeDir, clock;
 const TOKEN = "engine-test-token";
 const git = (args, cwd = repoRoot) => execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
 const now = () => clock;
+
+/**
+ * Wait until a serialised view of the store stops changing — two identical reads `stableMs`
+ * apart, or the budget expires. Used to let an engine whose dispatch never settles finish
+ * whatever it was mid-way through BEFORE afterEach deletes the directory under it.
+ */
+const quietStore = async (read, { stableMs = 250, budgetMs = 3000 } = {}) => {
+  const t0 = Date.now();
+  let last = read();
+  while (Date.now() - t0 < budgetMs) {
+    await new Promise((r) => setTimeout(r, stableMs));
+    const next = read();
+    if (next === last) return true;
+    last = next;
+  }
+  return false;
+};
 
 const until = async (fn, ms = 3000) => {
   const t0 = Date.now();
@@ -64,6 +82,7 @@ afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch 
 function buildEngine({
   writeFiles = {}, maxInflight = 2, dispatchOverride, maxQueued = 500, onTerminalFailure, brokerOverride,
   setTimer = () => ({ __inert: true }), clearTimer = () => {}, autoStart = true, onDone, retryFloorMs,
+  watchdogMs, log, stuckAfterMs,
 } = {}) {
   const queue = createQueue({ dir: storeDir, now, maxQueued, leaseMs: 600_000, maxPerAgent: 2 });
   const policy = createPolicy({ file: join(storeDir, "policy.json"), token: TOKEN });
@@ -90,6 +109,9 @@ function buildEngine({
     escalateFn: (agentId, kind, attempts, reason) => escalations.push({ agentId, kind, attempts, reason }),
     onTerminalFailure, onDone, setTimer, clearTimer, retryFloorMs,
     now, goalsDir: join(storeDir, "goals"), jitter: () => 0,
+    ...(watchdogMs === undefined ? {} : { watchdogMs }),
+    ...(log ? { log } : {}),
+    ...(stuckAfterMs === undefined ? {} : { stuckAfterMs }),
   });
   if (autoStart) engine.start();
   return { engine, queue, policy, worktreeMgr, broker, reports, escalations, inUseRef: () => inUse, scheduler };
@@ -1018,4 +1040,247 @@ test("ENG-SC2: a genuine empty diff still gets the original brief", async () => 
   const brief = String(successor().task);
   assert.match(brief, /produced no diff/, `an honest empty diff keeps its original brief: ${brief}`);
   assert.doesNotMatch(brief, /outside[^.]*scope/i, "and must NOT claim a scope breach that did not happen");
+});
+
+// ── Phase D · task 13 — a REPLY turn ────────────────────────────────────────
+// Found by LIVE RUN 8: the backend finished its turn before the frontend asked, so the
+// question sat addressed to a seat with no turn left and nobody could ever answer it. The
+// Manager now gives that seat a turn whose whole job is to send one mail. Such a turn writes
+// no files by design, and the engine read "no files" as `empty-diff` — a failure to retry
+// three times. A `replyOnly` goal is done when it has sent its reply, and whatever it writes
+// is DISCARDED: a reply turn has no business changing code.
+test("ENG-REPLY-1: a replyOnly goal that writes nothing is DONE on its first attempt — no empty-diff retry", async () => {
+  const h = buildEngine({ dispatchOverride: async () => ({ acc: "sent the answer by mail" }) });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", steps: ["answer the question in your inbox"], replyOnly: true });
+  assert.ok(await until(() => h.queue.get(r.firstTaskId)?.status === "done"), `not done: ${JSON.stringify(h.queue.get(r.firstTaskId))}`);
+  const t = h.queue.get(r.firstTaskId);
+  assert.equal(t.engineState, "REPLIED");
+  assert.equal(h.queue.all().filter((x) => x.goalId === r.goalId).length, 1, "exactly one attempt — nothing to retry");
+});
+
+test("ENG-REPLY-2 (security): whatever a replyOnly turn WRITES is discarded — never held, never applied", async () => {
+  const h = buildEngine({ writeFiles: { "*": [{ path: "src/sneaky.ts", content: "export const x = 1;\n" }] } });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", steps: ["answer the question"], replyOnly: true });
+  assert.ok(await until(() => ["done", "failed", "held"].includes(h.queue.get(r.firstTaskId)?.status)));
+  const t = h.queue.get(r.firstTaskId);
+  assert.equal(t.status, "done", "a reply turn is not a delivery — it is never HELD for review");
+  assert.match(String(t.result || ""), /discarded 1/, "the discard is recorded, not silent");
+  assert.equal(existsSync(join(repoRoot, "src", "sneaky.ts")), false, "and the file never reaches the repo");
+});
+
+test("ENG-REPLY-3 (UNRELATED): an ordinary goal that writes nothing still retries as empty-diff", async () => {
+  const h = buildEngine({ dispatchOverride: async () => ({ acc: "wrote nothing" }) });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", steps: ["do a thing"] });
+  const retry = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(retry())), "an ordinary empty turn is still a failure worth a retry");
+});
+
+test("ENG-REPLY-4: only the literal `true` makes a reply turn — the STRING \"false\" is truthy and must not", async () => {
+  // A reply turn DISCARDS what it writes. `Boolean("false")` is true, so a stringly-typed
+  // value from a config file or a JSON body would silently turn real work into a turn whose
+  // files are thrown away. The engine accepts only the boolean.
+  const h = buildEngine({ dispatchOverride: async () => ({ acc: "wrote nothing" }) });
+  const r = h.engine.enqueueGoal({ agentId: "sr-backend", steps: ["do a thing"], replyOnly: "false" });
+  const retry = () => h.queue.all().find((t) => t.goalId === r.goalId && t.status === "queued" && t.notBefore);
+  assert.ok(await until(() => Boolean(retry())), "a string is not a reply turn — this empty turn must retry like any other");
+});
+
+// ── Phase C · task 9 — the goal's baseRef reaches the WORKTREE, end to end ──────────
+test("ENG-BASE-1: a goal enqueued with baseRef cuts its worktree from THAT ref", async () => {
+  // Mutation proof (2026-09-18): engine ignoring the goal's base → ✖ ENG-BASE-1 (fail 1);
+  // enqueueGoal dropping baseRef from the plan → ✖ ENG-BASE-1 (fail 1). Restored, md5 matched.
+  // A THIRD mutation — server.mjs dropping baseRef — left this test GREEN, which is why
+  // SEQ-WIRED-1 exists.
+  // Proven on the real worktree manager and the real queue, because the value has to survive
+  // four hops (manager → server.enqueueGoal → engine goal plan → worktreeMgr.create) and a
+  // harness that stops at the first hop would pass while the running engine used HEAD.
+  const g = (args, cwd = repoRoot) => execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
+  writeFileSync(join(repoRoot, "src", "earlier.ts"), "export const earlier = 1;\n");
+  g(["add", "-A"]);
+  g(["-c", "user.email=t@t.t", "-c", "user.name=t", "commit", "-q", "-m", "earlier work"]);
+  g(["branch", "ma/job/j_seq"]);
+  const tip = g(["rev-parse", "ma/job/j_seq"]);
+  g(["reset", "-q", "--hard", "HEAD~1"]); // HEAD no longer has it — only the branch does
+
+  const { engine, queue } = buildEngine({ writeFiles: { "step one": [] } });
+  const r = engine.enqueueGoal({ agentId: "senior-web-1", steps: ["step one"], baseRef: "ma/job/j_seq" });
+  assert.ok(r.goalId);
+
+  const plan = JSON.parse(readFileSync(join(storeDir, "goals", `${r.goalId}.json`), "utf-8"));
+  assert.equal(plan.baseRef, "ma/job/j_seq", "the goal plan must carry the base");
+
+  await until(() => (queue.get(r.firstTaskId)?.baseRef ?? null) !== null);
+  assert.equal(queue.get(r.firstTaskId).baseRef, tip,
+    "the task's worktree must be cut from the job branch tip, not from HEAD");
+});
+
+test("SEQ-WIRED-1: server.mjs FORWARDS baseRef into engine.enqueueGoal", () => {
+  // Found by mutation, not by reading: deleting `baseRef` from server.mjs's enqueueGoal
+  // wrapper left ENG-BASE-1 green, because that test calls engine.enqueueGoal directly and
+  // never crosses the hop the Manager actually uses. Exactly SEAT-12's shape — a claim proven
+  // on every seam except the one in the running server. Asserted on the AST, not on text.
+  const src = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+  const ast = parse(src, { ecmaVersion: "latest", sourceType: "module" });
+  let forwarded = false;
+  (function walk(n) {
+    if (!n || typeof n.type !== "string" || forwarded) return;
+    if (n.type === "CallExpression"
+        && n.callee?.type === "MemberExpression"
+        && n.callee.object?.name === "engine"
+        && n.callee.property?.name === "enqueueGoal") {
+      for (const a of n.arguments) {
+        if (a.type === "ObjectExpression" && a.properties.some((pr) => pr.key?.name === "baseRef")) forwarded = true;
+      }
+    }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object" && typeof v.type === "string") walk(v);
+    }
+  })(ast);
+  assert.ok(forwarded, "engine.enqueueGoal must be called with baseRef — otherwise every seat's worktree is cut from HEAD");
+});
+
+// ── C23 · the engine must SAY what it is doing ──────────────────────────────
+// The Phase C live run lost a job to a task that sat in `claimed`/`EDITING` for 16 minutes.
+// Diagnosing it afterwards was impossible: engine.mjs contained exactly ONE console.warn in
+// the whole file, so there was no record of the dispatch starting, the watchdog firing, or a
+// retry being scheduled. Three hypotheses were eliminated by loop instead of by evidence,
+// which is the expensive way. The engine now emits a structured trace.
+test("ENG-TRACE-1: a dispatch that times out leaves a trace — start, watchdog, outcome", async () => {
+  // Mutation proof (2026-09-18): removed the task-watchdog log → ✖ ENG-TRACE-1 (fail 1);
+  // `stuckTasks()` returning [] → ✖ ENG-TRACE-2 (fail 1), so the two are not redundant.
+  // Restored, md5 matched, 55/55 green.
+  const seen = [];
+  const { engine, queue } = buildEngine({
+    dispatchOverride: () => new Promise(() => {}),   // never settles → watchdog must fire
+    watchdogMs: 400,
+    log: (r) => seen.push(r),
+  });
+  const r = engine.enqueueGoal({ agentId: "senior-web-1", steps: ["hang forever"] });
+  await until(() => queue.get(r.firstTaskId)?.status === "failed");
+
+  const kinds = seen.map((e) => e.event);
+  assert.ok(kinds.includes("task-dispatch"), `no dispatch trace: ${JSON.stringify(kinds)}`);
+  assert.ok(kinds.includes("task-watchdog"), `the watchdog fired but said nothing: ${JSON.stringify(kinds)}`);
+  assert.ok(kinds.includes("task-failed"), `no outcome trace: ${JSON.stringify(kinds)}`);
+  const wd = seen.find((e) => e.event === "task-watchdog");
+  assert.equal(wd.taskId, r.firstTaskId, "the trace must name the task, or it cannot be joined to a job");
+  assert.equal(wd.ms, 400, "and the window that elapsed");
+
+  // TEST HYGIENE, and it is load-bearing. This test's dispatch NEVER settles, so the engine is
+  // still live when the assertions pass: a watchdog armed for a later attempt can fire after
+  // node:test has ended the test, and `afterEach` has by then removed the whole tmpdir — the
+  // write lands as `ENOENT ... store/tasks/<id>.json.tmp` and node:test converts it into an
+  // uncaughtException that reds the ENTIRE FILE while every individual test reads green.
+  //
+  // Measured, not assumed: 0/3 in isolation, 1/5 with six CPU hogs running (the shape of the
+  // rest of the suite). So it is a genuine leak whose rate is set by machine load, which is
+  // precisely the kind of flake that gets waved through as "unrelated" on a busy CI box.
+  // Waiting for the store to go QUIET — two consecutive identical reads of the row — keeps any
+  // stray write inside the test that caused it, without pinning a magic sleep to a timing race.
+  await quietStore(() => JSON.stringify(queue.get(r.firstTaskId) ?? null));
+});
+
+test("ENG-TRACE-2: a task that is still claimed is visible as such, with its age", async () => {
+  // The exact question nobody could answer during the live run: how long has this been claimed?
+  const seen = [];
+  const { engine } = buildEngine({
+    dispatchOverride: () => new Promise(() => {}),
+    watchdogMs: 0,                                   // no watchdog → it really does hang
+    log: (r) => seen.push(r),
+  });
+  const r = engine.enqueueGoal({ agentId: "senior-web-1", steps: ["hang forever"] });
+  await until(() => seen.some((e) => e.event === "task-dispatch"));
+  const stuck = engine.stuckTasks();
+  assert.equal(stuck.length, 1, `one task is in flight: ${JSON.stringify(stuck)}`);
+  assert.equal(stuck[0].taskId, r.firstTaskId);
+  assert.equal(stuck[0].engineState, "EDITING");
+  assert.ok(Number.isFinite(stuck[0].claimedForMs), "and how long it has been there");
+});
+
+// ── C23 · the LAST-RESORT reaper ───────────────────────────────────────────
+// C23 was never reproduced: three red-capable loops against the real engine all came back
+// green, and the live watchdog demonstrably fires (run 2 logged a task-watchdog and a
+// classified timeout). Every mechanism was inspected and is coherent — the scheduler releases
+// its slot, `running.delete` is in a `finally`, and reclaimExpiredLeases correctly SKIPS a task
+// still in `running` because re-queuing a live task would put a second writer on its worktree.
+//
+// That coherence is the problem. If the watchdog ever fails to fire, nothing else can help:
+// the reclaimer is told the task is alive, and it believes it. Live run 1 sat in
+// claimed/EDITING for 16 minutes with no process, no error, and a leaked slot.
+//
+// So this is not a fix for a diagnosed cause. It is a bound on the CLASS: a task held past the
+// point its own watchdog should have ended it is a contract violation, whatever caused it. The
+// reaper kills the child FIRST (preserving the no-second-writer invariant) and then fails the
+// task through the normal retry path.
+test("ENG-REAP-1: a task held past its stuck bound is killed and failed, not held forever", async () => {
+  // Mutation proof (2026-09-19), three independent legs, each reddening ENG-REAP-1 (fail 1):
+  //   the wake no longer calls reapStuck()                 → nothing ever ends the task
+  //   a running task arms no wake                          → nothing ever LOOKS (run 1's shape)
+  //   reap without handle.kill() first                     → the child outlives its row
+  // ENG-REAP-2 stayed green throughout: the reaper does not touch work inside its bound.
+  // Restored, md5 matched.
+  const seen = [];
+  let killed = false;
+  let settle = () => {};
+  const { engine, queue } = buildEngine({
+    // The watchdog is set far out so it CANNOT be what ends this task — the reaper must.
+    watchdogMs: 600_000,
+    stuckAfterMs: 300,
+    dispatchOverride: (ctx) => new Promise((resolve) => {
+      settle = () => resolve({ acc: "late" });          // settled at the end of the test
+      ctx.registerKill(() => { killed = true; });
+    }),
+    log: (r) => seen.push(r),
+    // UNREF'd on purpose: the engine re-arms its own wake, so a non-unref'd timer keeps node
+    // alive after the test ends and the whole file hangs instead of failing.
+    setTimer: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; },
+    clearTimer: (t) => clearTimeout(t),
+  });
+  const r = engine.enqueueGoal({ agentId: "senior-web-1", steps: ["hang past the bound"] });
+  await until(() => seen.some((e) => e.event === "task-dispatch"));
+  // The harness clock is MANUAL (`now = () => clock`), so wall-clock waiting can never make a
+  // task look old. Advance it past the bound; the real wake timer then delivers the reap.
+  clock += 5_000;
+  engine.tick();
+
+  await until(() => queue.get(r.firstTaskId)?.status === "failed", 8000);
+  const row = queue.get(r.firstTaskId);
+  assert.equal(row.status, "failed", "the reaper must end it");
+  assert.equal(row.error?.kind, "timeout", `failed for the right reason: ${JSON.stringify(row.error)}`);
+  assert.ok(killed, "the child must be killed BEFORE the row is freed — otherwise a requeue puts a second writer on the worktree");
+  assert.ok(seen.some((e) => e.event === "task-reaped"), `the reaping must be traced: ${JSON.stringify(seen.map((e) => e.event))}`);
+  assert.equal(engine.stuckTasks().length, 0, "and the slot must not leak");
+  // Let the abandoned dispatch settle, or this file's event loop never drains and the RUNNER
+  // hangs instead of reporting. A late settle must be harmless — handle.killed makes runStep
+  // return at its existing guard rather than writing over the row the reaper just failed.
+  settle();
+  await new Promise((s) => setTimeout(s, 50));
+  assert.equal(queue.get(r.firstTaskId).status, "failed", "a late settle must not resurrect the task");
+});
+
+test("ENG-REAP-2: a task INSIDE its bound is left alone", async () => {
+  // The reaper must not become a second, shorter watchdog — that would kill honest slow work.
+  const seen = [];
+  let settle2 = () => {};
+  const { engine, queue } = buildEngine({
+    watchdogMs: 600_000,
+    stuckAfterMs: 8_000,   // >> the 5s the clock advances below, and far below MAX_WAKE_MS
+    dispatchOverride: () => new Promise((resolve) => { settle2 = () => resolve({ acc: "done" }); }),
+    log: (r) => seen.push(r),
+    // UNREF'd on purpose: the engine re-arms its own wake, so a non-unref'd timer keeps node
+    // alive after the test ends and the whole file hangs instead of failing.
+    setTimer: (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; },
+    clearTimer: (t) => clearTimeout(t),
+  });
+  const r = engine.enqueueGoal({ agentId: "senior-web-1", steps: ["still working"] });
+  await until(() => seen.some((e) => e.event === "task-dispatch"));
+  clock += 5_000;            // well past REAP-1's bound, still inside this test's 8s one
+  engine.tick();
+  await new Promise((s) => setTimeout(s, 700));
+  assert.equal(queue.get(r.firstTaskId)?.status, "claimed", "honest in-flight work must survive");
+  assert.ok(!seen.some((e) => e.event === "task-reaped"), "and must not be reaped");
+  settle2();
+  await new Promise((s) => setTimeout(s, 50));
 });

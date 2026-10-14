@@ -2,6 +2,7 @@
 // context, NEVER $) AND the per-thread usage rollup + history PERSIST across a real
 // runtime restart (BOSS acceptance: "restart the runtime and confirm history persists").
 // Uses the mock backend (deterministic, no claude) over temp dirs.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

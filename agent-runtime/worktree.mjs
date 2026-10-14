@@ -365,7 +365,14 @@ export function createWorktreeMgr(opts = {}) {
     catch { /* best effort — seat-settings-guard still sweeps before every spawn */ }
   }
 
-  function create(key) {
+  /**
+   * @param {string} key
+   * @param {{baseRef?: string}} [opts] Phase C · task 9 — an EXPLICIT base. Shipping as you go
+   *   commits each HELD task onto `ma/job/<id>`, and the next task's checkout must start from
+   *   that tip or it cannot see the work that came before it (probe P-F08). Omitted, the base
+   *   is resolved exactly as it always was.
+   */
+  function create(key, opts = {}) {
     const path = pathOf(key);
     const branch = branchOf(key);
     if (existsSync(path)) {
@@ -378,10 +385,23 @@ export function createWorktreeMgr(opts = {}) {
       return { path, branch, baseRef, baseMode: "reused", reused: true };
     }
     let baseRef, resolvedMode, refusedPaths, snapshotAt;
-    try {
-      ({ baseRef, baseMode: resolvedMode, refusedPaths, snapshotAt } = resolveBase()); // pin to a resolved SHA (ADR-026 §2)
-    } catch (e) {
-      throw new Error(`worktree: not a git repo or git unavailable (${e.message})`);
+    const wanted = String(opts?.baseRef ?? "").trim();
+    if (wanted) {
+      // Pin the CALLER's ref to a SHA here. A symbolic ref handed to `git worktree add` would
+      // be re-resolved later against a branch that may have moved; and a ref that does not
+      // resolve must THROW rather than fall back to HEAD — a silent downgrade is the stale-base
+      // defect this option exists to close (SEQ-1b).
+      try { baseRef = git(["rev-parse", "--verify", `${wanted}^{commit}`]); }
+      catch (e) { throw new Error(`worktree: base ref ${wanted} does not resolve (${e.message})`); }
+      resolvedMode = "explicit";
+      refusedPaths = [];
+      snapshotAt = Date.now();
+    } else {
+      try {
+        ({ baseRef, baseMode: resolvedMode, refusedPaths, snapshotAt } = resolveBase()); // pin to a resolved SHA (ADR-026 §2)
+      } catch (e) {
+        throw new Error(`worktree: not a git repo or git unavailable (${e.message})`);
+      }
     }
     // If a stale branch lingers from a crashed run with this key, drop it first —
     // but ONLY when it is genuinely stale. #6: after a P5 branch landing the ref is

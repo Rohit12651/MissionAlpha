@@ -6,6 +6,7 @@
 // Plus the adversarial sweep BLOCKING for this phase: no-token 401, evil Host 403,
 // viewer POST 403, bad node / bad venture / empty title 400, traversal + malformed id
 // 404, secret scrubbed out of the row, the file AND the SSE frame.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

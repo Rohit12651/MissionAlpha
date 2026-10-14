@@ -188,3 +188,36 @@ test("pruneOrphans() clears stale worktree metadata without touching live ones",
   assert.ok(list.includes(live.path), "live worktree still registered");
   assert.ok(!list.includes(dead.path), "orphan metadata pruned");
 });
+
+// ── Phase C · task 9 — SHIP AS YOU GO: the next task starts from the last one's tip ──
+// Probe P-F08 reversed. Every task worktree was based on the repo HEAD, so task B never saw
+// task A's file even when the plan ordered A first — B either duplicated the work or wrote
+// against a file that did not exist yet, and the conflict surfaced at ship with the seats gone.
+test("SEQ-1: create({ baseRef }) checks out from THAT ref, so task B sees task A's work", () => {
+  // Mutation proof (2026-09-17): `const wanted = ""` (ignore the caller's baseRef) →
+  // ✖ SEQ-1 and ✖ SEQ-1b (fail 2); falling back to HEAD on an unresolvable ref → ✖ SEQ-1b
+  // alone (fail 1), which is what proves the two are not redundant. Restored, md5 matched.
+  const wt = mk();
+  // Task A: a worktree, a new file, committed onto the job branch.
+  const a = wt.create("task_a");
+  writeFileSync(join(a.path, "src", "fromA.ts"), "export const a = 1;\n");
+  const g = (args) => execFileSync("git", args, { cwd: a.path, encoding: "utf-8" }).trim();
+  g(["add", "-A"]);
+  g(["-c", "user.email=t@t.t", "-c", "user.name=t", "commit", "-q", "-m", "A"]);
+  const jobBranch = "ma/job/j1";
+  g(["branch", jobBranch]);
+  const tip = g(["rev-parse", jobBranch]);
+
+  // Task B, created AFTER A landed, based on the job branch tip.
+  const b = wt.create("task_b", { baseRef: jobBranch });
+  assert.equal(b.baseRef, tip, "B must be pinned to the resolved tip, not to a symbolic ref");
+  assert.ok(existsSync(join(b.path, "src", "fromA.ts")),
+    "B's checkout must contain A's file — this is the whole point of shipping as you go");
+  assert.ok(existsSync(join(b.path, "src", "App.tsx")), "and still carry the base tree");
+});
+
+test("SEQ-1b: an unknown baseRef is refused, not silently downgraded to HEAD", () => {
+  const wt = mk();
+  assert.throws(() => wt.create("task_c", { baseRef: "ma/job/does-not-exist" }), /base|ref|resolve/i,
+    "falling back to HEAD would reintroduce exactly the stale-base defect this closes");
+});

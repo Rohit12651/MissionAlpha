@@ -27,6 +27,7 @@
 // "... is stuck — stalled"; the terminal path gives "... is stuck — spawn". The test reads
 // the title.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";

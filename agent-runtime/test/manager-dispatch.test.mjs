@@ -148,3 +148,43 @@ test("MD-CLAUDE-6: the throwaway worktree is RELEASED even when the spawn throws
   await d.dispatch({ stage: "intake", job: { id: "j1", title: "t", brief: "b" } });
   assert.deepEqual(released, ["mgr_j1"], "a leaked checkout per failed turn would fill the disk");
 });
+
+// ── /cso 2026-09-24 (HIGH, variant of the chat-path fix) ─────────────────────────
+// The Manager spawns with `--setting-sources project`. In a worktree that is safe: worktree.mjs
+// strips `.claude/` at creation. With NO worktree (a non-git target, or a failed create) the
+// fallback cwd is the TARGET itself, and `-p` skips workspace trust — so a foreign folder's
+// committed `.claude/settings.json` hooks would run on the host at job intake. Untrusted repo
+// + no isolated checkout ⇒ refuse the stage; never spawn in it.
+test("MD-UNTRUSTED-1: no worktree + untrusted repo ⇒ the stage is refused and nothing is spawned", async () => {
+  let spawned = 0;
+  const d = createManagerDispatch({ mode: "claude", repoRoot: process.cwd(), repoTrusted: false, spawn: async () => { spawned++; return "```json\n{}\n```"; } });
+  const r = await d.dispatch({ stage: "intake", job: { id: "job_x", brief: "b" } });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /untrusted/);
+  assert.equal(spawned, 0, "the Manager ran inside a repo nobody vetted");
+});
+
+test("MD-UNTRUSTED-2 (GOOD): an untrusted repo WITH an isolated worktree still runs, in the worktree", async () => {
+  let cwdSeen = null;
+  const worktrees = { create: () => ({ path: "/tmp/wt/mgr_job_y" }), release: () => {} };
+  const d = createManagerDispatch({ mode: "claude", repoRoot: process.cwd(), repoTrusted: false, worktrees, spawn: async ({ cwd }) => { cwdSeen = cwd; return "```json\n{\"findings\":[],\"needs\":[]}\n```"; } });
+  const r = await d.dispatch({ stage: "intake", job: { id: "job_y", brief: "b" } });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(cwdSeen, "/tmp/wt/mgr_job_y");
+});
+
+test("MD-UNTRUSTED-WIRED: server.mjs hands createManagerDispatch the repo-scripts trust decision", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { parse } = await import("acorn");
+  const ast = parse(readFileSync(new URL("../server.mjs", import.meta.url), "utf8"), { ecmaVersion: "latest", sourceType: "module" });
+  let prop = null;
+  const walk = (n) => {
+    if (!n || typeof n.type !== "string") return;
+    if (n.type === "CallExpression" && n.callee?.name === "createManagerDispatch") prop = n.arguments[0]?.properties?.find((p) => p.key?.name === "repoTrusted") ?? prop;
+    for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === "object") walk(v); }
+  };
+  walk(ast);
+  assert.ok(prop, "createManagerDispatch must receive repoTrusted — its default is the trusting one");
+  assert.equal(prop.value?.object?.name, "repoScripts");
+  assert.equal(prop.value?.property?.name, "trusted");
+});

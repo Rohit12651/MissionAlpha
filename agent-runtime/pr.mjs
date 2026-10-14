@@ -31,10 +31,11 @@
 //     with -c, so the operator's global git config is never read or written.
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, lstatSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, resolve, relative, dirname, isAbsolute } from "node:path";
-import { applyAllowed, CONFIG_GUARD, configGuardViolation } from "./guards.mjs";
+import { existsSync, readFileSync, lstatSync, writeFileSync } from "node:fs";
+import { join, resolve, relative, isAbsolute } from "node:path";
+import { applyAllowed, configGuardKeys, configGuardViolation } from "./guards.mjs";
 import { GIT_SAFE_ARGS } from "./workspace.mjs";
+import { assertCanonicalInside } from "./workdir-guard.mjs";
 
 const EXEC_TIMEOUT_MS = Number(process.env.RUNTIME_PR_TIMEOUT_MS || 60_000);
 const COMMIT_NAME = process.env.RUNTIME_COMMIT_NAME || "MissionAlpha";
@@ -49,6 +50,18 @@ function safeEnv() {
     if (/(_KEY|_SECRET|_TOKEN|_TOKEN_DIR|PASSWORD|APIKEY)$/i.test(k) || k === "ANTHROPIC_API_KEY") continue;
     out[k] = v;
   }
+  // Security pass (open MEDIUM) — GIT_SAFE_ARGS as ENVIRONMENT, so a git started by anything this
+  // runner starts is hardened too: `gh` runs its own git without our `-c` flags, and a repo's
+  // `core.fsmonitor` / hooks would otherwise execute (PR-GITENV-1/2). git reads these at
+  // command-line precedence, and BEFORE any `-c`, so the push path's credential replay still wins.
+  const pairs = [];
+  for (let i = 0; i < GIT_SAFE_ARGS.length; i += 2) {
+    const kv = GIT_SAFE_ARGS[i + 1];
+    const eq = kv.indexOf("=");
+    pairs.push([kv.slice(0, eq), kv.slice(eq + 1)]);
+  }
+  out.GIT_CONFIG_COUNT = String(pairs.length);
+  pairs.forEach(([k, v], i) => { out[`GIT_CONFIG_KEY_${i}`] = k; out[`GIT_CONFIG_VALUE_${i}`] = v; });
   return out;
 }
 
@@ -224,6 +237,16 @@ export function createPr(deps = {}) {
   const audit = deps.audit || (() => {});
   const scrub = deps.scrub || ((s) => s);
   const allowed = deps.applyAllowed || applyAllowed;
+  // Phase E · 16 — the ship ladder narrows by the seat that PRODUCED the task, resolved from
+  // the task (never from the caller), and with `strict` an unresolved seat commits nothing.
+  // Both default off so a ladder built without a roster keeps its old behaviour; server.mjs
+  // turns both on (GUARD-1-WIRED).
+  const seatFor = typeof deps.seatFor === "function" ? deps.seatFor : () => null;
+  const strict = Boolean(deps.strict);
+  const allowedFor = (taskId) => {
+    const opts = { seat: seatFor(taskId), strict };
+    return (p) => allowed(p, opts);
+  };
 
   // #8/#9 — the FULL hardening prefix, not just hooksPath: a worktree of an
   // archive-sourced repo can carry core.fsmonitor=<cmd> (run by add/diff) or an
@@ -288,8 +311,9 @@ export function createPr(deps = {}) {
       // Re-run the SAME predicate the broker uses. A path the broker would refuse
       // must not reach a commit either — one rule, two exits.
       const approved = [];
+      const mayWrite = allowedFor(taskId);
       for (const p of (Array.isArray(paths) ? paths : []).slice(0, MAX_PATHS)) {
-        if (allowed(p)) approved.push(p);
+        if (mayWrite(p)) approved.push(p);
         else out.refused.push(String(p).slice(0, 200));
       }
       // CONFIG GUARD — one rule, two exits. broker.mjs L87-101 refuses an apply that
@@ -300,7 +324,7 @@ export function createPr(deps = {}) {
       const guarded = [];
       for (const p of approved) {
         const relNorm = relative(wtPath, resolve(wtPath, p)); // "./package.json" → "package.json"
-        if (!CONFIG_GUARD[relNorm]) { guarded.push(p); continue; }
+        if (!configGuardKeys(relNorm)) { guarded.push(p); continue; }
         // MED-2 (P5 re-review) — FAIL CLOSED, like broker.mjs L85/L120 already does.
         // An unreadable guarded file used to be waved through to `git add`, which then
         // happily staged the DELETION, or a 100644→120000 symlink swap: the protected
@@ -436,6 +460,19 @@ export function createPr(deps = {}) {
    * CONFIG_GUARD on protected keys, the symlink and unreadable refusals, and the staged-set ==
    * approved-set assertion. One rule, two exits.
    */
+  /**
+   * Phase C · task 10 — the TREE a ref points at. What the BOSS approves is a specific tree on
+   * `ma/job/<id>`; ship re-reads this and refuses if it moved (DIFF-3). Returns "" when the ref
+   * cannot be read — an unreadable tree must not be mistaken for an unchanged one, so the
+   * caller treats "" as "cannot check" rather than as a match.
+   */
+  async function treeOf(ref) {
+    const safe = String(ref ?? "").trim();
+    if (!safe || safe.startsWith("-")) return "";
+    const r = await git(["-C", repoRoot, "rev-parse", `${safe}^{tree}`], repoRoot);
+    return r.ok ? String(r.stdout || "").trim() : "";
+  }
+
   async function commitTask({ jobWorktree, taskId, paths, message } = {}) {
     const out = { ok: false, sha: null, refused: [], reason: "" };
     try {
@@ -444,8 +481,9 @@ export function createPr(deps = {}) {
       if (!src) { out.reason = `no worktree for task ${taskId}`; return out; }
 
       const approved = [];
+      const mayWrite = allowedFor(taskId);
       for (const pth of (Array.isArray(paths) ? paths : []).slice(0, MAX_PATHS)) {
-        if (!allowed(pth)) { out.refused.push(String(pth).slice(0, 200)); continue; }
+        if (!mayWrite(pth)) { out.refused.push(String(pth).slice(0, 200)); continue; }
         const relNorm = relative(jobWorktree, resolve(jobWorktree, pth));
         if (relNorm.startsWith("..") || isAbsolute(relNorm)) { out.refused.push(`${pth} (escapes the job worktree)`.slice(0, 200)); continue; }
         let body;
@@ -453,14 +491,18 @@ export function createPr(deps = {}) {
           if (lstatSync(join(src, relNorm)).isSymbolicLink()) { out.refused.push(`${relNorm} (symlink in the task worktree)`.slice(0, 200)); continue; }
           body = readFileSync(join(src, relNorm), "utf-8");
         } catch { out.refused.push(`${relNorm} (unreadable in the task worktree)`.slice(0, 200)); continue; }
-        if (CONFIG_GUARD[relNorm]) {
+        if (configGuardKeys(relNorm)) {
           let before = null;
           try { before = readFileSync(join(jobWorktree, relNorm), "utf-8"); } catch { /* new file */ }
           const bad = configGuardViolation(relNorm, before, body);
           if (bad) { out.refused.push(`${relNorm} (protected key changed: ${bad})`.slice(0, 200)); continue; }
         }
-        mkdirSync(dirname(join(jobWorktree, relNorm)), { recursive: true });
-        writeFileSync(join(jobWorktree, relNorm), body, "utf-8");
+        // Phase C · task 11 — the DESTINATION is canonicalised too. The source symlink check
+        // above only covers the task worktree; `jobWorktree/src/alias -> ../docs` redirected an
+        // approved src/** commit into docs/ (CANON-2). Refusal happens before any mkdir.
+        const canon = await assertCanonicalInside(jobWorktree, relNorm, { create: true });
+        if (!canon.ok) { out.refused.push(`${relNorm} (${canon.error})`.slice(0, 200)); continue; }
+        writeFileSync(canon.dest, body, "utf-8");
         approved.push(relNorm);
       }
       if (!approved.length) { out.reason = "no allowed paths to commit"; return out; }
@@ -528,5 +570,5 @@ export function createPr(deps = {}) {
     }
   }
 
-  return { deliverApproved, ghStatus, commitMessageFor, createJobBranch, commitTask, openJobPr };
+  return { deliverApproved, ghStatus, commitMessageFor, createJobBranch, commitTask, openJobPr, treeOf };
 }

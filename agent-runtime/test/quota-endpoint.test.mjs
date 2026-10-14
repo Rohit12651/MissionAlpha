@@ -1,6 +1,7 @@
 // GET /quota — HTTP integration against a real booted server (mock backend, temp
 // dirs). Verifies the endpoint is auth-gated (401 without token) and returns the
 // quota-guard status shape. Read-only; no write path.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

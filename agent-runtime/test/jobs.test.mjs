@@ -151,8 +151,15 @@ test("JOB-15: source/externalKey exist now so Phase 13 needs no migration", () =
 });
 
 test("JOB-16: JOB_STATUSES is the closed set the CHECK constraint enforces", () => {
-  assert.deepEqual([...JOB_STATUSES].sort(),
-    ["awaiting-you", "blocked", "building", "clarify", "intake", "planned", "review", "shipped"]);
+  // Phase F · 20 — this compared JOB_STATUSES to a hand-typed list, so it could never see the
+  // store and the DB drift apart; it now reads the CHECK out of the live schema.
+  const dir = mkdtempSync(join(tmpdir(), "ma-job16-"));
+  const h = openDb({ path: join(dir, "m.db"), patchesDir: join(dir, "p") });
+  const ddl = h.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'jobs'").get().sql;
+  const inList = ddl.match(/status[^]*?CHECK \(status IN \(([^)]*)\)\)/)[1];
+  const fromDb = [...inList.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+  assert.deepEqual([...JOB_STATUSES].sort(), fromDb);
+  assert.ok(fromDb.includes("strategy"), "Phase F · 20");
 });
 
 // ── Phase 12 · task 12.1 — the create caps ───────────────────────────────────
@@ -268,4 +275,20 @@ test("ASH-BUS-3: the frame is IDENTITY ONLY — a title or a brief must never ri
   const wire = JSON.stringify(b.seen);
   assert.ok(!wire.includes("SECRET-TITLE"), "the title reached every connected seat");
   assert.ok(!wire.includes("SECRET-BRIEF-TEXT"), "the brief reached every connected seat");
+});
+
+test("ANS-2: a NEW round of questions re-opens answers — a second answer is accepted only after setQuestions ran again", () => {
+  // Phase B · Task 6. Codex F09 (related): a later escalation could not store its answer because
+  // setAnswers refused any second call forever (jobs.mjs:168). A fact is asked once PER ROUND;
+  // new questions invalidate old answers. Mutation proof (2026-09-17): the answers=NULL reset removed →
+  //   ✖ ANS-2 JobError: this job's questions are already answered (GOOD leg refused). Restored, md5 matched.
+  const jobs = mk();
+  const j = jobs.create({ title: "t", brief: "b" });
+  jobs.setQuestions(j.id, ["tz?"]);
+  jobs.setAnswers(j.id, [{ q: "tz?", a: "UTC" }]);
+  assert.throws(() => jobs.setAnswers(j.id, [{ q: "tz?", a: "local" }]), /already answered/i, "BAD leg: same round, second answer refused");
+  jobs.setQuestions(j.id, ["db?"]);                         // a new round
+  const as = jobs.setAnswers(j.id, [{ q: "db?", a: "sqlite" }]); // GOOD leg
+  assert.deepEqual(as, [{ q: "db?", a: "sqlite" }]);
+  assert.deepEqual(jobs.get(j.id).answers, [{ q: "db?", a: "sqlite" }]);
 });

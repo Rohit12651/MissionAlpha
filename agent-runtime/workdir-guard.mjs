@@ -19,7 +19,7 @@
 // it only changes whether a missing destination is an error.
 
 import { lstat, realpath, mkdir } from "node:fs/promises";
-import { resolve, dirname, sep } from "node:path";
+import { resolve, dirname, join, relative, sep } from "node:path";
 
 const fail = (code, error, path = null) => ({ ok: false, code, error, path });
 
@@ -95,4 +95,68 @@ export async function resolveWorkdirDest({ workdir, realRoot, rel, allowCreate =
   if (info.isSymbolicLink()) return fail(400, `${rel} is a symlink`, rel);
   if (!info.isFile()) return fail(400, `${rel} is not a regular file`, rel);
   return { ok: true, dest, created: false };
+}
+
+/**
+ * Phase C · task 11 — THE CANONICAL DESTINATION IS THE ONE THE SCOPE WAS CHECKED AGAINST.
+ *
+ * Every writer here already refused a symlink pointing OUTSIDE the repo, and already
+ * realpath'd the parent to confirm it was still inside. Codex probes P2/P3 showed that is the
+ * wrong claim: `src/alias -> ../docs` resolves to <repo>/docs, which IS inside, so the
+ * containment test passes and the write lands in docs/ — while writeScope, checked against the
+ * LEXICAL path `src/alias/out.txt`, said `src/**`. Containment was never what protected scope.
+ *
+ * So: the real parent must EQUAL the lexical parent (mapped through the root's own realpath,
+ * because on macOS a temp root under /var is itself a link to /private/var). Any symlink
+ * anywhere in the chain makes the two differ, and the write is refused.
+ *
+ * REFUSAL BEFORE SIDE-EFFECT. When the parent chain does not exist, the nearest EXISTING
+ * ancestor is checked before anything is created — otherwise `mkdir -p src/alias/new` would
+ * plant a real directory in docs/ on the way to discovering the redirect.
+ *
+ * @returns {{ok:true,dest:string} | {ok:false,error:string}}
+ */
+export async function assertCanonicalInside(root, rel, { create = false } = {}) {
+  if (typeof rel !== "string" || rel === "") return { ok: false, error: "no path given" };
+  const rootAbs = resolve(root);
+  let realRoot;
+  try { realRoot = await realpath(rootAbs); } catch { return { ok: false, error: "root does not exist" }; }
+
+  const dest = resolve(rootAbs, rel);
+  if (dest !== rootAbs && !dest.startsWith(rootAbs + sep)) return { ok: false, error: `${rel} escapes the root` };
+
+  const expectedFor = (p) => {
+    const r = relative(rootAbs, p);
+    return r ? join(realRoot, r) : realRoot;
+  };
+
+  // Nearest existing ancestor, checked BEFORE any mkdir.
+  const parent = dirname(dest);
+  let probe = parent;
+  let realProbe = null;
+  for (;;) {
+    try { realProbe = await realpath(probe); break; } catch {
+      const up = dirname(probe);
+      if (up === probe) return { ok: false, error: `${rel} is not inside the root` };
+      probe = up;
+    }
+  }
+  if (realProbe !== expectedFor(probe)) {
+    return { ok: false, error: `${rel} is redirected by a symlinked directory — the canonical destination is outside the checked scope` };
+  }
+
+  if (create && probe !== parent) {
+    try { await mkdir(parent, { recursive: true }); } catch (err) { return { ok: false, error: `${rel} could not be created: ${err?.message ?? err}` }; }
+  }
+  if (probe === parent) {
+    // parent existed: realProbe already proved it is canonical
+  } else if (!create) {
+    return { ok: false, error: `${rel} is not inside the root` };
+  }
+
+  // Never write THROUGH a link at the leaf either.
+  try {
+    if ((await lstat(dest)).isSymbolicLink()) return { ok: false, error: `${rel} is a symlink` };
+  } catch { /* missing leaf is fine — the caller decides */ }
+  return { ok: true, dest };
 }

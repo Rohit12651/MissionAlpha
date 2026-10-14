@@ -14,9 +14,14 @@ import assert from "node:assert/strict";
 
 import { applyAllowed, CORE_GUARD, SEED_DIRS } from "../guards.mjs";
 import { createRoster, coreGuardProbePaths } from "../roster.mjs";
+import { SKILL_CATALOG } from "../factory.mjs";
 
 const seedFile = new URL("../roster.json", import.meta.url).pathname;
-const SKILLS = new Set(["repo-read", "research-brief", "ui", "api", "db", "test", "notifications"]);
+// The GOVERNED catalog, derived exactly as server.mjs:2371 derives it. This was a hardcoded
+// 7-id copy until 2026-09-17, when adding the `ceo` seat (skill "strategy-gate") to the real
+// roster.json made the copy stale and this file threw AT IMPORT — `pass 0`, not `fail 1`.
+// A cache of a source of truth that lives two files away buys nothing and goes stale silently.
+const SKILLS = new Set(SKILL_CATALOG.map((sk) => sk.id));
 const roster = createRoster({ file: seedFile, validSkills: SKILLS, seedDirs: SEED_DIRS });
 
 // The REAL seats. pipeline.mjs ALLOWED_PLAN_SEATS is {sr-backend, sr-frontend} and the qa
@@ -53,9 +58,11 @@ test("WS-2: qa may write tests and NOT product code", () => {
   assert.equal(applyAllowed("src/lib/foo.ts", { seat: QA }), false);
 });
 
-test("WS-3: sr-backend may write src/lib and agent-runtime, not the component tree", () => {
+test("WS-3: sr-backend may write src/lib and agent-runtime's tests, not the component tree", () => {
   assert.equal(applyAllowed("src/lib/x.ts", { seat: BACKEND }), true);
-  assert.equal(applyAllowed("agent-runtime/engine.mjs", { seat: BACKEND }), true);
+  // Decision #1 (2026-09-27): `agent-runtime/**` in its scope now reaches only the test dirs.
+  assert.equal(applyAllowed("agent-runtime/test/kpis.test.mjs", { seat: BACKEND }), true);
+  assert.equal(applyAllowed("agent-runtime/kpis.mjs", { seat: BACKEND }), false);
   assert.equal(applyAllowed("src/components/X.tsx", { seat: BACKEND }), false);
 });
 
@@ -95,7 +102,9 @@ test("WS-8: single-argument applyAllowed is byte-for-byte today's behaviour", ()
   // pr.mjs, patch-edit.mjs and policy.mjs all call it this way and must not change.
   assert.equal(applyAllowed("src/a.ts"), true);
   assert.equal(applyAllowed("src/lib/x.ts"), true);
-  assert.equal(applyAllowed("agent-runtime/engine.mjs"), true);
+  // Decision #1 (2026-09-27): the ONE intended change to the single-argument answer — runtime modules.
+  assert.equal(applyAllowed("agent-runtime/kpis.mjs"), false);
+  assert.equal(applyAllowed("agent-runtime/test/kpis.test.mjs"), true);
   assert.equal(applyAllowed("agent-runtime/guards.mjs"), false);
   assert.equal(applyAllowed("node_modules/x/i.js"), false);
   assert.equal(applyAllowed("../escape.ts"), false);

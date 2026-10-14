@@ -8,13 +8,14 @@
 // to the original. Auto-apply (engine) and operator-apply (route) both call applyChanges
 // here, so the guards run the same regardless of trigger.
 
-import { readdir, readFile, writeFile, mkdir, lstat, realpath, stat } from "node:fs/promises";
+import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join, resolve, relative, dirname, sep } from "node:path";
-import { REPO_ROOT as DEFAULT_REPO_ROOT, applyAllowed, CONFIG_GUARD, configGuardViolation } from "./guards.mjs";
+import { join, resolve, relative } from "node:path";
+import { REPO_ROOT as DEFAULT_REPO_ROOT, applyAllowed, configGuardKeys, configGuardViolation } from "./guards.mjs";
 import { readSnapshotManifestAt } from "./worktree.mjs";
 import { GIT_SAFE_ARGS } from "./workspace.mjs";
+import { assertCanonicalInside } from "./workdir-guard.mjs";
 
 const trunc = (s, n = 4000) => (s.length > n ? s.slice(0, n) + "\n…(truncated)" : s);
 
@@ -106,6 +107,11 @@ export function createBroker({
   // ABSENT ⇒ every applyAllowed call below is single-argument ⇒ LEGACY behaviour, which is
   // what keeps every existing caller (and every existing test) untouched.
   seatFor = null,
+  // Phase E · 16 — FAIL-CLOSED. The engine broker passes true: a task whose seat does not
+  // resolve lands nothing, instead of inheriting the whole legacy seed tree. The manual /run
+  // broker keeps false — its station/factory agents are off the roster by design and every
+  // apply there is a human's click.
+  strict = false,
 } = {}) {
   // ONE place decides seat-scoped allowance, so listChanges and applyChanges can never
   // disagree about what a seat may write. Returns the verdict AND why it was refused, so a
@@ -115,7 +121,8 @@ export function createBroker({
   // `changes` (PES addendum #17: the reviewer's proposed fall-through would have routed
   // `src/secrets.yaml` into changes, because applyAllowed accepts it; BA-5 caught that).
   function seatVerdict(rel, seat) {
-    if (applyAllowed(rel, { seat })) return { ok: true, why: null };
+    if (applyAllowed(rel, { seat, strict })) return { ok: true, why: null };
+    if (!seat && strict && applyAllowed(rel)) return { ok: false, why: "no roster seat resolved for this task" };
     // Distinguish "the floor refused it" from "this seat may not touch it".
     if (seat && seat.role === "worker" && applyAllowed(rel)) {
       return { ok: false, why: `out-of-scope for seat ${seat.id}` };
@@ -250,7 +257,7 @@ export function createBroker({
         const dest = resolve(repoRoot, rel);
         // CONFIG GUARD — refuse if a protected exec/supply-chain key changed.
         const relNorm = relative(repoRoot, dest);
-        if (CONFIG_GUARD[relNorm]) {
+        if (configGuardKeys(relNorm)) {
           let repoBefore = null;
           try {
             repoBefore = await readFile(dest, "utf-8");
@@ -263,23 +270,16 @@ export function createBroker({
             continue;
           }
         }
-        await mkdir(dirname(dest), { recursive: true });
-        // refuse symlink destination (no write-through to a link target)
-        try {
-          if ((await lstat(dest)).isSymbolicLink()) {
-            results.push({ path: rel, ok: false, error: "dest is a symlink" });
-            continue;
-          }
-        } catch {
-          /* dest doesn't exist yet — fine */
-        }
-        // realpath the parent + assert it stays inside the repo (no symlinked dir escape)
-        const realParent = await realpath(dirname(dest));
-        if (!(realParent + sep).startsWith(resolve(repoRoot) + sep)) {
-          results.push({ path: rel, ok: false, error: "dest escapes repo" });
+        // Phase C · task 11 — ONE shared canonical check, BEFORE any mkdir. The old code
+        // mkdir'd first and then asserted the real parent was inside the repo; a symlink
+        // pointing elsewhere INSIDE the repo (src/alias -> ../docs) satisfies that and
+        // redirects the write out of the seat's scope (Codex P2/P3, CANON-1).
+        const canon = await assertCanonicalInside(repoRoot, rel, { create: true });
+        if (!canon.ok) {
+          results.push({ path: rel, ok: false, error: canon.error });
           continue;
         }
-        await writeFile(dest, content, "utf-8");
+        await writeFile(canon.dest, content, "utf-8");
         results.push({ path: rel, ok: true });
       } catch (e) {
         results.push({ path: rel, ok: false, error: e.message });

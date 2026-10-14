@@ -9,6 +9,7 @@
 // exactly right — a Jira site must never be pointable at internal infrastructure — and JH-1
 // PROVES that refusal rather than routing around it. The store itself does not SSRF-vet, so
 // seeding it is how a test gets a Jira the runtime can actually reach.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";

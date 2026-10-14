@@ -19,6 +19,7 @@
 // closes the browser-driven attack with no client change. Stated honestly: this is CSRF
 // mitigation, not authentication — a non-browser caller that sends no Origin still passes,
 // which is the same posture every other route on this path already has.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

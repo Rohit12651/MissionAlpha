@@ -9,6 +9,7 @@
 // NOT covered here, and disclosed rather than implied: the CHAT SPAWN's composition of the ash
 // MCP config. `cliReply` builds its argv inline and server.mjs boots on import, so there is no
 // seam to assert without a live `claude` turn. That is proven at runtime in 12.1's live proof.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";

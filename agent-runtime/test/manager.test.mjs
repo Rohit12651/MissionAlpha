@@ -5,9 +5,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { readFileSync } from "node:fs";
+import { parse } from "acorn";
+
 import { openDb } from "../db.mjs";
 import { createJobs } from "../jobs.mjs";
-import { createManager, validatePlan, isStalled, classifyDispatchError, MAX_TRANSIENT_RETRIES, proposedWriteScope } from "../manager.mjs";
+import { createManager, validatePlan, isStalled, classifyDispatchError, MAX_TRANSIENT_RETRIES, proposedWriteScope, stepPaths } from "../manager.mjs";
 
 const CATALOG = ["ui", "api", "db", "test", "notifications", "repo-read"];
 const ROSTER = {
@@ -31,8 +34,11 @@ function harness(over = {}) {
   const sent = [];
   const logs = [];
   let now = 1_000_000;
+  // Phase C · task 8 — the scope check reads the ROSTER for the hired seat's real writeScope,
+  // never the message body. `seats` is mutable so a test can hand back a deliberately wrong one.
+  const roster = { ...ROSTER, seats: {}, get(id) { return this.seats[id] ?? null; } };
   const mgr = createManager({
-    jobs, roster: ROSTER, catalog: CATALOG,
+    jobs, roster, catalog: CATALOG,
     mailbox: { read: () => inbox.splice(0, inbox.length), send: (m) => { sent.push(m); return { id: `m${sent.length}` }; } },
     enqueueGoal: (g) => { enqueued.push(g); return { goalId: `goal_${enqueued.length}`, firstTaskId: `task_${enqueued.length}` }; },
     deliveries: { mintGate: (g) => { const row = { id: `d${gates.length + 1}`, ...g }; gates.push(row); return row; }, listGates: () => [] },
@@ -41,13 +47,39 @@ function harness(over = {}) {
     log: (r) => logs.push(r),
     ...over,
   });
-  return { jobs, mgr, gates, enqueued, inbox, sent, logs, setNow: (v) => { now = v; }, nowRef: () => now };
+  return { jobs, mgr, roster, gates, enqueued, inbox, sent, logs, setNow: (v) => { now = v; }, nowRef: () => now };
 }
 
 // ── validatePlan ─────────────────────────────────────────────────────────────
 test("MGR-PLAN-1: a good plan validates", () => {
   const v = validatePlan({ tasks: [{ title: "t", skillsRequired: ["api"], steps: ["do"] }] }, { catalog: CATALOG });
   assert.equal(v.ok, true);
+});
+
+// ── Phase C · task 7 — ONE TASK IS ONE STEP ──────────────────────────────────
+// The four things, named, because three of them were being conflated:
+//   STEP    one model turn on one worktree.
+//   ATTEMPT one engine task id for one step (a retry is a new attempt, same step).
+//   TASK    a job row. Closed ONLY by the engine's terminal `done` (Phase B, task 4).
+//   JOB     closes on the ship ladder.
+// Until step chaining exists, one task = one step, and the planner is told so in words.
+// A multi-step task silently drops steps 2..n: the seat gets one turn and the row closes.
+test("PLAN-STEPS-1: a task with more than one step is refused, and the reason names the task", () => {
+  // Mutation proof (2026-09-17): dropped the `steps.length > 1` refusal →
+  // ✖ PLAN-STEPS-1 (fail 1). Restored, md5 matched, 153/153 green across manager+pipeline+jobs.
+  const v = validatePlan({ tasks: [
+    { title: "fine", skillsRequired: ["api"], steps: ["one"] },
+    { title: "Add the endpoint AND the test", skillsRequired: ["api"], steps: ["add endpoint", "add test"] },
+  ] }, { catalog: CATALOG });
+  assert.equal(v.ok, false);
+  assert.match(v.error, /Add the endpoint AND the test/, "the BOSS must be able to see WHICH task to split");
+  assert.match(v.error, /2 steps|one step/i);
+});
+
+test("PLAN-STEPS-2 (GOOD leg): exactly one step passes, and an empty trailing step does not count", () => {
+  assert.equal(validatePlan({ tasks: [{ title: "t", skillsRequired: ["api"], steps: ["do"] }] }, { catalog: CATALOG }).ok, true);
+  // steps are filtered for blanks before the count, so a trailing "" is not a second step
+  assert.equal(validatePlan({ tasks: [{ title: "t", skillsRequired: ["api"], steps: ["do", "  "] }] }, { catalog: CATALOG }).ok, true);
 });
 
 test("MGR-PLAN-2: an empty / missing / oversized plan is refused", () => {
@@ -459,7 +491,10 @@ test("MGR-RETRY-2: two 429s then success proceeds — the job is NOT blocked", a
   assert.equal((await h.mgr.tick(j.id)).action, "retry");
   assert.equal(h.jobs.get(j.id).status, "intake", "a transient failure must not move the job");
   const r = await h.mgr.tick(j.id);
-  assert.equal(r.action, "planned");
+  // Phase F · 20: a successful intake now hands the job to the CEO (`strategy`), not to planned.
+  // The claim — two 429s then success MOVES the job and does not block it — is unchanged.
+  assert.equal(r.action, "strategy");
+  assert.equal(h.jobs.get(j.id).status, "strategy");
 });
 
 test("MGR-RETRY-3: a deterministic error blocks on the FIRST try — no quota burned", async () => {
@@ -484,16 +519,20 @@ function scripted(replies) {
 }
 
 test("MGR-WALK-1: intake with no questions SKIPS clarify — an empty gate is not asked", async () => {
-  const h = harness({ dispatch: scripted([{ ok: true, findings: ["x exists"], needs: [] }]) });
+  // Phase F · 20: intake → strategy (the CEO) → clarify, which still skips itself with no questions.
+  const h = harness({ dispatch: scripted([{ ok: true, findings: ["x exists"], needs: [] }, { ok: true, verdict: "proceed", why: "w" }]) });
   const j = h.jobs.create({ title: "t", brief: "b" });
+  assert.equal((await h.mgr.tick(j.id)).action, "strategy");
+  assert.equal((await h.mgr.tick(j.id)).verdict, "proceed");
   assert.equal((await h.mgr.tick(j.id)).action, "planned");
   assert.equal(h.gates.length, 0, "no question means no gate");
 });
 
 test("MGR-WALK-2: questions become ONE gate, not N", async () => {
-  const h = harness({ dispatch: scripted([{ ok: true, findings: [], needs: ["a?", "b?", "c?"] }]) });
+  const h = harness({ dispatch: scripted([{ ok: true, findings: [], needs: ["a?", "b?", "c?"] }, { ok: true, verdict: "proceed", why: "w" }]) });
   const j = h.jobs.create({ title: "t", brief: "b" });
-  await h.mgr.tick(j.id);                     // intake → clarify
+  await h.mgr.tick(j.id);                     // intake → strategy (Phase F · 20)
+  await h.mgr.tick(j.id);                     // strategy (proceed) → clarify
   const r = await h.mgr.tick(j.id);           // clarify → one gate
   assert.equal(r.action, "asked");
   assert.equal(h.gates.length, 1, "one decision the BOSS makes in one sitting = one gate");
@@ -501,7 +540,11 @@ test("MGR-WALK-2: questions become ONE gate, not N", async () => {
   assert.match(h.gates[0].body, /1\. a\?/);
 });
 
-test("MGR-WALK-3: plan assigns BY SKILL and enqueues one goal per task", async () => {
+// SUPERSEDED BY PHASE C · task 9, rewritten rather than deleted (same convention as the
+// Phase 10 rewrites below). The claim "one goal per task" WAS the P-F08 defect: every seat's
+// worktree was cut from the same HEAD at once, so an ordered plan was ordered in name only.
+// The seat-selection half of the claim is unchanged and still pinned.
+test("MGR-WALK-3: plan assigns BY SKILL and dispatches the FIRST task only", async () => {
   const h = harness({ dispatch: scripted([{ ok: true, tasks: [
     { title: "api bit", skillsRequired: ["api"], steps: ["add x"] },
     { title: "test bit", skillsRequired: ["test"], steps: ["test x"] },
@@ -512,7 +555,8 @@ test("MGR-WALK-3: plan assigns BY SKILL and enqueues one goal per task", async (
   assert.equal(r.action, "assigned");
   assert.deepEqual(h.jobs.tasks(j.id).map((t) => t.seat), ["sr-backend", "qa"],
     "the RUNTIME chose the seats from skills — the model never named one");
-  assert.equal(h.enqueued.length, 2);
+  assert.equal(h.enqueued.length, 1, "one task in flight — B is cut from A's commit, not from HEAD");
+  assert.deepEqual(h.jobs.tasks(j.id).map((t) => t.status), ["queued", "planned"]);
   assert.equal(h.enqueued[0].storyId, j.id, "goals are owner-tagged with the job id");
   assert.equal(h.jobs.get(j.id).status, "building");
 });
@@ -563,6 +607,56 @@ test("MGR-WALK-5: a `done` mail marks the task and the job reaches review", asyn
   assert.deepEqual(t.changedPaths, ["src/lib/x.ts"]);
 });
 
+test("MGR-WALK-5b: a worker's own `done` is PROGRESS, not completion — the task stays building", async () => {
+  // Step 2 ratchet. Mutation proof (2026-09-17): manager.mjs `m.from !== "engine"` → `=== "never"` →
+  //   ✖ MGR-WALK-5b  AssertionError: Expected values to be strictly equal: actual: 'done', expected: 'queued'
+  //   ✖ MGR-WALK-5c  (from=sr-backend closed the task). Restored, md5 matched, 45/45 green.
+  const h = harness({ dispatch: scripted([{ ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] }]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  const before = h.jobs.tasks(j.id)[0].status; // "queued" until the engine claims it
+  h.inbox.push({ from: "sr-backend", kind: "done", taskId: "task_1", changedPaths: ["src/lib/x.ts"], jobId: j.id });
+  const r = await h.mgr.tick(j.id);
+  assert.notEqual(r.action, "review", "a seat's word does not reach review");
+  const [t] = h.jobs.tasks(j.id);
+  assert.equal(t.status, before, "unchanged by the claim");
+  assert.notEqual(t.status, "done");
+  assert.ok(h.logs.some((l) => l.event === "worker-done-claim" && l.taskId === t.id), "the claim is logged, not applied");
+});
+
+test("MGR-WALK-5c: BAD/GOOD/UNRELATED — only `engine` closes; a manager `done` is ignored too", async () => {
+  for (const [from, closes] of [["engine", true], ["sr-backend", false], ["tech-lead", false]]) {
+    const h = harness({ dispatch: scripted([{ ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] }]) });
+    const j = h.jobs.create({ title: "t", brief: "b" });
+    h.jobs.setStatus(j.id, "planned");
+    await h.mgr.tick(j.id);
+    const before = h.jobs.tasks(j.id)[0].status;
+    h.inbox.push({ from, kind: "done", taskId: "task_1", changedPaths: ["src/lib/x.ts"], jobId: j.id });
+    await h.mgr.tick(j.id);
+    const after = h.jobs.tasks(j.id)[0].status;
+    assert.equal(after, closes ? "done" : before, `from=${from}`);
+  }
+});
+
+test("MGR-DONE-ID-1: a `done` for a RETRY attempt updates the job task's taskId to the attempt that succeeded", async () => {
+  // Phase B · Task 4. CEO review C08 / Codex F07, reproduced: the done update at manager.mjs
+  // omitted taskId, so after a transient failure + successful retry the job task still named
+  // attempt_one — whose worktree engine.mjs had already removed — and review read an empty
+  // diff, ship said "no worktree for task". Mutation proof (2026-09-17): `taskId: m.taskId ?? t.taskId` removed →
+  //   ✖ MGR-DONE-ID-1  actual: 'attempt_one', expected: 'attempt_two'. Restored, md5 matched.
+  const h = harness({ dispatch: scripted([{ ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] }]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  h.jobs.updateTask(h.jobs.tasks(j.id)[0].id, { taskId: "attempt_one", goalId: "goal_1", status: "queued" });
+  h.inbox.push({ from: "engine", kind: "done", taskId: "attempt_two", goalId: "goal_1", changedPaths: ["src/lib/x.ts"], jobId: j.id });
+  await h.mgr.tick(j.id);
+  const [t] = h.jobs.tasks(j.id);
+  assert.equal(t.status, "done");
+  assert.equal(t.taskId, "attempt_two", "review and ship must read the attempt that actually produced the diff");
+});
+
 test("MGR-WALK-6: a `blocked` mail triggers a REPLAN, and the order is applied", async () => {
   const h = harness({ dispatch: scripted([
     { ok: true, tasks: [
@@ -578,7 +672,7 @@ test("MGR-WALK-6: a `blocked` mail triggers a REPLAN, and the order is applied",
   const r = await h.mgr.tick(j.id);
   assert.equal(r.action, "replanned");
   assert.deepEqual(h.jobs.tasks(j.id).map((t) => t.title), ["two", "one"]);
-  assert.equal(h.jobs.get(j.id).status, "planned", "a replan goes back through planning, not straight to building");
+  assert.equal(h.jobs.get(j.id).status, "building", "C30: a reordered job is ALREADY planned — it builds. The old assertion (back to `planned`) WAS the defect: the next tick re-ran the PLAN stage and replaced the rows this reorder had just preserved, orphaning their commits");
 });
 
 test("MGR-WALK-7: an `escalate` mints a gate and waits — it does not block the job", async () => {
@@ -630,4 +724,502 @@ test("MGR-10: a dispatch that throws is treated as a dispatch error, not a crash
   const h = harness({ dispatch: async () => { throw new Error("401 bad key"); } });
   const j = h.jobs.create({ title: "t", brief: "b" });
   assert.equal((await h.mgr.tick(j.id)).action, "blocked");
+});
+
+test("MGR-RECOVER-1: on boot, an awaiting-you job with NO pending gate and not shipped is blocked with a reason — a job with a gate is left alone", () => {
+  // Phase B · Task 6. Codex F09, reproduced: ship failed after the yes; the job sat in
+  // awaiting-you with nothing pending, exempt from the stall clock, skipped by the scheduler.
+  // Mutation proof (2026-09-17): `if (gates.length) continue` → `=== -1` → ✖ MGR-RECOVER-1 actual: [both ids], expected: [stranded only] — the gated job was wrongly blocked. Restored, md5 matched.
+  const gated = new Set();
+  const h = harness({ deliveries: { mintGate: (g) => ({ id: "d1", ...g }), listGates: (jobId) => (gated.has(jobId) ? [{ id: "g1" }] : []) } });
+  // distinct briefs: the store refuses an identical brief within 10 minutes (dedupe), which is not what this test is about
+  const mk = (title) => { const j = h.jobs.create({ title, brief: `brief for ${title}` }); for (const st of ["planned", "building", "review", "awaiting-you"]) h.jobs.setStatus(j.id, st); return j; };
+  const stranded = mk("stranded");
+  const waiting = mk("waiting"); gated.add(waiting.id);
+  const out = h.mgr.reconcileStranded();
+  assert.deepEqual(out.blocked, [stranded.id]);
+  assert.equal(h.jobs.get(stranded.id).status, "blocked");
+  assert.match(String(h.jobs.get(stranded.id).blockedOn || ""), /no decision pending|ship failed after approval/i);
+  assert.equal(h.jobs.get(waiting.id).status, "awaiting-you", "GOOD leg: a real pending gate is the human's turn");
+});
+
+test("MGR-RESUME-1: resume() moves a blocked job to planned; any other status is refused with 409", () => {
+  // Phase B · Task 6. The store allowed blocked→planned (jobs.mjs:38) but no operator path called it.
+  // Mutation proof (2026-09-17): status check → `=== "never"` → ✖ MGR-RESUME-1 actual: true, expected: false (409 leg). Restored, md5 matched.
+  const h = harness();
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  // Phase F · 20: a job that got as far as `planned` has a CEO verdict; without one, resume sends
+  // a never-planned job back to the CEO (REV-2). This test is about the ship-failure path.
+  h.jobs.setSummary(j.id, { strategy: { verdict: "proceed", why: "w" } });
+  const early = h.mgr.resume(j.id);
+  assert.equal(early.ok, false); assert.equal(early.status, 409);
+  h.jobs.setStatus(j.id, "blocked", "ship failed after approval — x");
+  const r = h.mgr.resume(j.id);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(h.jobs.get(j.id).status, "planned");
+  assert.equal(h.jobs.get(j.id).blockedOn, null, "the reason is cleared on resume");
+  assert.equal(h.mgr.resume("job_nope").status, 404);
+});
+
+// ── G7 (2026-09-17) HIGH — a second question round must be answerable at EVERY site that mints one ──
+// setQuestions() clears answers, but only the intake→clarify path called it; the three
+// escalation sites minted a "question" gate directly, so round 2 hit 409 forever (addendum #11).
+test("MGR-ANS-ROUND-1: an ESCALATE opens a new question round the BOSS can answer after round 1 was answered", async () => {
+  // Mutation proof (2026-09-17): dropped `jobs.setQuestions(job.id,[q])` at the escalate site →
+  // ✖ MGR-ANS-ROUND-1 ... the escalation IS the new round, on the job row (fail 1). Restored, md5 ok.
+  const h = harness({ dispatch: scripted([
+    { ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] },
+    { ok: true, action: "escalate", question: "which database?" },
+  ]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setQuestions(j.id, ["tz?"]); h.jobs.setAnswers(j.id, [{ q: "tz?", a: "UTC" }]); // round 1, answered
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  h.inbox.push({ from: "engine", kind: "blocked", taskId: "task_1", body: "cannot tell", jobId: j.id });
+  assert.equal((await h.mgr.tick(j.id)).action, "escalated");
+  assert.deepEqual(h.jobs.get(j.id).questions, ["which database?"], "the escalation IS the new round, on the job row");
+  const as = h.jobs.setAnswers(j.id, [{ q: "which database?", a: "sqlite" }]); // must not 409
+  assert.equal(as[0].a, "sqlite");
+});
+
+test("MGR-ANS-ROUND-2: a HIRE-FAILED gate opens a new question round too", async () => {
+  // Mutation proof (2026-09-17): dropped setQuestions in onHireFailed → ✖ MGR-ANS-ROUND-2 (fail 1). Restored, md5 ok.
+  const h = hireHarness();
+  const j = h.jobs.create({ title: "J", brief: "b" });
+  h.jobs.setQuestions(j.id, ["tz?"]); h.jobs.setAnswers(j.id, [{ q: "tz?", a: "UTC" }]);
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  h.inbox.push({ from: "hr", to: "tech-lead", kind: "hire-failed", jobId: j.id, body: JSON.stringify({ reason: "worker cap reached (20/20)" }) });
+  await h.mgr.tick(j.id);
+  assert.equal(h.jobs.get(j.id).status, "awaiting-you");
+  assert.match(h.jobs.get(j.id).questions?.[0] ?? "", /could not hire/);
+  assert.doesNotThrow(() => h.jobs.setAnswers(j.id, [{ q: "hire?", a: "drop the task" }]));
+});
+
+test("MGR-ANS-ROUND-3: a BLOCKED-WITH-NO-REPLAN gate opens a new question round too", async () => {
+  // Mutation proof (2026-09-17): dropped setQuestions at the blocked-no-replan site → ✖ MGR-ANS-ROUND-3 (fail 1).
+  // First attempt was VACUOUS — the 8-space anchor is a substring of the 10-space escalate line, so the patch
+  // refused as non-unique (addendum #13). Re-anchored on the preceding `const q = ...` line. Restored, md5 ok.
+  const h = harness({ dispatch: scripted([
+    { ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] },
+    { ok: true }, // manage turn with no action → blocked task, no replan → gate
+  ]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setQuestions(j.id, ["tz?"]); h.jobs.setAnswers(j.id, [{ q: "tz?", a: "UTC" }]);
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  h.inbox.push({ from: "engine", kind: "blocked", taskId: "task_1", body: "cannot tell", jobId: j.id });
+  const r = await h.mgr.tick(j.id);
+  assert.equal(r.reason, "blocked with no replan", JSON.stringify(r));
+  assert.match(h.jobs.get(j.id).questions?.[0] ?? "", /is blocked/);
+  assert.doesNotThrow(() => h.jobs.setAnswers(j.id, [{ q: "blocked?", a: "skip it" }]));
+});
+
+test("MGR-RESUME-2: resume() refuses while any task is still live in the engine (queued) — re-planning would orphan the goal", async () => {
+  // G7 (2026-09-17) MEDIUM: blocked→planned wipes tasks (setTasks) with no goal cancellation.
+  // Safe after a ship failure (all tasks terminal); unsafe after a stall-block with a queued task.
+  // Mutation proof (2026-09-17): dropped the `live.length` refusal → ✖ MGR-RESUME-2 (fail 1). Restored, md5 ok.
+  const h = harness({ dispatch: scripted([{ ok: true, tasks: [{ title: "one", skillsRequired: ["api"], steps: ["s"] }] }]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned"); await h.mgr.tick(j.id); // one task queued in the engine
+  h.jobs.setStatus(j.id, "blocked", "stalled");
+  const r = h.mgr.resume(j.id);
+  assert.equal(r.ok, false); assert.equal(r.status, 409); assert.match(r.reason, /still live/i);
+  assert.equal(h.jobs.get(j.id).status, "blocked");
+  h.jobs.updateTask(h.jobs.tasks(j.id)[0].id, { status: "blocked", blockedOn: "x" }); // now terminal
+  assert.equal(h.mgr.resume(j.id).ok, true);
+});
+
+// ── Phase C · task 8 — A HIRE ANSWERS ONE REQUEST, NOT EVERY PARKED TASK ─────
+// P-F13: onHireDone looped every awaiting-hire task and gave them ALL to whichever seat HR
+// returned. Two parked tasks needing different skills both went to the first hire; the second
+// hire never arrived because requestHire had already marked its key asked.
+const twoHireHarness = () => harness({
+  dispatch: async ({ stage }) => (stage === "plan"
+    ? { ok: true, tasks: [
+      { title: "wire the notifier", skillsRequired: ["notifications"], steps: ["add src/lib/alerts/send.ts"] },
+      { title: "read the repo", skillsRequired: ["repo-read"], steps: ["add docs/notes.md"] },
+    ] }
+    : { ok: true, findings: [], needs: [] }),
+});
+
+test("HIRE-CORR-1: a hire-done for the notifications request assigns ONLY that task", async () => {
+  // Mutation proof (2026-09-17): dropped `if (hiredFor !== null && key !== hiredFor) continue;` →
+  // ✖ HIRE-CORR-1 (fail 1). The FIRST attempt at this proof reported fail 0 — see the scope note
+  // below. Restored, md5 matched.
+  const h = twoHireHarness();
+  // The seat is scoped WIDE ENOUGH FOR BOTH tasks on purpose. The first version of this test
+  // scoped it to src/lib/alerts/** only, so the repo-read task stayed parked because the SCOPE
+  // check refused it — and the test passed with the correlation mutated out. Vacuous, exactly
+  // addendum #22. With both paths reachable, only the correlation can keep the second task parked.
+  h.roster.seats = { "hire-notif": { id: "hire-notif", writeScope: ["src/lib/alerts/**", "docs/**"] } };
+  const j = h.jobs.create({ title: "J", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  const parked = h.jobs.tasks(j.id).filter((t) => t.status === "awaiting-hire");
+  assert.equal(parked.length, 2, `both tasks should be parked: ${JSON.stringify(h.jobs.tasks(j.id).map((t) => [t.title, t.status]))}`);
+
+  h.inbox.push({ from: "hr", to: "tech-lead", kind: "hire-done", jobId: j.id,
+    body: JSON.stringify({ agentId: "hire-notif", skills: ["notifications"] }) });
+  await h.mgr.tick(j.id);
+
+  const byTitle = Object.fromEntries(h.jobs.tasks(j.id).map((t) => [t.title, t]));
+  assert.equal(byTitle["wire the notifier"].seat, "hire-notif");
+  assert.equal(byTitle["wire the notifier"].status, "queued");
+  assert.equal(byTitle["read the repo"].seat, null, "the repo-read task was NOT what this hire answered");
+  assert.equal(byTitle["read the repo"].status, "awaiting-hire");
+  assert.equal(byTitle["read the repo"].blockedOn, null,
+    "it is parked because this hire did not answer it — NOT because the scope refused it");
+});
+
+test("HIRE-CORR-2: a hire whose writeScope cannot reach the task's files is not assigned", async () => {
+  // Mutation proof (2026-09-17): dropped the `unreachable.length` refusal → ✖ HIRE-CORR-2
+  // (fail 1). Restored, md5 matched.
+  const h = twoHireHarness();
+  // HR returned a seat scoped to the WRONG tree — it can never write src/lib/alerts/send.ts.
+  h.roster.seats = { "hire-notif": { id: "hire-notif", writeScope: ["docs/**"] } };
+  const j = h.jobs.create({ title: "J", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  h.inbox.push({ from: "hr", to: "tech-lead", kind: "hire-done", jobId: j.id,
+    body: JSON.stringify({ agentId: "hire-notif", skills: ["notifications"] }) });
+  await h.mgr.tick(j.id);
+
+  const t = h.jobs.tasks(j.id).find((x) => x.title === "wire the notifier");
+  assert.equal(t.status, "awaiting-hire", "a seat that cannot reach the file must not take the task");
+  assert.equal(t.seat, null);
+  assert.match(String(t.blockedOn || ""), /scope/i, "the reason must say WHY, or this looks like a lost message");
+});
+
+test("SEQ-2: a re-plan reorders the UN-STARTED tasks and leaves finished work alone", async () => {
+  // Phase C · task 9. `setTasks(..., { status: "planned" })` reset EVERY row, so a re-plan
+  // after task A had already produced a commit sent A back to the queue — the commit stayed on
+  // the branch and a second seat redid the same work on top of it.
+  // Mutation proof (2026-09-17), two independent legs:
+  //   replan back to `status: "planned"` for every row      → ✖ SEQ-2 (fail 1)
+  //   setTasks back to hardcoded null/"[]" for the carried fields → ✖ SEQ-2 (fail 1)
+  // Restored, md5 matched both times.
+  const h = harness({ dispatch: scripted([
+    { ok: true, tasks: [
+      { title: "A", skillsRequired: ["api"], steps: ["add src/a.ts"] },
+      { title: "B", skillsRequired: ["api"], steps: ["add src/b.ts"] },
+    ] },
+    { ok: true, action: "replan", order: [2, 1] },
+  ]) });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+
+  // A finishes and carries its commit; that dispatches B (sequential, Phase C · task 9).
+  const [a] = h.jobs.tasks(j.id);
+  h.jobs.updateTask(a.id, { changedPaths: ["src/a.ts"] });
+  h.inbox.push({ from: "engine", kind: "done", taskId: a.taskId, jobId: j.id, body: "ok" });
+  await h.mgr.tick(j.id);
+  const b = h.jobs.tasks(j.id)[1];
+  assert.equal(b.status, "queued", "B must be in flight before it can block");
+
+  h.inbox.push({ from: "engine", kind: "blocked", taskId: b.taskId, body: "stuck", jobId: j.id });
+  const r = await h.mgr.tick(j.id);
+  assert.equal(r.action, "replanned", JSON.stringify(r));
+
+  const after = Object.fromEntries(h.jobs.tasks(j.id).map((t) => [t.title, t]));
+  assert.equal(after.A.status, "done", "A already produced a commit — a re-plan must not re-run it");
+  assert.deepEqual(after.A.changedPaths, ["src/a.ts"], "and its changed paths must survive");
+  // C30: the reorder now dispatches the un-started work itself instead of bouncing the job
+  // through `planned`, so B is in flight rather than waiting for a tick that re-plans.
+  assert.equal(after.B.status, "queued", "B is the un-started work the re-plan is actually for");
+});
+
+// ── Phase C · task 9 — SEQUENTIAL DISPATCH ──────────────────────────────────
+// The root of probe P-F08 is manager.mjs's plan branch: it enqueued EVERY task at once, so
+// every seat's worktree was cut from the same HEAD before any of them had produced anything.
+// Ordering the plan ("if task B needs task A's file, A comes first") was advice the runtime
+// then ignored. Ship-as-you-go means one task in flight at a time, each based on the last.
+const seqHarness = (over = {}) => harness({
+  dispatch: scripted([{ ok: true, tasks: [
+    { title: "A", skillsRequired: ["api"], steps: ["add src/a.ts"] },
+    { title: "B", skillsRequired: ["api"], steps: ["add src/b.ts"] },
+  ] }]),
+  ...over,
+});
+
+test("SEQ-3: only the FIRST task is dispatched at plan time", async () => {
+  // Mutation proof (2026-09-18): plan branch restored to the fan-out loop → ✖ SEQ-3 and ✖ SEQ-4
+  // (fail 2). Restored, md5 matched.
+  const h = seqHarness();
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+
+  const st = h.jobs.tasks(j.id).map((t) => [t.title, t.status]);
+  assert.deepEqual(st, [["A", "queued"], ["B", "planned"]],
+    `B must wait for A, not race it from the same HEAD: ${JSON.stringify(st)}`);
+  assert.equal(h.enqueued.length, 1, "exactly one goal in flight");
+});
+
+test("SEQ-4: when A finishes it is COMMITTED and B is dispatched based on the job branch", async () => {
+  // Mutation proof (2026-09-18): dropped `await commitOnDone(...)` → ✖ SEQ-4 and ✖ SEQ-5
+  // (fail 2). Restored, md5 matched.
+  const committed = [];
+  const h = seqHarness({ pr: {
+    createJobBranch: async (jobId) => ({ ok: true, branch: `ma/job/${jobId}`, worktree: "/tmp/jobwt" }),
+    commitTask: async (a) => { committed.push(a.taskId); return { ok: true, sha: `sha${committed.length}`, refused: [], reason: "" }; },
+    openJobPr: async () => ({ mode: "pr", prUrl: "u", reason: "" }),
+  } });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+
+  const a = h.jobs.tasks(j.id)[0];
+  h.jobs.updateTask(a.id, { changedPaths: ["src/a.ts"] });
+  h.inbox.push({ from: "engine", kind: "done", taskId: a.taskId, jobId: j.id, body: "ok" });
+  await h.mgr.tick(j.id);
+
+  assert.deepEqual(committed, [a.taskId], "A's work is committed as soon as it is done");
+  const after = h.jobs.tasks(j.id);
+  assert.equal(after[0].status, "done");
+  assert.equal(after[1].status, "queued", "B is dispatched only now");
+  const bGoal = h.enqueued.at(-1);
+  assert.equal(bGoal.baseRef, `ma/job/${j.id}`,
+    `B's worktree must be cut from the job branch tip, not HEAD: ${JSON.stringify(bGoal)}`);
+});
+
+test("SEQ-5: ship() opens the PR from the branch tip and does NOT re-commit what is already committed", async () => {
+  // Mutation proof (2026-09-18): removed `if (already.has(t.taskId)) continue;` → ✖ SEQ-5 ALONE
+  // (fail 1), which is what proves it is not redundant with SEQ-4. Restored, md5 matched.
+  // With commit-on-done the commits already exist. Re-running commitTask would stage nothing,
+  // return "nothing to commit", and BLOCK a job whose work is entirely present on the branch.
+  const commitCalls = [];
+  const h = seqHarness({ pr: {
+    createJobBranch: async (jobId) => ({ ok: true, branch: `ma/job/${jobId}`, worktree: "/tmp/jobwt" }),
+    commitTask: async (a) => { commitCalls.push(a.taskId); return { ok: true, sha: `sha${commitCalls.length}`, refused: [], reason: "" }; },
+    openJobPr: async ({ branch }) => ({ mode: "pr", prUrl: `https://x/pr/1?b=${branch}`, reason: "" }),
+  } });
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+
+  // Walk both tasks to done, each committing as it lands.
+  for (let i = 0; i < 2; i++) {
+    const t = h.jobs.tasks(j.id).find((x) => x.status === "queued");
+    h.jobs.updateTask(t.id, { changedPaths: [`src/${t.title}.ts`] });
+    h.inbox.push({ from: "engine", kind: "done", taskId: t.taskId, jobId: j.id, body: "ok" });
+    await h.mgr.tick(j.id);
+  }
+  assert.equal(commitCalls.length, 2, `both tasks committed once each as they finished: ${JSON.stringify(commitCalls)}`);
+
+  const out = await h.mgr.ship(j.id);
+  assert.equal(out.ok, true, `ship must succeed on an already-assembled branch: ${JSON.stringify(out)}`);
+  assert.equal(commitCalls.length, 2, "ship must NOT re-commit — the commits are already on the branch");
+  assert.equal(h.jobs.get(j.id).status, "shipped");
+  assert.equal(h.jobs.get(j.id).summary.ship.outcome, "pr");
+});
+
+// ── Phase C · task 10 — WHAT THE BOSS APPROVED IS WHAT SHIPS ────────────────
+const treeHarness = (tree) => {
+  let current = tree;
+  const h = harness({
+    dispatch: async ({ stage }) => (stage === "plan"
+      ? { ok: true, tasks: [
+        { title: "A", skillsRequired: ["api"], steps: ["add src/a.ts"] },
+        { title: "B", skillsRequired: ["api"], steps: ["add src/b.ts"] },
+      ] }
+      : { ok: true, done: ["A", "B"], notDone: [], risk: "low", notes: "clean", filesChanged: 2, testsRun: 2 }),
+    pr: {
+      createJobBranch: async (jobId) => ({ ok: true, branch: `ma/job/${jobId}`, worktree: "/tmp/jobwt" }),
+      commitTask: async () => ({ ok: true, sha: "sha1", refused: [], reason: "" }),
+      openJobPr: async () => ({ mode: "pr", prUrl: "u", reason: "" }),
+      treeOf: async () => current,
+    },
+  });
+  return { h, moveTree: (t) => { current = t; } };
+};
+
+async function driveToApproval(h) {
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  for (let i = 0; i < 2; i++) {
+    const t = h.jobs.tasks(j.id).find((x) => x.status === "queued");
+    if (!t) break;
+    h.jobs.updateTask(t.id, { changedPaths: [`src/${t.title}.ts`] });
+    h.inbox.push({ from: "engine", kind: "done", taskId: t.taskId, jobId: j.id, body: "ok" });
+    await h.mgr.tick(j.id);
+  }
+  return j;
+}
+
+test("DIFF-3 (BAD leg): ship REFUSES when the branch moved after the BOSS approved it", async () => {
+  // Mutation proof (2026-09-18), two independent legs:
+  //   never record the approved tree   → ✖ DIFF-3 BAD (fail 1)
+  //   never compare it at ship         → ✖ DIFF-3 BAD (fail 1)
+  // Restored, md5 matched both times. The GOOD leg stayed green throughout, which is what
+  // shows the guard refuses a MOVED branch rather than refusing everything.
+  const { h, moveTree } = treeHarness("tree_approved");
+  const j = await driveToApproval(h);
+  h.jobs.setStatus(j.id, "review");
+  await h.mgr.tick(j.id);
+  assert.equal(h.jobs.get(j.id).summary.ship.tree, "tree_approved",
+    "the gate must record the tree the BOSS is looking at");
+
+  moveTree("tree_someone_pushed_more");           // the branch changed between yes and ship
+  const out = await h.mgr.ship(j.id);
+  assert.equal(out.ok, false, `must refuse: ${JSON.stringify(out)}`);
+  assert.match(out.reason, /moved|changed|approved/i);
+  assert.equal(h.jobs.get(j.id).status, "blocked");
+});
+
+test("DIFF-3 (GOOD leg): an unchanged branch ships", async () => {
+  const { h } = treeHarness("tree_approved");
+  const j = await driveToApproval(h);
+  h.jobs.setStatus(j.id, "review");
+  await h.mgr.tick(j.id);
+  const out = await h.mgr.ship(j.id);
+  assert.equal(out.ok, true, `an untouched branch must still ship: ${JSON.stringify(out)}`);
+  assert.equal(h.jobs.get(j.id).status, "shipped");
+});
+
+// ── C28 · a ROOT-LEVEL file is invisible to the path miner ──────────────────
+// Live run 2: `repo-edit-engineer` was hired with writeScope ["src/lib/**"] for a task whose
+// step was "In README.md, add a Helpers heading". Every attempt died
+//   empty-diff — the agent wrote 1 path(s) OUTSIDE the appliable scope: README.md
+// because stepPaths() only matches tokens containing a "/", so a root-level filename yields
+// nothing, proposedWriteScope falls back to the skill-name guess, and HIRE-CORR-2's scope
+// check has nothing to check. The broker DOES allow README.md (applyAllowed → true), so the
+// two halves of the system disagreed about what a seat may touch.
+test("STEPPATH-1: a root-level documentation file is seen", () => {
+  // Mutation proof (2026-09-18): dropping the root-doc pass in stepPaths → ✖ STEPPATH-1 and
+  // ✖ STEPPATH-4 (fail 2); dropping the root branch in proposedWriteScope → ✖ STEPPATH-4 alone
+  // (fail 1). STEPPATH-2/3 stayed green throughout — the widening did not loosen the prose guard.
+  assert.deepEqual(stepPaths(["In README.md, add a Helpers heading describing formatRelative"]), ["README.md"]);
+  assert.deepEqual(stepPaths(["update CHANGELOG.md and src/lib/x.ts"]), ["CHANGELOG.md", "src/lib/x.ts"]);
+});
+
+test("STEPPATH-2: prose that merely contains a dot is NOT a path", () => {
+  // The reason the original regex demanded a "/". Widening it naively turns "e.g." into a file.
+  for (const prose of ["say e.g. three minutes ago", "roughly 3.5 seconds", "call formatRelative(ms)",
+                       "it runs on node.js and deno", "the U.S. format"]) {
+    assert.deepEqual(stepPaths([prose]), [], `prose became a path: ${prose}`);
+  }
+});
+
+test("STEPPATH-3: a root-level file that is NOT documentation stays invisible", () => {
+  // Granting a freshly-hired specialist write access to root config by way of a sentence in a
+  // plan is a privilege escalation. Docs only; everything else still needs a directory.
+  for (const s of ["edit package.json", "change tsconfig.json", "touch .env", "edit Makefile"]) {
+    assert.deepEqual(stepPaths([s]), [], `root config became a path: ${s}`);
+  }
+});
+
+test("STEPPATH-4: the proposed scope for a root doc is the FILE, not a directory glob", () => {
+  assert.deepEqual(proposedWriteScope(["repo-edit"], ["In README.md, add a Helpers heading"]), ["README.md"]);
+});
+
+// ── C30 · a re-plan must not become a FRESH plan ────────────────────────────
+// Live run 4: the branch carried two commits, `summary.ship.commits` recorded one, and the
+// job's task titles matched neither. Cause: the reorder path at manager.mjs:669 carefully
+// preserves rows (SEQ-2) and then sets the job back to `planned` — so the NEXT tick runs the
+// PLAN stage from scratch, calls setTasks with brand-new rows, and throws the reorder away.
+// With commit-as-you-go those discarded rows own real commits on `ma/job/<id>`, so the work is
+// redone and ship() cannot account for it. Two plan-stage runs were logged in that job.
+const replanHarness = (over = {}) => {
+  const stages = [];
+  const h = harness({
+    dispatch: async ({ stage }) => {
+      stages.push(stage);
+      if (stage === "plan") {
+        return { ok: true, tasks: [
+          { title: "A", skillsRequired: ["api"], steps: ["add src/a.ts"] },
+          { title: "B", skillsRequired: ["api"], steps: ["add src/b.ts"] },
+        ] };
+      }
+      if (stage === "manage") return { ok: true, action: "replan", order: [2, 1] };
+      return { ok: true, findings: [], needs: [] };
+    },
+    pr: {
+      createJobBranch: async (jobId) => ({ ok: true, branch: `ma/job/${jobId}`, worktree: "/tmp/jobwt" }),
+      commitTask: async () => ({ ok: true, sha: "sha1", refused: [], reason: "" }),
+      openJobPr: async () => ({ mode: "pr", prUrl: "u", reason: "" }),
+    },
+    ...over,
+  });
+  return { h, stages };
+};
+
+test("C30-1: a re-plan dispatches the reordered work itself — it does NOT re-enter the PLAN stage", async () => {
+  // Mutation proof (2026-09-19): reorder restored to `setStatus(planned)` — the original defect —
+  // → ✖ C30-1 (fail 1). Restored, md5 matched.
+  const { h, stages } = replanHarness();
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);                      // plan #1 + dispatch A
+  const titlesBefore = h.jobs.tasks(j.id).map((t) => t.title);
+
+  h.inbox.push({ from: "engine", kind: "blocked", taskId: h.jobs.tasks(j.id)[0].taskId, body: "stuck", jobId: j.id });
+  await h.mgr.tick(j.id);                      // manage → replan (reorder)
+  assert.equal(h.jobs.get(j.id).status, "building", "a reordered job is already planned — it must build, not re-plan");
+
+  await h.mgr.tick(j.id);                      // the tick that used to re-plan from scratch
+  assert.equal(stages.filter((x) => x === "plan").length, 1,
+    `the PLAN stage must run ONCE for this job; ran ${stages.filter((x) => x === "plan").length}x`);
+  assert.deepEqual(h.jobs.tasks(j.id).map((t) => t.title).sort(), titlesBefore.sort(),
+    "the reordered rows must survive — new rows would orphan their commits");
+});
+
+test("C30-2: a job whose branch already has commits is BLOCKED rather than re-planned from scratch", async () => {
+  // Mutation proof (2026-09-19): `if (committed.length)` → `if (false)` → ✖ C30-2 ALONE (fail 1),
+  // which is what shows the guard is not redundant with C30-1's fix. Restored, md5 matched.
+  // The belt to C30-1's braces: resume() and an approved gate ALSO set `planned`, and a fresh
+  // plan there would orphan committed work just as silently.
+  const { h } = replanHarness();
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  await h.mgr.tick(j.id);
+  const t0 = h.jobs.tasks(j.id)[0];
+  h.jobs.updateTask(t0.id, { changedPaths: ["src/a.ts"] });
+  h.inbox.push({ from: "engine", kind: "done", taskId: t0.taskId, jobId: j.id, body: "ok" });
+  await h.mgr.tick(j.id);                      // A commits onto the branch
+  assert.ok((h.jobs.get(j.id).summary?.ship?.commits || []).length >= 1, "A is committed");
+
+  h.jobs.setStatus(j.id, "planned");           // what resume()/approve do
+  const r = await h.mgr.tick(j.id);
+  assert.equal(h.jobs.get(j.id).status, "blocked", `must refuse: ${JSON.stringify(r)}`);
+  assert.match(String(h.jobs.get(j.id).blockedOn || ""), /commit/i, "and say WHY, naming the committed work");
+});
+
+test("C30-3 (GOOD leg): a job with no commits still plans normally", async () => {
+  const { h, stages } = replanHarness();
+  const j = h.jobs.create({ title: "t", brief: "b" });
+  h.jobs.setStatus(j.id, "planned");
+  const r = await h.mgr.tick(j.id);
+  assert.equal(r.action, "assigned", JSON.stringify(r));
+  assert.equal(stages.filter((x) => x === "plan").length, 1);
+  assert.equal(h.jobs.get(j.id).status, "building");
+});
+
+test("DIFF-WIRED-2: server.mjs forwards pr.treeOf to the Manager", () => {
+  // Live run 5 shipped a gate with `"tree": null`. DIFF-3's tree pin is proven at the unit seam
+  // — the tests inject `pr` with a treeOf — but server.mjs wires only createJobBranch/
+  // commitTask/openJobPr, so `pr?.treeOf` is undefined in the running Manager and the pin is
+  // INERT. Third occurrence of this shape (SEAT-12, SEQ-WIRED-1): proven everywhere except the
+  // hop the server actually uses. Asserted on the AST, never on source text.
+  // Mutation proof (2026-09-19): removed `treeOf` from the pr dep → ✖ DIFF-WIRED-2 (fail 1).
+  // Restored, md5 matched.
+  const src = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+  const ast = parse(src, { ecmaVersion: "latest", sourceType: "module" });
+  let wired = false;
+  (function walk(n) {
+    if (!n || typeof n.type !== "string" || wired) return;
+    if (n.type === "ObjectExpression") {
+      const keys = n.properties.map((pr) => pr.key?.name);
+      if (keys.includes("createJobBranch") && keys.includes("commitTask") && keys.includes("treeOf")) wired = true;
+    }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object" && typeof v.type === "string") walk(v);
+    }
+  })(ast);
+  assert.ok(wired, "the Manager's pr dep must carry treeOf beside the other ladder rungs, or DIFF-3 pins nothing");
 });

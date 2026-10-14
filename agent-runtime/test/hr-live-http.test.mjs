@@ -7,6 +7,7 @@
 // ITS OWN SERVER AND ITS OWN ROSTER FILE, for the reason JOBHTTP-8/12 have one: this test
 // MUTATES the roster, and a shared instance would leak a hired seat into every later test.
 // RUNTIME_ROSTER_FILE points at a copy, so the repo's roster.json is never written.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

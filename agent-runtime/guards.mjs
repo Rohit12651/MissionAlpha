@@ -60,6 +60,24 @@ if (process.env.RUNTIME_REPO_ROOT) {
 // repo. Default unchanged = ["src","public"]. APPLY_DENY/PUBLIC_DENY/CONFIG_GUARD
 // are root-relative matchers and need NO change — applyAllowed recomputes relNorm
 // against the new root, so the same deny rules apply.
+// C28 (2026-09-18) — ROOT-LEVEL FILES A PLAN MAY SCOPE A SEAT TO.
+//
+// applyAllowed("README.md") is TRUE: the broker lands root-level files. But every scope rule
+// keyed on SEED_DIRS refused them, so a seat could never be SCOPED to a file the runtime would
+// happily apply. Live run 2 hired `repo-edit-engineer` with ["src/lib/**"] for a README task and
+// every attempt died `empty-diff … README.md (out-of-scope)`.
+//
+// DOCUMENTATION ONLY, deliberately. A sentence in a model-authored plan must not be able to
+// grant a freshly-hired specialist write access to package.json, tsconfig.json or a Makefile —
+// that is privilege escalation by prose. Directories still go through SEED_DIRS unchanged.
+export const ROOT_DOC_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]*\.(?:md|markdown|txt|rst|adoc)$/i;
+
+/** Is `entry` a bare root-level documentation file (no directory part)? */
+export function isRootDocFile(entry) {
+  const e = String(entry ?? "");
+  return !e.includes("/") && ROOT_DOC_FILE.test(e);
+}
+
 export const SEED_DIRS = process.env.RUNTIME_SEED_DIRS
   ? process.env.RUNTIME_SEED_DIRS.split(",").map((s) => s.trim()).filter(Boolean)
   : ["src", "public", "agent-runtime", "docs"];
@@ -71,7 +89,9 @@ export const SEED_FILES = ["README.md", "package.json"];
 // (no dotfile lives there); widening it to `agent-runtime` made `agent-runtime/.env.local`
 // appliable, which CG-6 caught. Same fix, same reasoning as `snapshotAllowed` in
 // worktree.mjs — a deny that matches one exact spelling of a secret file is not a deny.
-export const APPLY_DENY = /(^|\/)(\.env(\.[^/]*)?|\.git|\.claude|node_modules|.*\.(pem|key|p12))(\/|$)/i;
+// Lockfiles (GUARD-7, 2026-09-24): a dependency change is already refused via CONFIG_GUARD, so an
+// agent-authored lockfile edit has no legitimate source — and `resolved`/`integrity` steer `npm ci`.
+export const APPLY_DENY = /(^|\/)(\.env(\.[^/]*)?|\.git|\.claude|node_modules|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|\.npmrc|\.yarnrc(\.yml)?|\.pnpmfile\.cjs|.*\.(pem|key|p12))(\/|$)/iu; // `u`: Unicode case folding (GUARD-4)
 
 // ── #9 — CORE_GUARD: the floor under every scope ────────────────────────────────
 //
@@ -95,12 +115,16 @@ export const APPLY_DENY = /(^|\/)(\.env(\.[^/]*)?|\.git|\.claude|node_modules|.*
 //
 // Deliberately EXACT names, never prefixes: `guardsHelper.mjs` is ordinary work, and a
 // guard that swallowed its neighbours would quietly re-create the too-narrow scope this
-// change exists to open up. The ONE directory clause is `agent-runtime/data/` — the
+// change exists to open up. There are TWO directory clauses: `agent-runtime/providers/`
+// (Phase E · 16, see below) and `agent-runtime/data/` — the
 // SQLite Delivery store, the patch bodies and the vault. Widening the scope made those
 // appliable, which would have let an agent hand the operator a diff that REPLACES the
 // record of every decision ever made, including the approvals. Caught by CG-6.
 export const CORE_GUARD = new RegExp(
-  "(^|/)(agent-runtime/data/.*|" + [
+  // Re-review 2026-09-24 (HIGH): every runtime STATE location inside agent-runtime/, not just data/ —
+  // engine-store/ (mcp-connectors.json names commands launched on the host), threads/ (the BOSS and
+  // CEO conversation history), sandboxes/, and the auth token file.
+  "(^|/)(agent-runtime/data/.*|agent-runtime/engine-store/.*|agent-runtime/threads/.*|agent-runtime/sandboxes/.*|agent-runtime/\\.runtime-token|" + [
     "agent-runtime/guards\\.mjs",
     "agent-runtime/broker\\.mjs",
     "agent-runtime/workspace\\.mjs",
@@ -122,22 +146,86 @@ export const CORE_GUARD = new RegExp(
     // LAST gate and only subtracts. These rows are defence in depth, not a hole closed.
     "agent-runtime/roster\\.json",
     "agent-runtime/roster\\.mjs",
+    // Phase E · 16 (BOSS-approved plan, 2026-09-17). The files that ROUTE, DISPATCH and HIRE:
+    // factory.mjs validates what a new seat may write; mailbox.mjs is who may mail whom;
+    // manager.mjs decides scope disjointness and ships; seat-settings-guard.mjs writes a
+    // seat's CLI permissions. providers/ is the second directory clause: it holds the
+    // credential store, its crypto, the child-process env scrub, the SSRF guard and the
+    // tool jail for non-CLI providers. A seat able to edit any of these edits its own leash.
+    "agent-runtime/factory\\.mjs",
+    "agent-runtime/mailbox\\.mjs",
+    "agent-runtime/manager\\.mjs",
+    "agent-runtime/seat-settings-guard\\.mjs",
+    // Security pass 2026-09-24: assertCanonicalInside, the one containment check broker and pr share.
+    "agent-runtime/workdir-guard\\.mjs",
+    "agent-runtime/providers/.*",
+    // Phase E · 17 — the gate on running the TARGET repo's scripts on the host.
+    "agent-runtime/repo-scripts\\.mjs",
+    // Phase E · 18 — the worker jail's definition.
+    "agent-runtime/worker-jail\\.mjs",
+    // Phase E security pass, open MEDIUM closed 2026-09-24: the auto-apply loop, the non-CLI tool
+    // executor, and the mail tool + its address book — each decides what a seat can DO. Plus the
+    // three Phase E/F control files whose whole job is to refuse: the approved prompts (and the
+    // flag that enforces their approval), the dispatcher that checks it, and decide() itself.
+    "agent-runtime/engine\\.mjs",
+    "agent-runtime/tool-broker\\.mjs",
+    "agent-runtime/mcp/mail-tools\\.mjs",
+    "agent-runtime/mail-env\\.mjs",
+    "agent-runtime/manager-prompts\\.mjs",
+    "agent-runtime/manager-dispatch\\.mjs",
+    "agent-runtime/deliveries\\.mjs",
+    // Security review 2026-09-24 (HIGH) — the rest of the control plane, found by probing
+    // applyAllowed over agent-runtime/: who may act (users, trust, perms, caps), what is reviewed
+    // or auto-approved (task-diff, risk), what runs (deploy, engine-spawner), and the records
+    // that decide all of it (jobs, pipeline, db, hr, ash-tools, inject-detect, patch-edit, github).
+    "agent-runtime/users\\.mjs",
+    "agent-runtime/risk\\.mjs",
+    "agent-runtime/patch-edit\\.mjs",
+    "agent-runtime/task-diff\\.mjs",
+    "agent-runtime/jobs\\.mjs",
+    "agent-runtime/deploy\\.mjs",
+    "agent-runtime/story-deploy\\.mjs",
+    "agent-runtime/adapters/github\\.mjs",
+    "agent-runtime/station-perms\\.mjs",
+    "agent-runtime/perm-mode\\.mjs",
+    "agent-runtime/worker-cap\\.mjs",
+    "agent-runtime/trust\\.mjs",
+    "agent-runtime/inject-detect\\.mjs",
+    "agent-runtime/mcp/ash-tools\\.mjs",
+    "agent-runtime/engine-spawner\\.mjs",
+    "agent-runtime/pipeline\\.mjs",
+    "agent-runtime/db\\.mjs",
+    "agent-runtime/hr\\.mjs",
     "factory/quality\\.json",
     "factory/deploy\\.json",
   ].join("|") + ")$",
-  "i",
+  "iu", // `u` — fold Unicode case too: `guardſ.mjs` is guards.mjs on case-insensitive APFS (GUARD-4)
 );
+// ── BOSS decision #1 (2026-09-27) — agent-runtime/ is DENY-BY-DEFAULT ────────────────
+//
+// CORE_GUARD above is an allowlist of control files, and every security pass found more that
+// were missing: the last census still left 66 runtime modules appliable. That list cannot be
+// finished, because every module server.mjs imports runs INSIDE the runtime process with its fs,
+// env and token — any of them can patch what the others enforce. So the question is inverted:
+// under agent-runtime/, only the two test directories the suite runs are appliable (BOSS
+// decision #2 pending). Code, JSON, a new file, a new directory: refused, for every seat.
+// Safe only while the runtime never imports from those dirs (RTF-4) and a symlink cannot
+// redirect a write out of them (RTF-7, assertCanonicalInside).
+export const RUNTIME_FLOOR = /^agent-runtime\/(?!(?:test|__tests__)\/)/iu; // `u` folds `teſt` → test, as APFS does
+
 // public/ is appliable for STATIC deliverables only. An agent's /run "build" must NOT
 // land: (a) public/index.html — Vite serves it at / AHEAD of the SPA shell on every
 // dashboard load, so an applied one could swap the UI + exfiltrate the runtime token
 // (fetched same-origin from localhost); or (b) any script/executable type — served
 // verbatim by Vite = browser RCE/XSS surface. Non-index .html / css / images / fonts /
 // json stay appliable (e.g. billsplit.html). sr-security: PUBLIC_GUARD.
-export const PUBLIC_DENY = /^public\/(index\.html$|.*\.(sh|bash|zsh|py|rb|pl|ps1|bat|cmd|exe|dll|so|dylib|wasm|mjs|cjs|jsx?|tsx?)$)/i;
+export const PUBLIC_DENY = /^public\/(index\.html$|.*\.(sh|bash|zsh|py|rb|pl|ps1|bat|cmd|exe|dll|so|dylib|wasm|mjs|cjs|jsx?|tsx?)$)/iu; // `u` (GUARD-4)
 // Files whose exec-relevant keys must NEVER change via the broker. If any protected
 // key differs between repo + sandbox, the whole file apply is refused.
 export const CONFIG_GUARD = {
-  "package.json": ["scripts", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "bin", "main", "module", "exports"],
+  "package.json": ["scripts", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "bin", "main", "module", "exports",
+    // Re-review 2026-09-24: each of these redirects what `npm install` fetches or what an import resolves to.
+    "overrides", "resolutions", "pnpm", "workspaces", "imports"],
 };
 
 // ── glob → RegExp ────────────────────────────────────────────────────────────
@@ -206,15 +294,20 @@ export function matchesWriteScope(relPath, writeScope) {
 // Phase 7 (BOSS-approved 2026-09-04) — `opts.seat` is a roster member, or absent.
 //
 // ORDER, and the order IS the security argument:
-//   containment → APPLY_DENY → CORE_GUARD → PUBLIC_DENY → SEED_DIRS → writeScope(seat)
+//   containment → APPLY_DENY → CORE_GUARD → RUNTIME_FLOOR → PUBLIC_DENY → SEED_DIRS → writeScope(seat)
 // writeScope is appended LAST and can only ever SUBTRACT. There is no path by which a
 // seat makes an appliable path out of a refused one; pinned by WS-SUBSET.
 //
 // LEGACY RULE, stated once: with no `opts`, no `opts.seat`, or a seat whose role is not
-// "worker", this returns EXACTLY what it returned before Phase 7. Four of the six call
-// sites in this repo are single-argument and stay that way — pr.mjs:226, patch-edit.mjs:77,
-// policy.mjs:23, policy.mjs:134 — which is what keeps policy.mjs's stated invariant
+// "worker", this returns EXACTLY what it returned before Phase 7 — UNLESS `opts.strict`.
+// The single-argument callers are enumerated and pinned by GUARD-2 (patch-edit, policy ×2,
+// factory, broker's diagnostic), which is what keeps policy.mjs's stated invariant
 // `isAutoSafe(p) ⟹ applyAllowed(p)` true by construction.
+//
+// STRICT (Phase E · 16): the engine broker and the ship ladder land an AGENT's work. There,
+// "no seat" means the task's seat could not be resolved, so the narrowing below never ran —
+// and unknown must mean no. Strict refuses ONLY the unresolved case; a resolved seat's
+// answer is unchanged.
 export function applyAllowed(relPath, opts) {
   if (!relPath || typeof relPath !== "string") return false;
   if (isAbsolute(relPath)) return false;
@@ -233,23 +326,37 @@ export function applyAllowed(relPath, opts) {
   if (APPLY_DENY.test(relNorm)) return false;
   // #9 — the floor. Checked BEFORE the seed comparison so no RUNTIME_SEED_DIRS value can
   // reach the files that decide what an agent may write.
-  if (CORE_GUARD.test(relNorm.split(sep).join("/"))) return false;
   const relSlash = relNorm.split(sep).join("/"); // platform-stable for the public/ guard
+  if (CORE_GUARD.test(relSlash)) return false;
+  if (RUNTIME_FLOOR.test(relSlash)) return false; // decision #1 — deny-by-default under agent-runtime/
   if (PUBLIC_DENY.test(relSlash)) return false;
   const top = relNorm.split(sep)[0];
   if (!(SEED_DIRS.includes(top) || SEED_FILES.includes(relNorm))) return false;
 
   // THE LAST GATE. Everything above has already had its say; this can only narrow.
   const seat = opts?.seat;
-  if (!seat || seat.role !== "worker") return true; // LEGACY RULE — byte-for-byte as before
+  if (!seat) return !opts?.strict; // STRICT: an unresolved seat on an agent write path is a no
+  if (seat.role !== "worker") return true; // LEGACY RULE — byte-for-byte as before
   return matchesWriteScope(relSlash, seat.writeScope);
+}
+
+/**
+ * The CONFIG_GUARD keys for a path, or null. Matched by BASENAME, case-insensitively: every
+ * package.json in the tree runs its scripts on install/test, not only the root one, and on
+ * case-insensitive APFS `Package.json` IS package.json (CFG-NEST-1).
+ */
+export function configGuardKeys(relPath) {
+  // NFKC before lower-casing: `package.j\u017fon` (long s) and `pac\u212Age.json` (Kelvin) open
+  // package.json on APFS, and toLowerCase() alone leaves \u017f untouched (CFG-NEST-1b).
+  const base = String(relPath ?? "").split(/[\\/]/).pop().normalize("NFKC").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(CONFIG_GUARD, base) ? CONFIG_GUARD[base] : null;
 }
 
 // Config guard — for a CONFIG_GUARD file, return the first protected key that
 // differs between repo (before) and sandbox (after), or null if safe. Blocks
 // supply-chain / exec-on-apply key changes (e.g. package.json scripts/deps).
 export function configGuardViolation(relNorm, before, after) {
-  const keys = CONFIG_GUARD[relNorm];
+  const keys = configGuardKeys(relNorm);
   if (!keys) return null;
   let a, b;
   try {

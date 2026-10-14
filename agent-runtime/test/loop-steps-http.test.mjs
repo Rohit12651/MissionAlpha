@@ -2,6 +2,7 @@
 // backend with a fake CLAUDE_BIN. Proves the whole chain: engine spawn → stream-json
 // parsed → steps persisted (v14) → secret-shaped string scrubbed at rest → replay via
 // GET /runtime/engine/steps → bad taskId 400 → no-token 401.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -2,6 +2,7 @@
 // actually reach the spawned `claude --permission-mode` argv on the chat (cliReply) path,
 // and the AUTONOMOUS engine loop must IGNORE it (pins acceptEdits). Uses a fake CLAUDE_BIN
 // that dumps its argv to a per-agent file, so no subscription tokens are spent.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

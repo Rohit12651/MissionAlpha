@@ -12,6 +12,7 @@
 //
 // A hung provider must become a bounded, VISIBLE failure: the story blocks, and one
 // diff-less Delivery says the stage timed out.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

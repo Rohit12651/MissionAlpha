@@ -7,6 +7,7 @@
 // Plus the adversarial sweep BLOCKING for this phase: no-token 401, evil Host 403,
 // viewer POST 403, empty / oversize / non-string text 400, a client-supplied `by`
 // IGNORED, a fractional or hostile `hours` handled without a 500, and hours>168 400.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -2,6 +2,7 @@
 // the host-gate exemption (evil Host + valid signature passes — the HMAC is the auth),
 // fail-closed 401 on a bad signature, challenge round-trip, 201 mint into the REAL
 // delivery store, idempotent redelivery, and the read-only decide refusal (403).
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

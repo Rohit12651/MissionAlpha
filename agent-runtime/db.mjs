@@ -917,6 +917,89 @@ export const MIGRATIONS = Object.freeze([
         ON deliveries(COALESCE(externalKey, taskId, 'agent:' || agentId)) WHERE status = 'pending';
     `,
   },
+  {
+    // Phase D · C21 (2026-09-20) — READY-SET DISPATCH needs a dependency GRAPH.
+    //
+    // `seq` is plan order, not dependency: reading it as one would mean task N depends on
+    // every earlier task, which forbids all parallelism and is the sequential status quo with
+    // extra words. A declared edge is the only shape that lets two seats run at once while
+    // still holding "if task B needs task A's file, A comes first".
+    //
+    // The column holds an ARRAY OF ROW IDS, never the task numbers the planner writes.
+    // jobs.setTasks resolves numbers to ids on the way in, because a re-plan REORDERS the rows
+    // and a stored number would silently repoint at whatever task landed in that position.
+    //
+    // DEFAULT '[]' is what makes this backward-compatible: every pre-existing row reads as
+    // "depends on nothing", and with no declared writeScope the dispatcher still serialises,
+    // so an install that migrates and changes nothing else behaves exactly as it did.
+    // ADD COLUMN only — no rebuild; migrate() wraps it in a txn.
+    version: 23,
+    sql: `
+      ALTER TABLE job_tasks ADD COLUMN dependsOn TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    // Phase D · task 13 (2026-09-23) — A TASK THAT IS WAITING ON A PEER.
+    //
+    // A seat gets one turn per task, so asking a peer ENDS the asker's turn. The task has to
+    // remember whom it asked (`questionTo`), what (`question`, quoted back into the resumed
+    // brief), an answer that arrived while it was still running (`answer`, held until it
+    // stops), and that it was already resumed (`resumeCount`) — the once-only rule is a
+    // persisted counter, not a hope, so a restart or a re-plan cannot hand it a second resume.
+    // ADD COLUMN only; every pre-existing row reads as "asked nobody, never resumed".
+    version: 24,
+    sql: `
+      ALTER TABLE job_tasks ADD COLUMN questionTo TEXT;
+      ALTER TABLE job_tasks ADD COLUMN question TEXT;
+      ALTER TABLE job_tasks ADD COLUMN answer TEXT;
+      ALTER TABLE job_tasks ADD COLUMN resumeCount INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    // Phase D · task 13, found by LIVE RUN 7 (2026-09-23) — WHO a held answer came from.
+    // A peer can answer BEFORE it is asked (the backend read the brief and mailed the item
+    // shape unprompted). Holding that answer is only safe if it is keyed to its sender: an
+    // answer from qa must never satisfy a question later put to sr-backend (MGR-ANS-11).
+    // A new migration rather than an edit to v24: v24 has already been applied (run 7's DB),
+    // and an edited migration silently diverges across machines. ADD COLUMN only.
+    version: 25,
+    sql: `
+      ALTER TABLE job_tasks ADD COLUMN answerFrom TEXT;
+    `,
+  },
+  {
+    // Phase F · task 20 — the CEO's gate is a job STATUS: `strategy`, between intake and clarify.
+    // SQLite cannot ALTER a CHECK, so this is the documented rebuild (v16/v17/v20 did the same
+    // for deliveries): new table with the CHECK widened by ONE value → copy every row → drop →
+    // rename → recreate both indexes. Every v21 column verbatim; no data transformed. Nothing
+    // REFERENCES jobs, and migrate() toggles foreign_keys around the transaction regardless.
+    version: 26,
+    sql: `
+      CREATE TABLE jobs_v26 (
+        id          TEXT PRIMARY KEY,
+        title       TEXT NOT NULL,
+        brief       TEXT NOT NULL,
+        repo        TEXT,
+        source      TEXT NOT NULL DEFAULT 'paste',
+        externalKey TEXT,
+        status      TEXT NOT NULL DEFAULT 'intake'
+                      CHECK (status IN ('intake','strategy','clarify','planned','building','review','awaiting-you','shipped','blocked')),
+        questions   TEXT NOT NULL DEFAULT '[]',
+        answers     TEXT,
+        summary     TEXT,
+        prUrl       TEXT,
+        blockedOn   TEXT,
+        createdAt   INTEGER NOT NULL,
+        updatedAt   INTEGER NOT NULL
+      );
+      INSERT INTO jobs_v26 (id, title, brief, repo, source, externalKey, status, questions, answers, summary, prUrl, blockedOn, createdAt, updatedAt)
+        SELECT id, title, brief, repo, source, externalKey, status, questions, answers, summary, prUrl, blockedOn, createdAt, updatedAt FROM jobs;
+      DROP TABLE jobs;
+      ALTER TABLE jobs_v26 RENAME TO jobs;
+      CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_external ON jobs(externalKey) WHERE externalKey IS NOT NULL;
+    `,
+  },
 ]);
 
 // Open (creating if needed) the delivery DB, apply pending migrations, return a

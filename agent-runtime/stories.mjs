@@ -469,9 +469,12 @@ export function createStories(deps = {}) {
   // thread shows the conversation, not just the stage transitions. Deliberately narrow: it
   // can only write `mail` / `mail-refused`, and it reuses appendLog so mail rows share the
   // per-story monotonic seq with every other transition rather than opening a second story.
+  const MAIL_LOG_EVENTS = new Set(["mail", "mail-refused", "mail-forged", "mail-invalid"]);
   function appendMailLog(storyId, { event, byAgent, toAgent, ref, ts }) {
     if (!storyId) return null;
-    if (event !== "mail" && event !== "mail-refused") return null;
+    // Task 3 security review (HIGH): the two audit events route() emits for a planted file
+    // must persist, or a dropped forgery leaves no trace (addendum #1, observability half).
+    if (!MAIL_LOG_EVENTS.has(event)) return null;
     try { if (!getStory(storyId)) return null; } catch { return null; }
     const row = getStory(storyId);
     return appendLog(storyId, row.stage, event, ref ?? null, ts || Date.now(), { byAgent, toAgent });

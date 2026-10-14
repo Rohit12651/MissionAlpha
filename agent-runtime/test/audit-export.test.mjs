@@ -2,6 +2,7 @@
 // runtime (mock backend, throwaway dirs). Proves: 401 unauth · JSON has all sections ·
 // CSV parses w/ section markers · date-range filters · a secret in an AUDIT.log line is
 // REDACTED in the export · NO dollar/cost anywhere · usage.tick fires on the bus.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

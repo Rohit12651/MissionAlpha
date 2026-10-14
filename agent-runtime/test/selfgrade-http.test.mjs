@@ -3,6 +3,7 @@
 // Same gate and same GET-only posture as /runtime/doctor: the report enumerates this
 // install's configuration weaknesses, which is reconnaissance, not public information.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

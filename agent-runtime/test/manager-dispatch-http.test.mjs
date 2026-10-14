@@ -3,6 +3,7 @@
 // This is the shape 14.1 needs: the whole loop under RUNTIME_MANAGER_DISPATCH=deterministic.
 // It is also how Phase 9 is proven while the Manager prompts still await the BOSS's read
 // (9.0 is a blocking checkpoint — "9.3+ do not run live before this").
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -105,7 +106,18 @@ test("JOBHTTP-7: THE LOOP — the heartbeat walks a job intake → planned → b
   const seats = job.tasks.map((t) => t.seat);
   assert.ok(seats.includes("sr-frontend"), `ui work must land on sr-frontend; got ${seats}`);
   assert.ok(seats.includes("qa"), `test work must land on qa; got ${seats}`);
-  for (const t of job.tasks) assert.ok(t.goalId && t.taskId, "every task must be enqueued on the engine");
+  // SUPERSEDED BY PHASE C · task 9. This asserted "every task must be enqueued on the engine",
+  // which WAS the P-F08 defect: every seat's worktree was cut from the same HEAD at once, so an
+  // ordered plan was ordered in name only. The runtime now dispatches one task at a time and
+  // cuts each later worktree from the previous task's commit. This is the end-to-end proof of
+  // that through the real server — the unit-level SEQ-3 cannot see the HTTP path.
+  const queued = job.tasks.filter((t) => t.goalId && t.taskId);
+  assert.equal(queued.length, 1, `exactly one task in flight; got ${JSON.stringify(job.tasks.map((t) => [t.title, t.status]))}`);
+  assert.equal(queued[0].status, "queued");
+  for (const t of job.tasks) {
+    if (t.goalId) continue;
+    assert.ok(["planned", "awaiting-hire"].includes(t.status), `an un-dispatched task waits; got ${t.status}`);
+  }
 });
 
 test("JOBHTTP-8: a brief that asks a question mints ONE job gate and waits", async () => {

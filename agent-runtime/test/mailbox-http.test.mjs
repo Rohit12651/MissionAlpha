@@ -4,6 +4,7 @@
 // a route left off it is served to anything that can reach the loopback port. Phase 7 shipped
 // `GET /runtime/roster` exactly that way (addendum #20). Mail names who is talking to whom and
 // carries agent-authored bodies, so it is gated like the roster.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -71,9 +72,10 @@ test("MAILHTTP-3: a real worker→worker send is accepted, routed, and readable"
   assert.equal(inbox.json.messages[0].body, "what is the endpoint name?");
 });
 
-test("MAILHTTP-4: read ARCHIVES — a second read is empty", async () => {
+test("MAILHTTP-4: the operator read is a GLANCE — a second read returns the same message (Phase B · Task 3 reversed the old drain)", async () => {
   const again = await req("GET", "/runtime/mail/sr-backend", auth);
-  assert.deepEqual(again.json.messages, []);
+  assert.equal(again.json.messages.length, 1, "GET must not archive; mailbox.read() (the Manager's drain) is not on the HTTP surface");
+  assert.equal(again.json.messages[0].body, "what is the endpoint name?");
 });
 
 test("MAILHTTP-5: a disallowed pair is a 400, not a silent drop", async () => {
@@ -96,8 +98,13 @@ test("MAILHTTP-7: status is COPIED to the Manager as well as the addressee", asy
     from: "sr-frontend", to: "sr-backend", kind: "status", body: "halfway",
   }));
   const mgr = await req("GET", "/runtime/mail/tech-lead", auth);
-  assert.equal(mgr.json.messages.length, 1, "the Manager is kept informed without being addressed");
-  assert.equal(mgr.json.messages[0].kind, "status");
+  // UPDATED 2026-09-23 (Phase D · task 13): this counted EVERY message in the Manager's inbox
+  // and expected exactly one. MAILHTTP-3, earlier in this file and on the same server, sends a
+  // `question`, which is now copied to the Manager too — so the inbox holds two. The claim this
+  // test makes is about STATUS, so it now counts status messages rather than the whole inbox.
+  const statuses = mgr.json.messages.filter((m) => m.kind === "status");
+  assert.equal(statuses.length, 1, "the Manager is kept informed without being addressed");
+  assert.equal(statuses[0].body, "halfway");
 });
 
 test("MAILHTTP-8: a rebound Host is 403 and DELETE is 405", async () => {

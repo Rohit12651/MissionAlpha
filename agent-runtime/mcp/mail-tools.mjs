@@ -21,6 +21,7 @@ const AGENT_ID = process.env.MA_MAIL_AGENT_ID || "";
 const MAIL_DIR = process.env.MA_MAIL_DIR || "";
 const JOB_ID = process.env.MA_MAIL_JOB_ID || null;
 const TASK_ID = process.env.MA_MAIL_TASK_ID || null;
+const GOAL_ID = process.env.MA_MAIL_GOAL_ID || null;
 // The role table is passed in rather than read from disk: this process must not need the
 // roster file, and a seat must not be able to influence the rules by writing one.
 let ROLES = {};
@@ -99,7 +100,7 @@ function handleCall(id, name, args) {
       to: String(args?.to || ""),
       kind: String(args?.kind || ""),
       body: String(args?.body ?? ""),
-      jobId: JOB_ID, taskId: TASK_ID,
+      jobId: JOB_ID, taskId: TASK_ID, goalId: GOAL_ID,
     });
     if (out.error) return fail(id, `mail_send refused: ${out.error}`);
     return ok(id, `sent ${out.kind} to ${out.to} (id ${out.id})`);

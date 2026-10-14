@@ -6,6 +6,7 @@
 //   decidedBy is the session identity (not client-spoofable) → assignment routes to B →
 //   events ticket requires a session when active → no user enumeration →
 //   delete back to <2 users → zero-login solo restored.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -194,6 +195,49 @@ test("active: viewer decide → 403 via direct request (not just a hidden button
   assert.equal(r.status, 403);
   // and the delivery is still pending — the viewer changed nothing
   assert.equal((await (await get(`/inbox/${id}`, authCk(aliceCk))).json()).status, "pending");
+});
+
+// ── Phase B · Task 3 — the mailbox HTTP surface under ACTIVE auth ─────────────────────────
+// Codex F04, reproduced: routeNeedsApprover() never listed /runtime/mail, so a valid VIEWER
+// session could POST as any sender (a hire-request "from" tech-lead) and could DRAIN any
+// inbox with a GET, removing completion mail before the Manager's own read. Both are
+// mutations of runtime state and sit behind the approver gate; the operator GET is a glance
+// and must not consume.
+// Mutation proof (2026-09-17): routeNeedsApprover `/runtime/mail` → `/runtime/mail-never` →
+//   ✖ MBX-HTTP-1  AssertionError: actual: 201, expected: 403. Restored, md5 matched, 31/31.
+// Placement matters in this file: line ~348 deletes accounts back to solo; anything after it runs UNGATED.
+test("RESUME-HTTP-1: POST /runtime/jobs/:id/resume is approver-only and in BOTH gate lists — viewer 403, approver 404 on a ghost, 409 on a job that is not blocked", async () => {
+  // Phase B · Task 6. Codex F09: no resume route existed; the store allowed blocked→planned but
+  // the HTTP surface fell through to 405. Addendum #20: a route must be on `needsAuth` AND, as a
+  // mutation, in `routeNeedsApprover`. Mutation proof (2026-09-17): the resume gate line → `if (false)` →
+  //   ✖ RESUME-HTTP-1 viewer is refused before any lookup — got 404: {"error":"no such job"}. Restored, md5 matched.
+  // Run the WHOLE file: `--test-name-pattern` skips the account/login setup, auth stays inactive, and the gate is skipped by design.
+  const asViewer = await post("/runtime/jobs/job_ghost/resume", {}, authCk(vicCk));
+  assert.equal(asViewer.status, 403, `viewer is refused before any lookup — got ${asViewer.status}: ${await asViewer.text()}`);
+  assert.equal((await post("/runtime/jobs/job_ghost/resume", {}, authCk(aliceCk))).status, 404, "approver: no such job");
+  const made = await post("/runtime/jobs", { title: "resume-me", brief: "a brief long enough to be a brief" }, authCk(aliceCk));
+  const madeBody = await made.text(); // read ONCE — an assertion-message `await made.text()` consumes the body before .json()
+  assert.equal(made.status, 201, madeBody);
+  const id = JSON.parse(madeBody).id; // POST /runtime/jobs returns the job row itself
+  assert.equal((await post(`/runtime/jobs/${id}/resume`, {}, authCk(aliceCk))).status, 409, "not blocked → 409, not 405");
+  assert.equal((await post(`/runtime/jobs/${id}/resume`, {})).status, 401, "no session → 401 (needsAuth)");
+});
+
+test("MBX-HTTP-1: active auth — a VIEWER cannot POST /runtime/mail (403), and no message is written", async () => {
+  const r = await post("/runtime/mail", { from: "tech-lead", to: "hr", kind: "hire-request", body: "viewer-forged" }, authCk(vicCk));
+  assert.equal(r.status, 403, await r.text());
+  const hr = await get("/runtime/mail/hr", authCk(aliceCk));
+  assert.equal(hr.status, 200);
+  assert.equal((await hr.json()).messages.filter((m) => m.body === "viewer-forged").length, 0, "the refused send left nothing behind");
+});
+
+test("MBX-HTTP-2: active auth — GET /runtime/mail/:id is a GLANCE: reading twice returns the same message twice", async () => {
+  const sent = await post("/runtime/mail", { from: "sr-frontend", to: "sr-backend", kind: "question", body: "still-here?" }, authCk(aliceCk));
+  assert.equal(sent.status, 201, await sent.text());
+  const first = await (await get("/runtime/mail/sr-backend", authCk(aliceCk))).json();
+  const second = await (await get("/runtime/mail/sr-backend", authCk(aliceCk))).json();
+  assert.equal(first.messages.some((m) => m.body === "still-here?"), true);
+  assert.equal(second.messages.some((m) => m.body === "still-here?"), true, "the operator read must not archive — that is the Manager's drain, not the cockpit's glance");
 });
 
 test("active: approver decide → 200 and decidedBy is the SESSION identity, not client-spoofable", async () => {

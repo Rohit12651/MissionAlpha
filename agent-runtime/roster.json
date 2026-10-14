@@ -7,7 +7,11 @@
       "seat": "Chief Executive",
       "role": "ceo",
       "skills": [
-        "repo-read"
+        "strategy-gate",
+        "repo-read",
+        "research-brief",
+        "data-summary",
+        "workflow-audit"
       ],
       "writeScope": [],
       "tools": [

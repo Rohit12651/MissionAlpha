@@ -22,6 +22,7 @@
 // IT RUNS AGAINST A THROWAWAY GIT REPO. `RUNTIME_REPO_ROOT` points at a fresh repo in tmp, so
 // the branch, the commits and every worktree land there. A CI test that commits branches into
 // the repository under test is a test with a side effect on its own subject.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";

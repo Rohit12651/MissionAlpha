@@ -2,6 +2,7 @@
 // scrub-at-PUT (a pasted secret never lands at rest), the ENFORCEMENT chain (memory
 // text reaches the next spawn's system prompt; cleared memory disappears), and the
 // read-only hooks endpoint returning REAL guard state.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

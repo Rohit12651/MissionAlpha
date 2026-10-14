@@ -16,7 +16,7 @@
 //   • Posting is never automatic — preview is read-only; execute is a separate token-gated call
 //     the dashboard only makes after the BOSS confirms an F3 gate. Rate-limited + per-account cap.
 
-import { spawn } from "node:child_process";
+import { seatChildren } from "./seat-children.mjs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -32,7 +32,8 @@ import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHash }
 // Phase 10 — HR's creation path reuses the ROSTER's own rules rather than restating them.
 // roster.mjs imports only guards.mjs, so this adds no cycle.
 import { TOOL_ALLOW, fatalScopeProblem } from "./roster.mjs";
-import { SEED_DIRS } from "./guards.mjs";
+import { SEED_DIRS, isRootDocFile, applyAllowed } from "./guards.mjs";
+import { createRepoScripts } from "./repo-scripts.mjs";
 
 // Extended secret-shape detector (sr-security T1): the runtime's SECRET_RE plus
 // bearer/oauth/access_token/JWT/google/meta/slack shapes. Used to (a) reject a
@@ -104,6 +105,7 @@ export const SKILL_CATALOG = [
   // SCHEDULED runs ride the cadence engine (cadence.mjs) and each desc says so.
   { id: "repo-health-check", label: "Repo health check", station: true, desc: "Read recent commits and issues for patterns worth flagging to the operator. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
   { id: "workflow-audit", label: "Workflow audit", station: true, desc: "Find repeated manual steps across agent runs that are worth automating. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
+  { id: "strategy-gate", label: "Strategy gate", station: true, desc: "Judge whether a job is worth building before it is planned: verdict, cost, cheaper alternative, unchecked assumption. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
   { id: "claude-code-handoff", label: "Claude Code handoff", station: true, desc: "Package a flagged improvement into a ready-to-run prompt for a coding agent. Scheduled runs ride the cadence engine.", tools: ["Read"], platforms: [], posting: false },
   // P7 — worker-seat skills. Each names a slice of the codebase a hired seat owns, and
   // each ships a brief at .claude/skills-curated/<id>/SKILL.md that states the slice AND
@@ -278,17 +280,13 @@ export function validateSpec(raw) {
 
 // Best-effort: announce a created agent onto the comms bus so it shows on the live
 // board (heartbeat → BROADCAST). Fire-and-forget; never blocks creation.
+// Phase E · 17 — through the repo-scripts gate. This module's REPO_ROOT is always the runtime's
+// own repo (not RUNTIME_REPO_ROOT), so the gate is trusted here and behaviour is unchanged; it
+// routes through the gate so there is one place that runs repo scripts (SCRIPTS-WIRED).
+const repoScripts = createRepoScripts({ repoRoot: REPO_ROOT });
 function announceOnBus(spec) {
-  const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
-  if (!existsSync(HB)) return;
   const safe = (s) => String(s).replace(/[^\x20-\x7e]/g, " ").replace(/["'`|$=]/g, " ").slice(0, 90);
-  try {
-    spawn("bash", [HB, spec.id, "IDLE", safe(`spawned by BOSS: ${spec.title}`), "-", "", "await dispatch"], {
-      stdio: "ignore", cwd: REPO_ROOT,
-    });
-  } catch {
-    /* non-fatal */
-  }
+  repoScripts.run("agent-heartbeat.sh", [spec.id, "IDLE", safe(`spawned by BOSS: ${spec.title}`), "-", "", "await dispatch"]);
 }
 
 // `announce` exists for the B1 boot seed (seed-stations.mjs): a station that was
@@ -454,7 +452,10 @@ export function validateRosterSpec(raw, { takenIds = new Set() } = {}) {
     // HIRE time would mint a worker with an empty scope whose task then fails for a reason
     // nobody can see. Refusing lets HR answer `hire-failed` with a readable cause.
     const rooted = entry === "**" || entry.startsWith("**/");
-    if (!rooted && !SEED_DIRS.includes(entry.split("/")[0])) {
+    // C28 — a bare root-level DOC file is appliable (applyAllowed says so) and must therefore
+    // be scopable. Root CONFIG is not: isRootDocFile is an extension allowlist, so
+    // package.json / tsconfig.json / Makefile still fall through to the SEED_DIRS refusal.
+    if (!rooted && !(isRootDocFile(entry) && applyAllowed(entry)) && !SEED_DIRS.includes(entry.split("/")[0])) {
       return { error: `writeScope entry is outside the appliable dirs (SEED_DIRS=${SEED_DIRS.join(",")}): ${entry}` };
     }
   }
@@ -574,7 +575,7 @@ export function authorSpec(description, stream, onDone, modelId) {
   }
   let child;
   try {
-    child = spawn(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: REPO_ROOT, env: childEnv });
+    child = seatChildren.spawnSeat(CLAUDE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: REPO_ROOT, env: childEnv });
   } catch (e) {
     stream.error("claude spawn failed: " + e.message);
     return;

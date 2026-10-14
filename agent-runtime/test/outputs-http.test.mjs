@@ -4,6 +4,7 @@
 //   export (P8) RECORDS an artifact row + emits output.created on an open SSE stream → the
 //   produced bundle then appears in the registry.
 // Plus the adversarial slice BLOCKING for this phase: no-token 401, evil Host 403, method 405.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

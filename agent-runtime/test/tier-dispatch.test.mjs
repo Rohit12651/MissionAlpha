@@ -12,6 +12,7 @@
 // in the live repo still carries its console.log after the run, because nothing has been
 // applied yet. If a future edit lets a codemod reach the repo, that test fails.
 
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
@@ -127,6 +128,12 @@ test.after(() => { try { proc?.kill(); } catch { /* already gone */ } });
 
 // NOTE: GET /runtime/engine/runs does NOT expose the task text, so two scenarios cannot
 // be told apart by what they asked for. They are separated by agentId instead.
+//
+// Phase E · 16 CHANGED THE CODEMOD IDENTITY. It was "tierbot", an id on no roster. The engine
+// broker is now strict (GUARD-1): a task whose seat does not resolve lands nothing and never
+// reaches the human gate. These tests are about TIER routing, not identity, so the codemod runs
+// as `sr-frontend` — a real worker seat whose writeScope (src/**) covers src/demo.ts.
+const CODEMOD_SEAT = "sr-frontend";
 async function enqueue(agentId, step) {
   const r = await fetch(`${BASE}/runtime/engine/enqueue`, {
     method: "POST", headers: H,
@@ -155,14 +162,14 @@ async function settle(predicate, ms = 25_000) {
 }
 
 test("TIER0-1: a mechanical task reaches the HUMAN GATE with NO active account", async () => {
-  await enqueue("tierbot", "remove all console.log from src/demo.ts");
-  const t = await settle((x) => x.agentId === "tierbot" && x.status === "held");
+  await enqueue(CODEMOD_SEAT, "remove all console.log from src/demo.ts");
+  const t = await settle((x) => x.agentId === CODEMOD_SEAT && x.status === "held");
   assert.equal(t.status, "held");
   assert.ok(t.branch, "a worktree branch must exist — the diff lives there, not in the repo");
 });
 
 test("TIER0-2: the diff removes only the debug lines and keeps console.error", async () => {
-  const t = await settle((x) => x.agentId === "tierbot" && x.status === "held");
+  const t = await settle((x) => x.agentId === CODEMOD_SEAT && x.status === "held");
   const r = await fetch(`${BASE}/runtime/engine/changes?taskId=${t.taskId}`, { headers: H });
   const { changes } = await r.json();
   const demo = changes.find((c) => c.path === "src/demo.ts");
@@ -179,7 +186,7 @@ test("LAW1-1: the LIVE repo file still has its console.log — nothing was appli
   // never ran — that version of this test passes on a machine where the whole feature is
   // broken. Establish that a transform DID happen in the worktree, then assert the repo
   // did not move.
-  const t = await settle((x) => x.agentId === "tierbot" && x.status === "held");
+  const t = await settle((x) => x.agentId === CODEMOD_SEAT && x.status === "held");
   const { changes } = await (await fetch(`${BASE}/runtime/engine/changes?taskId=${t.taskId}`, { headers: H })).json();
   const demo = changes.find((c) => c.path === "src/demo.ts");
   assert.ok(demo, "PRECONDITION: the worktree must actually carry a transformed src/demo.ts");
@@ -194,7 +201,7 @@ test("LAW1-1: the LIVE repo file still has its console.log — nothing was appli
 test("TIER0-3: the usage feed carries a ZERO-TOKEN codemod turn ($0 proof)", async () => {
   const { default: Database } = await import("better-sqlite3");
   const db = new Database(dbPath, { readonly: true });
-  const rows = db.prepare("SELECT tier, inputTokens, outputTokens, turns FROM usage WHERE agentId = ?").all("tierbot");
+  const rows = db.prepare("SELECT tier, inputTokens, outputTokens, turns FROM usage WHERE agentId = ?").all(CODEMOD_SEAT);
   db.close();
   const codemod = rows.find((r) => r.tier === "codemod");
   assert.ok(codemod, `expected a codemod usage row, got ${JSON.stringify(rows)}`);

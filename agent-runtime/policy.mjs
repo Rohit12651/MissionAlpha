@@ -11,7 +11,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { writeFileSync, readFileSync, existsSync, openSync, fsyncSync, closeSync, renameSync } from "node:fs";
 import { resolve, relative, sep } from "node:path";
-import { applyAllowed, CONFIG_GUARD, APPLY_DENY, REPO_ROOT } from "./guards.mjs";
+import { applyAllowed, configGuardKeys, APPLY_DENY, REPO_ROOT } from "./guards.mjs";
 
 const LEVELS = new Set(["manual", "auto-safe", "never"]);
 const DEFAULT_LEVEL = "manual";
@@ -22,7 +22,7 @@ const DEFAULT_LEVEL = "manual";
 export function isAutoSafe(relPath) {
   if (!applyAllowed(relPath)) return false;                          // (a) must pass broker gate
   const relNorm = relative(REPO_ROOT, resolve(REPO_ROOT, relPath));
-  if (CONFIG_GUARD[relNorm]) return false;                          // (b) any CONFIG_GUARD file
+  if (configGuardKeys(relNorm)) return false;                       // (b) any CONFIG_GUARD file, by basename
   if (APPLY_DENY.test(relNorm)) return false;                       // (c) belt-and-suspenders
   const top = relNorm.split(sep)[0];
   if (top === "scripts") return false;                              // (d) exec dir

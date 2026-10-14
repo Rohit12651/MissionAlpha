@@ -15,7 +15,9 @@
 // CAVEMAN MANDATE: every agent replies in /caveman full (per .claude/agents/PROTOCOL.md).
 
 import { createServer } from "node:http";
-import { spawn, execFile, spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+// Every claude/engine child goes through seatChildren so a shutdown signal can kill it (SHUT-1…4).
+import { seatChildren, installShutdown } from "./seat-children.mjs";
 import { randomBytes, timingSafeEqual, createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 
@@ -99,13 +101,15 @@ import { seedStations, retireStaleStations, STATION_IDS } from "./seed-stations.
 import { REPO_ROOT, SEED_DIRS, SEED_FILES, APPLY_DENY } from "./guards.mjs";
 import { createRoster } from "./roster.mjs";
 import { createMailbox } from "./mailbox.mjs";
+import { mailEnvFor } from "./mail-env.mjs";
+import { taskDiff } from "./task-diff.mjs";
 import { createJobs, JobError } from "./jobs.mjs";
 import { createJira, jiraBrief } from "./adapters/jira.mjs";
 import { createJiraWatch, DEFAULT_JIRA_WATCH_MS } from "./jira-watch.mjs";
 import { createJiraShipHook } from "./jira-ship.mjs";
 // 14.2 — doctor reports HR's headroom, so it needs the same cap HR enforces.
 import { WORKER_CAP } from "./hr.mjs";
-import { createManager } from "./manager.mjs";
+import { createManager, deferAnswer } from "./manager.mjs";
 import { createManagerDispatch } from "./manager-dispatch.mjs";
 // Phase 10 — HR: the only path that creates an agent without the BOSS.
 import { createHr } from "./hr.mjs";
@@ -122,6 +126,8 @@ import { createWorktreeMgr, isGitRepo, liveWorktreeKeys } from "./worktree.mjs";
 import { createScheduler } from "./scheduler.mjs";
 import { createEngine } from "./engine.mjs";
 import { escalationArgs } from "./self-heal.mjs";
+import { createRepoScripts } from "./repo-scripts.mjs";
+import { workerJail } from "./worker-jail.mjs";
 // ADR-030 usage math (pure; token/context only, never $) + P8 persisted store.
 import { usageFromResult as usageFromResultPure, estimateUsage as estimateUsagePure, rollupUsage as rollupUsagePure, createUsageStore } from "./usage.mjs";
 // ADR-032/033 MCP connector registry (reuses factory.mjs AES broker for cred values).
@@ -168,7 +174,7 @@ import { resolveAgents } from "./router.mjs"; // Phase 4 (#7) dynamic team routi
 // ADR-050 B1 — system-prompt builder (extracted to avoid server startup in unit tests).
 import {
   buildSystemFor, TOOL_NOTE, truncateAtBoundary, resolveBudget, buildSkillIndex,
-  ashJobsBlock, ashNoToolNotice, MAX_ASH_JOBS,
+  ashJobsBlock, ashNoToolNotice, MAX_ASH_JOBS, teamBlock,
 } from "./system-prompt.mjs";
 // F4.1 — cockpit data feeds (no token required; loopback-gated by hostOk above).
 import { stateHandler, commandHandler, auditHandler, commandStatusHandler, sessionsHandler } from "./cockpit-feeds.mjs";
@@ -177,7 +183,7 @@ import { buildLiveState } from "./live-state.mjs";
 // engine; they never wrap or replace it, and every repo write still flows through
 // the SAME broker.applyChanges.
 import { openDb } from "./db.mjs";
-import { createDeliveries } from "./deliveries.mjs";
+import { createDeliveries, isJobClarifyGate } from "./deliveries.mjs";
 // Phase 6 — per-agent ledger. Pure reader over the deliveries table; imported here only
 // so the gated GET route can call it. No writes, no schema change.
 import { agentLedger } from "./agent-ledger.mjs";
@@ -226,7 +232,7 @@ import { createUsers, createSessions } from "./users.mjs";
 // P5 — workspace config (validated, persisted 0600 OUTSIDE the repo) + the
 // approve→commit→PR ladder. Both are additive: with no config and no `gh`
 // installed, the runtime behaves exactly as it did in P4.
-import { validateWorkspace, writeWorkspace, readWorkspace, defaultConfigDir, isInside, samePath } from "./workspace.mjs";
+import { validateWorkspace, writeWorkspace, readWorkspace, defaultConfigDir, isInside, samePath, GIT_SAFE_ARGS } from "./workspace.mjs";
 import { createPr } from "./pr.mjs";
 import { createAdapters } from "./adapters/index.mjs";
 // Multi-Provider Credentials (Phase 1) — provider registry, encrypted credential
@@ -947,9 +953,19 @@ function ashMcpServers(agentId, opts = {}) {
   };
 }
 
+// Phase E · 17 — the target repo's bus scripts run only on MissionAlpha itself or with
+// RUNTIME_ALLOW_REPO_SCRIPTS=1; otherwise the event goes to the in-process bus (repo-scripts.mjs).
+const repoScripts = createRepoScripts({
+  repoRoot: REPO_ROOT,
+  emit: (name, data) => { try { events.emit(name, data); } catch { /* bus is observational */ } },
+});
+
+// Phase E · 18 (Option 2) — worker Bash inside the CLI's OS sandbox. On by default for an untrusted
+// target; RUNTIME_WORKER_JAIL=cli forces it on, =off turns it off (readiness then warns).
+const jail = workerJail({ trusted: repoScripts.trusted });
+console.log(`[runtime] worker jail: ${jail.on ? "ON (claude sandbox, escape hatch off)" : "OFF — " + jail.warning}`);
+
 function reportBack(agentId, summary) {
-  const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
-  const SYNC = join(REPO_ROOT, "scripts", "agent-sync.sh");
   // Sanitize: strip quotes/newlines/control chars so a crafted file path can't
   // break the BROADCAST/SYNC_LOG markdown the dashboard parses (bus-format injection).
   // (spawn array already prevents SHELL injection — no shell:true.)
@@ -957,9 +973,8 @@ function reportBack(agentId, summary) {
   const clean = (s) => String(s).replace(/[\x00-\x1f"'`|$=]/g, " ").replace(/\s+/g, " ").trim();
   const safeId = String(agentId).replace(/[^a-z0-9_-]/gi, "");
   const sum = clean(summary).slice(0, 140);
-  // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
-  if (existsSync(HB)) { try { spawn("bash", [HB, ...[safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
-  if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...[safeId, "BOSS", "task-done", "-", `done: ${sum}`].map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+  repoScripts.run("agent-heartbeat.sh", [safeId, "DONE_CYCLE", `task applied: ${sum}`.slice(0, 120), "-", "", "report to BOSS"]);
+  repoScripts.run("agent-sync.sh", [safeId, "BOSS", "task-done", "-", `done: ${sum}`]);
 }
 
 // CLI backend — drive the local `claude` CLI headless. Uses the Claude Code
@@ -991,6 +1006,10 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   // modelId is ALWAYS a server-resolved allowlisted id (ADR-022) — NEVER the raw
   // request field. Distinct argv token, no shell → cannot flag-inject.
   if (modelId) args.push("--model", modelId);
+  // Phase E security pass (HIGH) — `-p` skips workspace trust, so with cwd = a FOREIGN target the
+  // CLI would load that repo's .claude/settings.json and run its hooks on the host. Untrusted
+  // target ⇒ the operator's own `user` scope only. Same trust decision as the repo scripts.
+  if (!repoScripts.trusted) args.push("--setting-sources", "user");
   // F2 tool scoping. Bash NEVER allowed yet. Unlisted tools are auto-denied in -p.
   // G5 (ADR-050): if this is a factory-minted agent, derive --allowed-tools from the
   // agent's validated spec (Read always; Write+Edit if write-class skill; Bash never).
@@ -1100,7 +1119,7 @@ function cliReply(agentId, system, hist, stream, onDone, modelId, attachments = 
   const childEnv = buildChildEnv(process.env, { activeSecret: _chatSecret, activeProviderType: _chatActiveType });
   // headroom output shaper: `headroom wrap claude <...args>` compresses output tokens.
   const spawnArgs = _HEADROOM_WRAP ? ["wrap", "claude", ...args] : args;
-  const child = spawn(CLAUDE_BIN, spawnArgs, {
+  const child = seatChildren.spawnSeat(CLAUDE_BIN, spawnArgs, {
     stdio: ["pipe", "pipe", "pipe"],
     cwd,
     env: childEnv,
@@ -1424,8 +1443,8 @@ async function handleChat(agentId, message, res, tier, modelId, attachments = []
     }, modelId, attachments, attachDir, (child) => {
       // STOP button — register a decisive kill (SIGTERM, then SIGKILL if ignored).
       chatKillMap.set(agentId, () => {
-        try { child.kill("SIGTERM"); } catch { /* */ }
-        setTimeout(() => { try { if (!child.killed) child.kill("SIGKILL"); } catch { /* */ } }, STOP_SIGKILL_MS).unref?.();
+        seatChildren.killGroup(child, "SIGTERM");
+        setTimeout(() => { if (child.exitCode === null && child.signalCode === null) seatChildren.killGroup(child, "SIGKILL"); }, STOP_SIGKILL_MS).unref?.();
       });
       // 12.1 — the CHAT path is the only caller that passes a session. The engine-stage
       // cliReply below has no `opts`, so no engine turn can ever mint a job as the operator.
@@ -1642,6 +1661,7 @@ const engineBroker = createBroker({
   workdirFor: targetIsGit ? (id) => engineWorktrees.pathFor(id) : sandboxDir,
   scrub,
   seatFor: (taskId) => rosterSeatFor(engineQueue.get(taskId)?.agentId),
+  strict: true, // Phase E · 16 — an unresolved seat lands nothing (GUARD-1-WIRED)
 });
 
 // ── 6.6b — the three facts POST /runtime/engine/apply needs before it may COMMIT ──
@@ -1670,7 +1690,7 @@ function operatorIndexHash() {
 function branchHeadSha(branch) {
   if (!ENGINE_BRANCH_RE.test(String(branch || ""))) return Promise.resolve(null);
   return new Promise((resolveSha) => {
-    execFile("git", ["-C", REPO_ROOT, "rev-parse", "--verify", `${branch}^{commit}`], { encoding: "utf-8" },
+    execFile("git", [...GIT_SAFE_ARGS, "-C", REPO_ROOT, "rev-parse", "--verify", `${branch}^{commit}`], { encoding: "utf-8" },
       (err, stdout) => resolveSha(err ? null : String(stdout).trim() || null));
   });
 }
@@ -1837,6 +1857,9 @@ async function dispatchCodemod(ctx, routed, targets) {
 function buildEngineSpawnArgs(ctx, buildArgs = buildEngineArgs) {
   const args = buildArgs(ctx);
   if (ctx.engineId === "claude") args.push("--setting-sources", "project");
+  // Phase E · 18 — the jail rides as a runtime-owned `--settings`, which --setting-sources does
+  // not exclude. Pure: the settings come in on ctx.
+  if (ctx.engineId === "claude" && ctx.jailSettings) args.push("--settings", ctx.jailSettings);
   return args;
 }
 
@@ -1869,8 +1892,21 @@ function seatAllowedTools(member) {
   return out;
 }
 
-/** The seat's identity + scope + SKILL BODIES, as one --append-system-prompt string. */
-function seatSystemPrompt(member, skillBodies = []) {
+/**
+ * Phase D · task 12 — the TEAM block for a worker running a JOB task, or "" for anything else.
+ * `storyId` carries the job id for job tasks (manager.mjs dispatchNext enqueues with
+ * `storyId: job.id`), the same value mail-env.mjs binds as the seat's MA_MAIL_JOB_ID — so the
+ * job a seat is TOLD it is on is the job its mail is BOUND to.
+ */
+function seatTeamBlock(seat, storyId) {
+  if (seat?.role !== "worker") return "";
+  const id = String(storyId || "");
+  if (!id.startsWith("job_")) return "";
+  return teamBlock({ self: seat.id, workers: roster.all() || [], job: jobs.get(id), managerId: MANAGER_AGENT_ID });
+}
+
+/** The seat's identity + scope + TEAM + SKILL BODIES, as one --append-system-prompt string. */
+function seatSystemPrompt(member, skillBodies = [], team = "") {
   const scope = (member.writeScope || []).length
     ? `WRITE SCOPE — you may create or edit ONLY files matching these globs:\n${(member.writeScope || []).map((g) => `  - ${g}`).join("\n")}\n` +
       "A write outside this scope is REFUSED by the broker and never reaches the repo. " +
@@ -1883,6 +1919,9 @@ function seatSystemPrompt(member, skillBodies = []) {
       : "WRITE SCOPE — not narrowed. You are not a worker seat, so no per-seat scope applies; "
         + "the repo-wide guards still refuse anything outside the appliable source dirs.";
   const parts = [`You are ${member.name}, the ${member.seat} seat (role: ${member.role}).`, scope];
+  // Who else is on this job, and how to reach them. Before the skill bodies: the skills say
+  // how to do the work, the team says who to ask when the work needs someone else.
+  if (team) parts.push(team);
   // BODIES, not names. A seat handed "you hold the ui skill" learns nothing; a seat handed
   // the ui SKILL.md learns which directories are somebody else's.
   for (const b of skillBodies) parts.push(`--- SKILL: ${b.id} ---\n${b.body}`);
@@ -1935,7 +1974,7 @@ function managerSpawn({ prompt, tools, maxTurns, cwd, stage, jobId }) {
     const spawnArgs = _HEADROOM_WRAP ? ["wrap", "claude", ...args] : args;
     let child;
     try {
-      child = spawn(CLAUDE_BIN, spawnArgs, { stdio: ["pipe", "pipe", "pipe"], cwd, env: childEnv });
+      child = seatChildren.spawnSeat(CLAUDE_BIN, spawnArgs, { stdio: ["pipe", "pipe", "pipe"], cwd, env: childEnv });
     } catch (e) { return reject(new Error(`manager spawn failed: ${e?.message ?? e}`)); }
 
     let out = "", err = "", buf = "", settled = false;
@@ -1943,7 +1982,7 @@ function managerSpawn({ prompt, tools, maxTurns, cwd, stage, jobId }) {
     // A runaway turn is bounded here as well as by --max-turns: a CLI that hangs before it
     // starts a turn never reaches the turn cap. SIGKILL, because a hung CLI may not honour TERM.
     const timer = setTimeout(() => {
-      try { child.kill("SIGKILL"); } catch { /* already gone */ }
+      seatChildren.killGroup(child, "SIGKILL");
       finish(reject, new Error(`manager turn timed out after ${MANAGER_STAGE_TIMEOUT_MS}ms (stage=${stage})`));
     }, MANAGER_STAGE_TIMEOUT_MS);
 
@@ -2114,11 +2153,12 @@ async function engineDispatch(ctx) {
       strictMcp: factoryToolsEng !== null,
       workdir,
       permissionMode: "acceptEdits",
+      jailSettings: jail.settings,
     });
     if (seat && SPAWN_ENGINE.id === "claude") {
       args.push("--append-system-prompt", seatSystemPrompt(seat, readSkillBodies(seat.skills, {
         curatedDir: CURATED_SKILLS_DIR, scrub,
-      })));
+      }), seatTeamBlock(seat, ctx.storyId)));
       // ── Phase 8 / 8.2 — give the seat its mailbox ─────────────────────────
       // The ENGINE spawn had no --mcp-config at all (only the chat path composed one), so
       // this ADDS it. Identity is bound HERE, in the environment, and `mail_send` has no
@@ -2133,14 +2173,9 @@ async function engineDispatch(ctx) {
             mail: {
               command: process.execPath,
               args: [join(__dir, "mcp", "mail-tools.mjs")],
-              env: {
-                MA_MAIL_AGENT_ID: seat.id,
-                MA_MAIL_DIR: process.env.RUNTIME_MAIL_DIR || join(ENGINE_STORE, "mail"),
-                MA_MAIL_JOB_ID: ctx.goalId || "",
-                MA_MAIL_TASK_ID: ctx.taskId || "",
-                // Roles only — never the writeScope, and never another seat's anything.
-                MA_MAIL_ROLES: JSON.stringify(Object.fromEntries(roster.all().map((m) => [m.id, m.role]))),
-              },
+              // Step 1 — one pure binding (mail-env.mjs, pinned by MAILENV-1..3): job id from
+              // ctx.storyId, goal id from ctx.goalId. Roles only — never the writeScope.
+              env: mailEnvFor({ seat, ctx, roster, mailDir: process.env.RUNTIME_MAIL_DIR || join(ENGINE_STORE, "mail") }),
             },
           },
         }), { mode: 0o600 });
@@ -2177,14 +2212,14 @@ async function engineDispatch(ctx) {
     }
     let child;
     try {
-      child = spawn(ENGINE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: workdir, env: childEnv });
+      child = seatChildren.spawnSeat(ENGINE_BIN, args, { stdio: ["pipe", "pipe", "pipe"], cwd: workdir, env: childEnv });
     } catch (e) {
       return reject(new Error(e.message));
     }
     ctx.registerKill(() => {
-      try { child.kill("SIGTERM"); } catch { /* */ }
+      seatChildren.killGroup(child, "SIGTERM");
       // SIGKILL fallback if the child ignores SIGTERM (kill-switch must be decisive).
-      setTimeout(() => { try { if (!child.killed) child.kill("SIGKILL"); } catch { /* */ } }, 5000).unref?.();
+      setTimeout(() => { if (child.exitCode === null && child.signalCode === null) seatChildren.killGroup(child, "SIGKILL"); }, 5000).unref?.();
     });
     let acc = "", buf = "", rateLimited = false, lastUsage = null;
     // Phase 7 — the autonomous path records spend on the same terms as chat.
@@ -2409,7 +2444,16 @@ const mailbox = createMailbox({
   // row has been dropped here since Phase 8 — silently, inside the catch below. Left as-is
   // because it is correct for stories; a JOB's thread is read from the mailbox itself
   // (`mailbox.thread(jobId)`), which is where the messages already live.
-  log: (row) => { try { stories.appendMailLog(row.jobId, row); } catch { /* logging must never fail a delivery */ } },
+  log: (row) => {
+    // Security review of Task 3 (HIGH): a forged or invalid outbox file was dropped correctly
+    // but recorded NOWHERE — appendMailLog whitelists by event and needs a story, and a
+    // planted file may carry no trustworthy jobId at all. These two events get an always-on
+    // sink FIRST, so the trail survives even when there is nothing to attach it to.
+    if (row?.event === "mail-forged" || row?.event === "mail-invalid") {
+      console.warn(`[mailbox] ${row.event} by=${row.byAgent} job=${row.jobId ?? "-"} ${row.event === "mail-forged" ? `claimed=${row.claimed} to=${row.toAgent}` : `reason=${row.reason}`}`);
+    }
+    try { stories.appendMailLog(row.jobId, row); } catch { /* logging must never fail a delivery */ }
+  },
   managerId: "tech-lead",
 });
 
@@ -2460,6 +2504,7 @@ const managerDispatch = createManagerDispatch({
   // and the runtime can hire for it. Passing only the roster's skills made HR unaskable.
   catalog: factory.SKILL_CATALOG,
   worktrees: targetIsGit ? engineWorktrees : null,
+  repoTrusted: repoScripts.trusted, // /cso — no spawn inside an untrusted target (MD-UNTRUSTED-1)
   // 9.6 — THE WIRING. Without this, mode=claude fails closed on every turn and every live
   // job blocks at intake. Asserted by manager-spawn-wiring.test.mjs (MSW-1/MSW-2).
   spawn: managerSpawn,
@@ -2478,9 +2523,21 @@ const manager = createManager({
     mintGate: (g) => deliveries.mintGate(g),
     listGates: (id, kind) => deliveries.listGates(id, kind),
   },
-  enqueueGoal: ({ agentId, storyId, steps }) => engine.enqueueGoal({ agentId, storyId, tier: DEFAULT_TIER, priority: "normal", steps }),
+  // Phase C · task 9 — baseRef MUST be forwarded. Dropping it here is the shape SEAT-12 is
+  // about: the Manager would ask for a based worktree, the harness test would pass, and the
+  // running engine would cut every checkout from HEAD exactly as before.
+  // `replyOnly` (Phase D · task 13) rides the same hop `baseRef` once fell off (SEQ-WIRED-1):
+  // a reply turn the Manager marks, dropped here, becomes an ordinary goal that retries
+  // `empty-diff` three times. REPLY-WIRED-1 pins it.
+  enqueueGoal: ({ agentId, storyId, steps, baseRef, replyOnly }) => engine.enqueueGoal({ agentId, storyId, tier: DEFAULT_TIER, priority: "normal", steps, baseRef, replyOnly }),
   dispatch: managerDispatch.dispatch,
   queue: engineQueue,
+  // Phase D · task 13 — stop EVERY live attempt of a goal, not just the one the job task
+  // remembers: the engine re-mints a taskId per retry, so the attempt still alive is often
+  // one the job store never recorded. engine.cancel skips terminal attempts itself.
+  cancelGoal: (goalId) => (goalId
+    ? engineQueue.all().filter((t) => t.goalId === goalId).reduce((n, t) => n + (engine.cancel(t.taskId) ? 1 : 0), 0)
+    : 0),
   catalog: factory.SKILL_CATALOG.map((c) => c.id),
   // ── Phase 11 / 11.1 — what the REVIEW turn is judged on ───────────────────
   // Unwired, these default to an empty diff and "not re-run", and the review turn would ask
@@ -2496,13 +2553,10 @@ const manager = createManager({
       // `3082 files changed, 4 insertions(+), 1045955 deletions(-)` — the task's real change
       // was one line of it, the 60 KB review budget truncated to the deletions, and the Manager
       // declared a correct green gate stale. Diff only what the task says it touched.
-      const safe = (Array.isArray(paths) ? paths : [])
-        .map((p) => String(p))
-        .filter((p) => p && !p.startsWith("-") && !p.includes("\0"))
-        .slice(0, 100);
-      if (!safe.length) return "";
-      const out = spawnSync("git", ["-C", wt, "diff", "--no-color", "--", ...safe], { encoding: "utf-8", maxBuffer: 8 * 1024 * 1024 });
-      return out.status === 0 ? scrub(String(out.stdout || "")) : "";
+      // Phase C · task 10 — the read itself lives in task-diff.mjs so it can be proven against
+      // a real repo (DIFF-1..6). It also covers NEW files, which a plain `git diff` does not:
+      // probe P-F11 had a task whose entire output was a new file reviewed as an empty diff.
+      return scrub(taskDiff(wt, paths));
     } catch { return ""; }
   },
   // RE-RUN, not the recorded tail. A tail recorded when the task ran is a claim about a
@@ -2528,11 +2582,15 @@ const manager = createManager({
     createJobBranch: (jobId, base) => prLadder.createJobBranch(jobId, base),
     commitTask: (a) => prLadder.commitTask(a),
     openJobPr: (a) => prLadder.openJobPr(a),
+    // C30 follow-up (2026-09-19) — DIFF-3's tree pin reads this. It was missing, so live run 5
+    // minted a ship gate with `"tree": null` and the "what you approved is what ships" check
+    // was inert in production while green at the unit seam. Pinned by DIFF-WIRED-2.
+    treeOf: (ref) => prLadder.treeOf(ref),
   },
   // The sha the job branch is cut from: the operator's HEAD at ship time. Read, never written.
   baseSha: () => {
     try {
-      const r = spawnSync("git", ["-C", REPO_ROOT, "rev-parse", "HEAD"], { encoding: "utf-8" });
+      const r = spawnSync("git", [...GIT_SAFE_ARGS, "-C", REPO_ROOT, "rev-parse", "HEAD"], { encoding: "utf-8" });
       return r.status === 0 ? String(r.stdout || "").trim() : null;
     } catch { return null; }
   },
@@ -2738,6 +2796,10 @@ function routeNeedsApprover(method, pathname) {
   // switching the active provider are mutations → approver-only when auth is active.
   if (method === "POST" && pathname === "/runtime/accounts") return true;
   if (method === "POST" && pathname === "/runtime/accounts/active") return true;
+  // Phase B · Task 3 — a mail POST writes runtime state as ANY sender the body names (the
+  // operator road has no spawn-bound identity), so it is a mutation at approver trust. A
+  // viewer session could otherwise post a hire-request "from" tech-lead (Codex F04).
+  if (method === "POST" && pathname === "/runtime/mail") return true;
   if (method === "POST" && /^\/runtime\/accounts\/[^/]{1,64}\/secret$/.test(pathname)) return true;
   // PHASE 1 — the capability probe is a MUTATION and a SPEND: it records a verdict on the
   // account and it issues a real, billed request to the provider. Gated for the same
@@ -2782,6 +2844,8 @@ function routeNeedsApprover(method, pathname) {
   // curl, not merely a hidden button. The GETs are a glance and are deliberately NOT here.
   if (method === "POST" && pathname === "/runtime/jobs") return true;
   if (method === "POST" && /^\/runtime\/jobs\/[a-z0-9_]+\/answer$/i.test(pathname)) return true;
+  // Phase B · Task 6 — resume re-queues real work: a mutation, approver-only (addendum #20: on BOTH lists).
+  if (method === "POST" && /^\/runtime\/jobs\/[a-z0-9_]+\/resume$/i.test(pathname)) return true;
   // Phase 13 — creating a job from a ticket queues real work, exactly as POST /runtime/jobs
   // does. The GET is here TOO, unlike the other job GETs: it is not a glance at local state,
   // it spends the operator's own Jira credential on an outbound third-party request.
@@ -2959,14 +3023,14 @@ const engine = createEngine({
   testGateFn: (args) => testGate.run(args),
   reportBackFn: reportBack,
   escalateFn: (agentId, kind, attempts, reason) => {
-    const HB = join(REPO_ROOT, "scripts", "agent-heartbeat.sh");
-    const SYNC = join(REPO_ROOT, "scripts", "agent-sync.sh");
     const { heartbeat, sync } = escalationArgs(agentId, kind, attempts, reason);
-    // F5 — a foreign repo has no scripts/agent-*.sh → skip cleanly instead of spawning doomed bash.
-    if (existsSync(HB)) { try { spawn("bash", [HB, ...heartbeat.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
-    if (existsSync(SYNC)) { try { spawn("bash", [SYNC, ...sync.map(String)], { stdio: "ignore", cwd: REPO_ROOT }); } catch { /* */ } }
+    repoScripts.run("agent-heartbeat.sh", heartbeat);
+    repoScripts.run("agent-sync.sh", sync);
   },
   watchdogMs: Number(process.env.RUNTIME_STEP_TIMEOUT_MS || 300_000),
+  // C23 — the engine's trace. It had none: the Phase C live run lost a job to a task stuck in
+  // EDITING for 16 minutes with not one line to explain it. Same sink shape the manager uses.
+  log: (r) => { try { console.log(`[engine] ${JSON.stringify(r)}`); } catch { /* never fail a turn to log it */ } },
   // #8 — a FLOOR under every retry delay. The engine's own backoff is about this task; the
   // provider hold is about every caller sharing the endpoint. A queue of tasks re-knocking
   // on a rate-limited provider every few seconds is the herd, and it costs real money.
@@ -3042,6 +3106,11 @@ const prLadder = createPr({
   worktreeMgr: targetIsGit ? engineWorktrees : null,
   audit: factory.audit,
   scrub,
+  // Phase E · 16 — the SAME seat the engine broker resolves: from the task, via the queue.
+  // Known bound: a terminal queue record is swept after RUNTIME_TASK_RETENTION_DAYS (boot
+  // only); shipping such a task afterwards resolves no seat and is REFUSED by name.
+  seatFor: (taskId) => rosterSeatFor(engineQueue.get(taskId)?.agentId),
+  strict: true,
 });
 
 // Phase 2 / R5 — the success learner, wired to the vault the rest of the runtime uses.
@@ -3420,8 +3489,8 @@ async function agentTurnText({ agentId, system, user }) {
     // Kill the child decisively (SIGTERM, then SIGKILL) so a wedged turn cannot outlive
     // the stage that started it.
     const timer = setTimeout(() => {
-      try { spawned?.kill("SIGTERM"); } catch { /* */ }
-      setTimeout(() => { try { if (spawned && !spawned.killed) spawned.kill("SIGKILL"); } catch { /* */ } }, 2000).unref?.();
+      seatChildren.killGroup(spawned, "SIGTERM");
+      setTimeout(() => { if (spawned && spawned.exitCode === null && spawned.signalCode === null) seatChildren.killGroup(spawned, "SIGKILL"); }, 2000).unref?.();
       finish({ ok: false, text: "", error: `the engine did not answer — timed out after ${Math.round(STAGE_TIMEOUT_MS / 1000)}s` });
     }, STAGE_TIMEOUT_MS);
     cliReply(
@@ -4443,7 +4512,9 @@ const handle = async (req, res) => {
     if (req.method === "GET" && url.pathname === "/runtime/engine/readiness") {
       let active = null;
       try { active = credStore.getActive(); } catch { active = null; }
-      return ok2(res, engineReadiness(active, { backend: BACKEND, deterministic: Boolean(deterministicSpawner) }));
+      // Phase E · 18 — JAIL-2: an unjailed install says so on the readiness surface.
+      const r = engineReadiness(active, { backend: BACKEND, deterministic: Boolean(deterministicSpawner) });
+      return ok2(res, { ...r, workerJail: jail.on, warnings: jail.warning ? [jail.warning] : [] });
     }
     // A KNOWN path with the wrong verb is a 405, not a 404 — "you asked the wrong way" and
     // "there is nothing here" are different answers and a client can act on the difference.
@@ -4980,7 +5051,8 @@ const handle = async (req, res) => {
   if (req.method === "GET" && url.pathname === "/runtime/roster") {
     return ok2(res, { version: roster.version(), members: roster.all() });
   }
-  // Phase 8 / 8.1 — the mailbox surface. GET reads (and ARCHIVES) a seat's inbox; POST sends
+  // Phase 8 / 8.1 — the mailbox surface. GET is a GLANCE at a seat's inbox (peek — it archives
+  // nothing; read() is the Manager's own drain and is not on the HTTP surface, Task 3); POST sends
   // as a BOUND identity. Both are on the `needsAuth` allow-list beside /runtime/roster.
   //
   // `from` is taken from the REQUEST BODY here because this route is the OPERATOR's manual
@@ -4989,7 +5061,8 @@ const handle = async (req, res) => {
   // with no role cannot mail anyone.
   if (req.method === "GET" && /^\/runtime\/mail\/[a-z0-9][a-z0-9_-]{0,63}$/i.test(url.pathname)) {
     const agentId = url.pathname.split("/").pop();
-    return ok2(res, { agentId, messages: mailbox.read(agentId) });
+    // Phase B · Task 3 — a GLANCE, not the drain: peek() archives nothing (Codex F04).
+    return ok2(res, { agentId, messages: mailbox.peek(agentId) });
   }
   if (req.method === "POST" && url.pathname === "/runtime/mail") {
     const body = await readJsonBody(req, 16_000);
@@ -5085,6 +5158,16 @@ const handle = async (req, res) => {
   // 9.4 — the answer route. Storing the answers and deciding the gate are ONE action: an
   // answer that persisted without resolving the gate would leave the job waiting forever on
   // a question it already has the answer to.
+  // Phase B · Task 6 — the operator's way back from `blocked`. The store always allowed
+  // blocked→planned (jobs.mjs NEXT); no route ever called it, so a job blocked after the
+  // BOSS's yes had no next move (Codex F09). Approver-only via routeNeedsApprover.
+  if (req.method === "POST" && /^\/runtime\/jobs\/[a-z0-9_]+\/resume$/i.test(url.pathname)) {
+    const id = url.pathname.split("/")[3];
+    const r = manager.resume(id);
+    if (!r.ok) return ok2(res, { error: r.reason }, r.status || 400);
+    factory.audit("job.resumed", { jobId: id, by: deriveBosAuthor(session) || "boss" });
+    return ok2(res, { ok: true, job: jobs.get(id) });
+  }
   if (req.method === "POST" && /^\/runtime\/jobs\/[a-z0-9_]+\/answer$/i.test(url.pathname)) {
     const id = url.pathname.split("/")[3];
     const job = jobs.get(id);
@@ -5092,20 +5175,30 @@ const handle = async (req, res) => {
     const body = await readJsonBody(req, 24_000);
     const answers = Array.isArray(body.answers) ? body.answers : [];
     if (!answers.length) return ok2(res, { error: "answers[] required" }, 400);
+    // REV-1 — only a job that is waiting on the BOSS can be answered. Anything else would store
+    // answers against a job mid-intake or mid-strategy and approve past the CEO.
+    if (job.status !== "awaiting-you") return ok2(res, { error: `job is '${job.status}', not awaiting an answer` }, 409);
+    // DEFER-NO — when the CEO deferred this job, the first question is "Proceed anyway?" and its
+    // answer decides the gate: yes approves, no REJECTS (the job is blocked as deferred), and an
+    // answer that says both or neither is asked again rather than guessed.
+    // An answer answers a QUESTION. A job waiting on its ship approval (a job-approval gate) has
+    // none, and approving it from here re-planned finished work (ANSWER-GATE-1).
+    const gate = (deliveries.listGates(id, "question") || [])[0];
+    if (!gate) return ok2(res, { error: "no question is waiting on this job — a ship approval is decided in the Inbox" }, 409);
+    const verdict = deferAnswer(job, answers);
+    if (verdict.decision === "invalid") {
+      return ok2(res, { error: "the CEO recommended deferring this job — answer its question with a plain yes or no" }, 400);
+    }
     try {
       jobs.setAnswers(id, answers);
     } catch (e) {
       return ok2(res, { error: e?.message || "cannot answer" }, e?.status || 400);
     }
-    const gate = (deliveries.listGates(id, "question") || [])[0];
-    if (gate) {
-      const out = await deliveries.decide(gate.id, "approve", { by: deriveBosAuthor(session) || "BOSS" });
-      if (out?.code) return ok2(res, { error: out.error }, out.code);
-    } else {
-      // No open gate (already decided, or none was minted) — still advance, so an answer is
-      // never stored against a job that then sits still.
-      try { manager.onGateDecided(id, { decision: "approve" }); } catch { /* status already moved */ }
-    }
+    const by = deriveBosAuthor(session) || "BOSS";
+    const out = verdict.decision === "reject"
+      ? await deliveries.decide(gate.id, "reject", { by, feedback: "the BOSS agreed with the CEO: deferred" })
+      : await deliveries.decide(gate.id, "approve", { by });
+    if (out?.code) return ok2(res, { error: out.error }, out.code);
     return ok2(res, { job: jobs.get(id) });
   }
   if (/^\/runtime\/jobs(\/|$)/.test(url.pathname)) {
@@ -5516,6 +5609,11 @@ const handle = async (req, res) => {
         return ok2(res, { error: "request body too large — an edit set is capped at 2 MB" }, 413);
       }
       const verb = md[2] === "request-changes" ? "request_changes" : md[2];
+      // #4 — approving a job's clarify gate planned the job on NO answers (and "yes"-ed a CEO
+      // deferral nobody answered). It is answered through the job's route; reject still declines.
+      if (verb === "approve" && isJobClarifyGate(deliveries.get(did))) {
+        return ok2(res, { error: "answer this job's questions instead — POST /runtime/jobs/:id/answer (the Inbox card has the form)" }, 409);
+      }
       // P9 — the decider is the AUTHENTICATED identity when auth is active (a viewer
       // can't reach here; a client can't spoof another approver's name via body.by).
       // Solo → the client `by` (defaults 'BOSS' in deliveries) is kept, unchanged.
@@ -5586,6 +5684,17 @@ const handle = async (req, res) => {
       for (const id of ids) {
         const did = safeDecode(String(id));
         if (did === null) { results.push({ id, ok: false, error: "malformed id" }); continue; }
+        // A job's CLARIFY gate is ANSWERED, not bulk-approved: its answers feed the plan, and the
+        // CEO's "Proceed anyway?" is decided by deferAnswer on POST /runtime/jobs/:id/answer. A bulk
+        // approve — even a high-risk-confirmed one — skips it (DEFER-NO-E2E-3). Bulk reject stays.
+        // The job's decision gates (-hire, -esc-N, -blocked-T) are yes/no and bulk-approvable (#4).
+        if (verb === "approve") {
+          const row = deliveries.get?.(did);
+          if (isJobClarifyGate(row)) {
+            results.push({ id: did, ok: false, error: "a job's questions need an answer — answer them on the card" });
+            continue;
+          }
+        }
         try {
           const out = await deliveries.decide(did, verb, { by, feedback: body.feedback });
           const good = !out?.error;
@@ -6258,7 +6367,9 @@ const handle = async (req, res) => {
         res.end(JSON.stringify({ error: "paths[] required" }));
         return;
       }
-      const results = await applyChanges(ma[1], paths.slice(0, 100));
+      // Phase E security pass — pick the broker by KEY. On a non-git target a task key's workdir is
+      // sandboxDir(key), so the bare manual broker would land engine work without strict (GUARD-5).
+      const results = await brokerFor(ma[1]).applyChanges(ma[1], paths.slice(0, 100));
       const okPaths = results.filter((r) => r.ok).map((r) => r.path);
       if (okPaths.length) reportBack(ma[1], `${okPaths.length} file(s): ${okPaths.join(", ")}`);
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -6573,7 +6684,7 @@ const handle = async (req, res) => {
     // `engine` block (and its queue counters) is untouched.
     const _active = credStore.getActive();
     const _activeAccount = _active ? { id: _active.id, label: _active.label, providerType: _active.providerType, capability: _active.capability } : null;
-    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none", tiers: TIER_KEYS, defaultTier: DEFAULT_TIER, activeAccount: _activeAccount, engine: { inflight, maxInflight: MAX_INFLIGHT, queue: engineQueue.counts() }, deliveries: deliveries.counts(), events: { clients: events.clientCount() }, workspace: { isGit: targetIsGit, envPinned: !!process.env.RUNTIME_REPO_ROOT } }));
+    res.end(JSON.stringify({ ok: true, backend: BACKEND, tools: TOOLS, model: BACKEND === "api" ? MODEL : BACKEND === "cli" ? "claude-code (subscription)" : "none", tiers: TIER_KEYS, defaultTier: DEFAULT_TIER, activeAccount: _activeAccount, engine: { inflight, maxInflight: MAX_INFLIGHT, queue: engineQueue.counts(), inFlight: (() => { try { return engine.stuckTasks(); } catch { return []; } })() }, deliveries: deliveries.counts(), events: { clients: events.clientCount() }, workspace: { isGit: targetIsGit, envPinned: !!process.env.RUNTIME_REPO_ROOT } }));
     return;
   }
   res.writeHead(404, { "Content-Type": "application/json" });
@@ -6625,6 +6736,13 @@ try { const n = sweepStaleUploads(); if (n) console.log(`agent-runtime: swept ${
 // Crash recovery FIRST (reclaim leases, re-converge 'applying' markers, prune orphan
 // worktrees) — THEN start draining, so the scheduler never races recovery (code-review).
 await engine.reconcile().catch(() => { /* crash-recovery is best-effort */ }); // ADR-024 §4 + ADR-026 §6 (+ ADR-051 §5 via reconcileExtra)
+// Phase B · Task 6 — a job left in awaiting-you with no pending gate is stranded (its gate was
+// decided and the ship rung then failed, or the gate was lost). Block it by reason so the board
+// shows a next move; `POST /runtime/jobs/:id/resume` is the way back (Codex F09).
+try {
+  const r = manager.reconcileStranded();
+  if (r.blocked.length) console.warn(`[manager] boot: ${r.blocked.length} stranded job(s) blocked with a reason: ${r.blocked.join(", ")}`);
+} catch (e) { console.warn(`[manager] boot reconcile failed: ${e?.message}`); }
 try { events.prune(); } catch { /* ADR-052 §3 boot sweep — best-effort */ }
 // Retention boot sweeps — same posture as sweepStaleUploads above: TTL-bounded,
 // best-effort, logged with counts. Run AFTER reconcile so recovery still sees every
@@ -6758,6 +6876,9 @@ if (typeof slaTimer.unref === "function") slaTimer.unref();
 // visible adapter-status (GET /runtime/adapters), never a crash.
 try { adapters.startAll(); const st = adapters.status(); console.log(`agent-runtime: adapters — github=${st.github?.state} claude-code=${st.claudeCode?.state}`); } catch (e) { console.warn(`[runtime] adapters start skipped: ${e?.message}`); }
 engine.start(); // register the loop with the scheduler (ADR-024/025)
+// Without this, `kill <pid>` exits the runtime and orphans every seat it dispatched (SHUT-1).
+installShutdown(seatChildren);
+
 server.listen(PORT, "127.0.0.1", () => {
   console.log(
     `agent-runtime: listening :${PORT} · backend=${BACKEND}` +

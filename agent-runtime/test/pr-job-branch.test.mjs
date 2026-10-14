@@ -279,3 +279,45 @@ test("PJB-15: the never-left-this-machine cases are NOT reported as pushed", asy
   assert.equal(out.mode, "branch");
   assert.ok(!out.pushed, "gh was unavailable, so nothing was pushed — claiming otherwise is the lie this guards");
 });
+
+// ── Phase D · C21 — the claim the READY-SET rule rests on ────────────────────
+test("READY-7: two PARALLEL tasks both commit and neither reverts the other — and the same-path case shows why the rule is needed", async () => {
+  // This is the test the whole ready-set design depends on, which is why it runs against a
+  // REAL git repo rather than a mocked ladder: the behaviour being asserted belongs to
+  // `commitTask`'s copy-the-body mechanism, and a mock would assert my belief about it.
+  //
+  // Both worktrees are cut from the SAME base, which is exactly what parallel dispatch does.
+  const s = scaffold();
+  const jb = await s.pr.createJobBranch("job_par", s.baseSha);
+  taskWith(s, "task_par_a", { "src/a.ts": "new-a\n" });
+  taskWith(s, "task_par_b", { "src/b.ts": "new-b\n" });
+
+  const ca = await s.pr.commitTask({ jobWorktree: jb.worktree, taskId: "task_par_a", paths: ["src/a.ts"], message: "feat: a" });
+  const cb = await s.pr.commitTask({ jobWorktree: jb.worktree, taskId: "task_par_b", paths: ["src/b.ts"], message: "feat: b" });
+  assert.ok(ca.ok, ca.reason);
+  assert.ok(cb.ok, cb.reason);
+
+  const show = (rel) => execFileSync("git", ["-C", jb.worktree, "show", `HEAD:${rel}`], { encoding: "utf-8" });
+  assert.equal(show("src/a.ts"), "new-a\n", "B's commit reverted A's work — disjoint paths must survive");
+  assert.equal(show("src/b.ts"), "new-b\n");
+  const log = execFileSync("git", ["-C", jb.worktree, "log", "--format=%s", `${s.baseSha}..HEAD`], { encoding: "utf-8" }).trim().split("\n");
+  assert.deepEqual(log, ["feat: b", "feat: a"], "the branch must carry BOTH commits");
+
+  // THE OTHER HALF, and the reason the rule exists at all. Same shape, same base, but both
+  // tasks approved for the SAME path. There is no merge anywhere in this ladder, so the later
+  // commit copies a body computed from a tree that never saw the earlier change: the first
+  // task's work is gone, with no conflict marker and no failure to report. Nothing below
+  // refuses it — which is precisely why the refusal has to happen at DISPATCH.
+  const c = scaffold();
+  const jb2 = await c.pr.createJobBranch("job_clash", c.baseSha);
+  taskWith(c, "task_clash_1", { "src/a.ts": "written-by-one\n" });
+  taskWith(c, "task_clash_2", { "src/a.ts": "written-by-two\n" });
+  assert.ok((await c.pr.commitTask({ jobWorktree: jb2.worktree, taskId: "task_clash_1", paths: ["src/a.ts"], message: "feat: one" })).ok);
+  const second = await c.pr.commitTask({ jobWorktree: jb2.worktree, taskId: "task_clash_2", paths: ["src/a.ts"], message: "feat: two" });
+  assert.ok(second.ok, "the ladder does not even notice the clash — it is not a merge");
+  assert.equal(
+    execFileSync("git", ["-C", jb2.worktree, "show", "HEAD:src/a.ts"], { encoding: "utf-8" }),
+    "written-by-two\n",
+    "if this ever reads 'written-by-one' the ladder has learned to merge and scopesDisjoint can be relaxed",
+  );
+});

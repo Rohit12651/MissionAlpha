@@ -32,8 +32,12 @@ export const MAIL_KINDS = Object.freeze([
   "handoff", "blocked", "done", "question", "answer",
   "hire-request", "hire-done", "hire-failed", "status",
 ]);
-/** Kinds the Manager is kept informed of, whoever they were addressed to. */
-const MANAGER_CC = Object.freeze(["status", "blocked", "done"]);
+/**
+ * Kinds the Manager is kept informed of, whoever they were addressed to. Phase D · task 13
+ * added `question` and `answer`: a worker that asks a peer and ends its turn is waiting on
+ * news only the Manager can act on — the answer is what re-enqueues the asker.
+ */
+const MANAGER_CC = Object.freeze(["status", "blocked", "done", "question", "answer"]);
 /** Max bytes of a mail body. It reaches another agent's prompt; it is not a file transfer. */
 export const MAX_BODY_BYTES = 4 * 1024;
 const ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
@@ -79,6 +83,25 @@ function atomicWrite(file, text) {
  *  an operator opened the drawer to see. */
 export const MAX_THREAD = 200;
 
+/**
+ * Phase B · Task 3 — ONE envelope validator for both ends of the transport. send() builds the
+ * envelope so it never had to check `id`; route() reads a file that anyone with a shell in the
+ * mail root could have planted, so it must check everything, id included (the id becomes the
+ * inbox FILENAME — an id of "../x" is a path). Returns the refusal text, or null.
+ */
+export function envelopeError({ from, to, kind, id } = {}, { requireId = false } = {}) {
+  if (!isAgentId(from)) return `invalid sender id: ${JSON.stringify(from)}`;
+  if (!isAgentId(to)) return `invalid recipient id: ${JSON.stringify(to)}`;
+  if (from === to) return "a seat cannot mail itself";
+  if (!MAIL_KINDS.includes(kind)) return `unknown kind: ${JSON.stringify(kind)}`;
+  // send() has no id yet (it mints one); route() reads a file whose id is about to become a
+  // filename, so there it is REQUIRED — an absent id was written as `undefined.json` and
+  // clobbered its predecessor (security review of Task 3, MEDIUM).
+  if (requireId && typeof id !== "string") return "missing message id";
+  if (id !== undefined && !ID_RE.test(String(id))) return `invalid message id: ${JSON.stringify(id)}`;
+  return null;
+}
+
 export function createMailbox({ root, roleOf, scrub = (t) => t, emit, log, managerId = "tech-lead" } = {}) {
   const dirFor = (agentId, box) => join(root, agentId, box);
   const ensure = (agentId, box) => { const d = dirFor(agentId, box); mkdirSync(d, { recursive: true }); return d; };
@@ -103,10 +126,8 @@ export function createMailbox({ root, roleOf, scrub = (t) => t, emit, log, manag
   return {
     /** Write one message into the SENDER's outbox. `from` is the caller's bound identity. */
     send({ from, to, kind, body, jobId, taskId = null, goalId = null, changedPaths = null, deliveryId = null }) {
-      if (!isAgentId(from)) return { error: `invalid sender id: ${JSON.stringify(from)}` };
-      if (!isAgentId(to)) return { error: `invalid recipient id: ${JSON.stringify(to)}` };
-      if (from === to) return { error: "a seat cannot mail itself" };
-      if (!MAIL_KINDS.includes(kind)) return { error: `unknown kind: ${JSON.stringify(kind)}` };
+      const bad = envelopeError({ from, to, kind });
+      if (bad) return { error: bad };
       if (!routeAllowed(roleOf(from), roleOf(to))) {
         return { error: `${from} (${roleOf(from)}) may not mail ${to} (${roleOf(to)})` };
       }
@@ -145,6 +166,23 @@ export function createMailbox({ root, roleOf, scrub = (t) => t, emit, log, manag
           const src = join(dirFor(from, "outbox"), file);
           let msg;
           try { msg = JSON.parse(readFileSync(src, "utf8")); } catch { try { unlinkSync(src); } catch { /* */ } continue; }
+          // Phase B · Task 3 — IDENTITY IS THE OUTBOX OWNER. The envelope's `from` is data a
+          // planted file can say anything in; the directory it sits in is what the runtime
+          // controls. routeAllowed() was never wrong — it was handed a forged identity
+          // (Codex F05, reproduced: a file in sr-backend/outbox claiming tech-lead reached HR).
+          if (msg.from !== from) {
+            try { unlinkSync(src); } catch { /* */ }
+            log?.({ event: "mail-forged", jobId: msg?.jobId ?? null, byAgent: from, claimed: String(msg?.from ?? "").slice(0, 64), toAgent: String(msg?.to ?? "").slice(0, 64), ref: String(msg?.kind ?? "").slice(0, 32), at: Date.now() });
+            continue;
+          }
+          // And the envelope is re-validated here, not only in send(): a planted file skipped
+          // send() entirely, and its id is about to become an inbox filename.
+          const bad = envelopeError(msg, { requireId: true });
+          if (bad) {
+            try { unlinkSync(src); } catch { /* */ }
+            log?.({ event: "mail-invalid", jobId: msg?.jobId ?? null, byAgent: from, reason: bad, at: Date.now() });
+            continue;
+          }
           // Re-checked at DELIVERY: a role can change between send and route.
           if (!routeAllowed(roleOf(msg.from), roleOf(msg.to))) {
             try { unlinkSync(src); } catch { /* */ }
@@ -154,7 +192,16 @@ export function createMailbox({ root, roleOf, scrub = (t) => t, emit, log, manag
           deliver(msg, msg.to);
           // The Manager is kept informed of progress without being addressed every time.
           if (MANAGER_CC.includes(msg.kind) && msg.to !== managerId && msg.from !== managerId) {
-            deliver({ ...msg, id: ulid(), to: managerId, cc: true }, managerId);
+            // `origTo` keeps the ORIGINAL recipient: the copy is readdressed to the Manager, and
+            // without it a CC'd question could not say which peer was asked, so no answer could
+            // ever be matched to it. It is the envelope's `to`, already validated above.
+            //
+            // The copy's id is DERIVED from the original — `<id>-cc` — never freshly minted. A new
+            // ulid is stamped at ROUTE time, which sorts the copy after anything the same sender
+            // sent later but routed together; the inbox is read in id order, so live run 7's
+            // Manager read a seat's `blocked` BEFORE the question that caused it (MAIL-CC-ORDER-1).
+            // The suffix keeps it a distinct, valid id (ID_RE) and sorts it at its send-time slot.
+            deliver({ ...msg, id: `${msg.id}-cc`, to: managerId, cc: true, origTo: msg.to }, managerId);
           }
           try { unlinkSync(src); } catch { /* */ }
           moved += 1;
@@ -166,6 +213,21 @@ export function createMailbox({ root, roleOf, scrub = (t) => t, emit, log, manag
         }
       }
       return moved;
+    },
+
+    /**
+     * Phase B · Task 3 — the operator's GLANCE. Same rows as read(), archives NOTHING. The
+     * cockpit's GET used read() and so a viewer could drain the Manager's inbox — completion
+     * mail gone before the Manager's own heartbeat drain saw it (Codex F04). read() stays
+     * destructive because it IS the Manager's drain; this is the window, not the door.
+     */
+    peek(agentId) {
+      if (!isAgentId(agentId)) return [];
+      const out = [];
+      for (const file of listJson(agentId, "inbox")) {
+        try { out.push(JSON.parse(readFileSync(join(dirFor(agentId, "inbox"), file), "utf8"))); } catch { /* skip a corrupt row */ }
+      }
+      return out;
     },
 
     /** Return this seat's messages oldest-first and ARCHIVE them, so nothing is re-read. */

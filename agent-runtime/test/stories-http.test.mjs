@@ -7,6 +7,7 @@
 //   POST /runtime/stories/:id/reject {toStage,reason}  → bounce to a legal back-stage
 // Plus the adversarial sweep: no-token 401, evil Host 403, unknown id 404, bad input 400,
 // illegal transition 409, and (auth-active) viewer-on-POST 403.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

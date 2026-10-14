@@ -1,6 +1,7 @@
 // CC-Primitives P3 — station skills at the wire: REST contract + the ENFORCEMENT proof
 // that an assigned skill actually lands in the next spawn's SYSTEM PROMPT (fake
 // CLAUDE_BIN dumps its stdin). cli backend, throwaway repo, no subscription tokens.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -20,13 +20,16 @@ export class JobError extends Error {
 }
 
 export const JOB_STATUSES = Object.freeze(new Set([
-  "intake", "clarify", "planned", "building", "review", "awaiting-you", "shipped", "blocked",
+  "intake", "strategy", "clarify", "planned", "building", "review", "awaiting-you", "shipped", "blocked",
 ]));
 
 // The only moves that exist. `blocked` is reachable from every live status because a job can
 // fail at any point; nothing leaves `shipped`.
 const NEXT = Object.freeze({
-  intake: ["clarify", "planned", "blocked"],
+  intake: ["strategy", "clarify", "planned", "blocked"],
+  // Phase F · 20 — the CEO's gate. proceed/defer → clarify, kill → blocked. `planned` is legal
+  // for symmetry with intake (a clarify with no questions lands there the same tick).
+  strategy: ["clarify", "planned", "blocked"],
   clarify: ["awaiting-you", "planned", "blocked"],
   // 'shipped' is reachable from here: 'awaiting-you' is the BOSS gate, and approving the
   // final summary is exactly what ships a job (the job-approval gate, Phase 11).
@@ -35,7 +38,9 @@ const NEXT = Object.freeze({
   building: ["review", "awaiting-you", "planned", "blocked"],
   review: ["awaiting-you", "shipped", "building", "blocked"],
   shipped: [],
-  blocked: ["planned", "building"], // an operator or the Manager may retry a blocked job
+  // an operator or the Manager may retry a blocked job; Phase F · 20 — resume returns it to the CEO
+  // (strategy never answered) or to clarify (questions never asked) instead of skipping them.
+  blocked: ["planned", "building", "strategy", "clarify"],
 });
 
 export const MAX_BRIEF = 10_000;
@@ -75,8 +80,8 @@ export function createJobs({ db, scrub = (t) => t, emit, clock = () => Date.now(
   const setAStmt = h.prepare("UPDATE jobs SET answers = ?, updatedAt = ? WHERE id = ?");
   const setSummaryStmt = h.prepare("UPDATE jobs SET summary = ?, prUrl = ?, updatedAt = ? WHERE id = ?");
   const insTask = h.prepare(
-    `INSERT INTO job_tasks(id,jobId,seq,title,seat,skillsRequired,steps,status,goalId,taskId,deliveryId,changedPaths,blockedOn,createdAt,updatedAt)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    `INSERT INTO job_tasks(id,jobId,seq,title,seat,skillsRequired,steps,status,goalId,taskId,deliveryId,changedPaths,blockedOn,dependsOn,questionTo,question,answer,answerFrom,resumeCount,createdAt,updatedAt)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const clearTasks = h.prepare("DELETE FROM job_tasks WHERE jobId = ?");
   const listTasks = h.prepare("SELECT * FROM job_tasks WHERE jobId = ? ORDER BY seq ASC");
   const getTask = h.prepare("SELECT * FROM job_tasks WHERE id = ?");
@@ -97,6 +102,12 @@ export function createJobs({ db, scrub = (t) => t, emit, clock = () => Date.now(
     skillsRequired: j(r.skillsRequired, []), steps: j(r.steps, []), status: r.status,
     goalId: r.goalId, taskId: r.taskId, deliveryId: r.deliveryId,
     changedPaths: j(r.changedPaths, []), blockedOn: r.blockedOn,
+    // Phase D · C21 — the dependency edges, as ROW IDS. Absent on every pre-migration row,
+    // which reads as [] and means "depends on nothing" (the Phase C behaviour).
+    dependsOn: j(r.dependsOn, []),
+    // Phase D · task 13 — whom this task is waiting on, and how many times it was resumed.
+    questionTo: r.questionTo ?? null, question: r.question ?? null, answer: r.answer ?? null, answerFrom: r.answerFrom ?? null,
+    resumeCount: Number(r.resumeCount || 0),
     createdAt: r.createdAt, updatedAt: r.updatedAt,
   };
   const must = (id) => {
@@ -159,6 +170,10 @@ export function createJobs({ db, scrub = (t) => t, emit, clock = () => Date.now(
       const qs = (Array.isArray(questions) ? questions : [])
         .map((q) => scrub(String(q ?? "").trim())).filter(Boolean).slice(0, 5);
       setQStmt.run(JSON.stringify(qs), Date.now(), id);
+      // Phase B · Task 6 — a NEW round of questions re-opens answers. A fact is asked once PER
+      // ROUND; the old answers answered old questions. Without this, a later escalation could
+      // never store its answer (setAnswers refused forever — Codex F09, related).
+      h.prepare("UPDATE jobs SET answers = NULL, updatedAt = ? WHERE id = ?").run(Date.now(), id);
       return qs;
     },
 
@@ -185,16 +200,58 @@ export function createJobs({ db, scrub = (t) => t, emit, clock = () => Date.now(
       must(id);
       const now = Date.now();
       const rows = (Array.isArray(tasks) ? tasks : []).slice(0, 8);
+      // Phase D · C21 — IDS ARE MINTED FIRST, before a single insert, because a dependency has
+      // to be resolvable against the batch it is declared in.
+      //
+      // Two shapes arrive here and both are legitimate:
+      //   a NUMBER  — a fresh plan. The planner writes task numbers (1-based); they are
+      //               resolved against THIS batch's positions.
+      //   a STRING  — a re-plan. The rows carry the ids they already held, and a re-plan
+      //               REORDERS them, so a number would now name a different task entirely.
+      // Resolving both to the newly-minted ids is what makes "B depends on A" survive the one
+      // operation in this runtime that renumbers tasks. A self-edge and an out-of-range number
+      // are dropped rather than stored: validatePlan refuses them aloud before they get here,
+      // and a store that cannot be handed an unrunnable graph is one less way to strand a job.
+      const ids = rows.map(() => newId("jt"));
+      const byOldId = new Map();
+      rows.forEach((t, i) => { if (t?.id) byOldId.set(String(t.id), ids[i]); });
+      const resolveDeps = (raw, selfIdx) => {
+        const out = [];
+        for (const d of Array.isArray(raw) ? raw : []) {
+          if (typeof d === "number" || /^\d+$/.test(String(d ?? ""))) {
+            const k = Number(d);
+            if (Number.isInteger(k) && k >= 1 && k <= rows.length && k - 1 !== selfIdx) out.push(ids[k - 1]);
+            continue;
+          }
+          const mapped = byOldId.get(String(d));
+          if (mapped && mapped !== ids[selfIdx]) out.push(mapped);
+        }
+        return [...new Set(out)].slice(0, 8);
+      };
       h.transaction(() => {
         clearTasks.run(id);
         rows.forEach((t, i) => {
           insTask.run(
-            newId("jt"), id, i,
+            ids[i], id, i,
             scrub(String(t?.title ?? "").trim()).slice(0, 300) || `task ${i + 1}`,
             t?.seat ?? null,
             JSON.stringify((Array.isArray(t?.skillsRequired) ? t.skillsRequired : []).map(String).slice(0, 8)),
             JSON.stringify((Array.isArray(t?.steps) ? t.steps : []).map((s) => scrub(String(s)).slice(0, 2_000)).slice(0, 12)),
-            t?.status ?? "planned", null, null, null, "[]", null, now, now);
+            // Phase C · task 9 — these used to be hardcoded null/"[]", which meant a RE-PLAN
+            // wiped the engine ids and the changed paths of every row, finished ones included.
+            // With ship-as-you-go a finished task's changedPaths are what ship() commits, so
+            // dropping them silently un-shipped work that was already done (SEQ-2). On a first
+            // plan the fields are absent and the result is identical to before.
+            t?.status ?? "planned",
+            t?.goalId ?? null, t?.taskId ?? null, t?.deliveryId ?? null,
+            JSON.stringify((Array.isArray(t?.changedPaths) ? t.changedPaths : []).map(String).slice(0, 100)),
+            t?.blockedOn ?? null, JSON.stringify(resolveDeps(t?.dependsOn, i)),
+            // Carried, like every field a re-plan must not reset (SEQ-2). resumeCount above all:
+            // the once-only resume is a counter, and a re-plan that zeroed it would grant a second.
+            t?.questionTo ?? null, t?.question ? String(t.question).slice(0, 1_000) : null,
+            t?.answer ? String(t.answer).slice(0, 4_000) : null, t?.answerFrom ?? null,
+            Math.max(0, Math.floor(Number(t?.resumeCount) || 0)),
+            now, now);
         });
       })();
       // 12.2 — the board's live signal. A JOB's status changes a handful of times; its TASKS
@@ -229,11 +286,16 @@ export function createJobs({ db, scrub = (t) => t, emit, clock = () => Date.now(
         deliveryId: patch.deliveryId ?? row.deliveryId,
         changedPaths: patch.changedPaths ? JSON.stringify(patch.changedPaths) : row.changedPaths,
         blockedOn: patch.blockedOn === undefined ? row.blockedOn : patch.blockedOn,
+        questionTo: patch.questionTo === undefined ? row.questionTo : patch.questionTo,
+        question: patch.question === undefined ? row.question : (patch.question === null ? null : String(patch.question).slice(0, 1_000)),
+        answer: patch.answer === undefined ? row.answer : (patch.answer === null ? null : String(patch.answer).slice(0, 4_000)),
+        answerFrom: patch.answerFrom === undefined ? row.answerFrom : patch.answerFrom,
+        resumeCount: patch.resumeCount === undefined ? row.resumeCount : Math.max(0, Math.floor(Number(patch.resumeCount) || 0)),
       };
       h.prepare(
-        `UPDATE job_tasks SET seat=?, status=?, goalId=?, taskId=?, deliveryId=?, changedPaths=?, blockedOn=?, updatedAt=?
+        `UPDATE job_tasks SET seat=?, status=?, goalId=?, taskId=?, deliveryId=?, changedPaths=?, blockedOn=?, questionTo=?, question=?, answer=?, answerFrom=?, resumeCount=?, updatedAt=?
          WHERE id = ?`,
-      ).run(next.seat, next.status, next.goalId, next.taskId, next.deliveryId, next.changedPaths, next.blockedOn, Date.now(), taskRowId);
+      ).run(next.seat, next.status, next.goalId, next.taskId, next.deliveryId, next.changedPaths, next.blockedOn, next.questionTo, next.question, next.answer, next.answerFrom, next.resumeCount, Date.now(), taskRowId);
       // 12.2 — see setTasks. The frame names the JOB because that is what the board re-reads.
       fire("job.changed", { id: row.jobId, status: getJob.get(row.jobId)?.status ?? "unknown" });
       return hydrateTask(getTask.get(taskRowId));

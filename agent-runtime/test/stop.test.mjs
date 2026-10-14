@@ -1,6 +1,7 @@
 // P1-F1 — POST /runtime/:agentId/stop. Boots a REAL server on an alternate port with the
 // mock backend (free, deterministic). Proves: token+host gate, kill of a live mock stream,
 // interrupted marker on the saved thread, and 404 when nothing is running.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

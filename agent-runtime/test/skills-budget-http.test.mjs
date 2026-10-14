@@ -2,6 +2,7 @@
 // runtime. Pins: GET /runtime/:id/skills carries {budget:{used,raw,max,trimmed}},
 // budget.used never exceeds budget.max, and an empty station reports used 0 with the
 // index note's length only when RUNTIME_SKILL_INDEX is on (off here → 0).
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

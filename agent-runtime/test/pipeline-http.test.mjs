@@ -5,6 +5,7 @@
 //   → POST /answer → story `active` + auto-advances into design + a `design-approval` gate
 //   → approve the design gate → story advances to `plan`.
 // Plus the answer route's adversarial sweep: no-token 401, unknown story 404, empty answer 400.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

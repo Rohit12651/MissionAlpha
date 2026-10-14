@@ -18,6 +18,7 @@
 // What this pins: an is_error turn is streamed as an ERROR, streams no assistant tokens,
 // and leaves history holding a MARKED failure notice instead of the provider's prose —
 // the turn happened and failed, and the thread says exactly that.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

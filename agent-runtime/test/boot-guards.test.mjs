@@ -10,6 +10,7 @@
 // Every case boots the server against a THROWAWAY git repo in $TMPDIR with fully
 // isolated RUNTIME_* dirs — the live MissionAlpha checkout is never the target and
 // no worktree/branch is ever registered against it.
+import "./fixtures/isolate-state.mjs"; // FIRST — the booted server must not touch live runtime state (STATE-ISO-2)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";

@@ -372,3 +372,56 @@ export function buildSkillIndex({ curated = [], names = [], budget = DEFAULT_SKI
 
   return truncateAtBoundary(parts.join("\n"), resolveBudget(budget));
 }
+
+// ── Phase D · task 12 — THE TEAM BLOCK ────────────────────────────────────────
+// A seat spawned for a job was told who IT is and what it may write, and nothing about who
+// else was on the job. It could not ask a peer because it did not know one existed, and it
+// could not answer one because nothing told it to read its mail. The mailbox shipped in
+// Phase 8 and no worker used it in any live run.
+//
+// Written for the agent that reads it (writing-for-agents): positive steps, each ending on a
+// criterion the seat can check, peers named by the id `mail_send` takes. The format is
+// `key: value` lines between fences so a test can PARSE it (team-block.test.mjs), which is
+// what lets the wording improve without the contract moving.
+const TEAM_OPEN = "--- TEAM ---";
+const TEAM_CLOSE = "--- END TEAM ---";
+const MAX_TEAM_TITLE = 200;
+
+/**
+ * Operator text becomes ONE line. The title is the only field here a human typed; a newline
+ * in it would let it add a `peer:` or `step:` line, and the fence text would let it close the
+ * block early. Everything else comes from the roster, whose ids are validated on write.
+ */
+function teamLine(text) {
+  return String(text ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .split(TEAM_CLOSE).join("END_TEAM")
+    .split(TEAM_OPEN).join("TEAM")
+    .trim()
+    .slice(0, MAX_TEAM_TITLE);
+}
+
+/**
+ * PURE. The block a WORKER seat is handed when it runs a job task, or "" when there is no
+ * team to talk to — no job, or no other worker. Only `worker` seats are peers: they are the
+ * seats the Manager assigns job tasks to, and the only ones a job's questions can reach.
+ */
+export function teamBlock({ self, workers = [], job = null, managerId = "tech-lead" } = {}) {
+  if (!job?.id) return "";
+  const peers = (Array.isArray(workers) ? workers : [])
+    .filter((w) => w && w.role === "worker" && w.id && w.id !== self);
+  if (!peers.length) return "";
+  return [
+    TEAM_OPEN,
+    `job: ${teamLine(job.id)}`,
+    `title: ${teamLine(job.title)}`,
+    `you: ${teamLine(self)}`,
+    `manager: ${teamLine(managerId)}`,
+    ...peers.map((p) => `peer: ${p.id} | skills: ${(p.skills || []).join(", ")}`),
+    "step: Call mail_read before you start. You are ready to work when you have read every message addressed to you.",
+    'step: When a peer has asked you a question, reply to that peer by id with mail_send kind "answer", giving the fact they asked for.',
+    `step: When your task needs a fact only a peer holds, send that peer mail_send kind "question", then send ${teamLine(managerId)} mail_send kind "blocked" naming the peer, and end your turn. The runtime resumes this task with the answer in its brief.`,
+    'step: Call mail_read once more just before you finish, and answer every question addressed to you. You are finished when your inbox holds no unanswered question.',
+    TEAM_CLOSE,
+  ].join("\n");
+}
