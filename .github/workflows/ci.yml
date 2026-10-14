@@ -16,6 +16,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# CI runs code agents wrote (every push, any branch). Read-only token, and no credentials left in
+# .git/config for that code to find — nothing here pushes, comments or releases (2026-09-27).
+permissions:
+  contents: read
+
 jobs:
   runtime:
     name: agent-runtime suite (S1→S3.5 + S4 audit-read)
@@ -25,6 +30,8 @@ jobs:
         working-directory: agent-runtime
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -41,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
