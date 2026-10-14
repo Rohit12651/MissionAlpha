@@ -463,3 +463,365 @@ all?" The panel was a symptom; four new classes came out of chasing it.
   timing tests that pass at 601–11426 ms clean took 6.7–47 s and failed. Baseline timings from
   the same day made the attribution provable in minutes instead of hours. **Keep the clean
   run's output file — it is the control group.**
+
+## Phase B — Recovery (2026-09-17)
+
+Three classes, all found at the Phase B exit gate rather than during the work.
+
+61. **A refactor that MOVES code silently un-pins every ratchet aimed at its old address.**
+    Step 1 lifted the mail MCP env out of `server.mjs:2137` into a pure `mailEnvFor()` in
+    `mail-env.mjs`. `SEAT-12` hunts the `server.mjs` AST for an `ObjectExpression` carrying
+    `MA_MAIL_AGENT_ID`; after the lift there is none, so `envNode` was `null` and the test
+    failed — but the claim it protects (identity bound, scopes not leaked) was never in
+    danger, because `mail-env.mjs` still built exactly the right env and `MAILENV-1..3`
+    proved it behaviourally. The ratchet was not wrong about the code; it was pointed at an
+    address the code had left. **When you extract code, grep the test tree for the OLD
+    location before you finish the extraction** — a ratchet reading an AST names its target
+    by path, and no type checker or linter will tell you the path went stale. The repair is
+    not to delete the ratchet: SEAT-12 now pins BOTH halves, the call site
+    (`env: mailEnvFor(...)` must exist in `server.mjs`) and the shape (on `mail-env.mjs`'s
+    own AST), so the next move breaks it loudly instead of quietly un-pinning the claim.
+
+62. **A gate that ran a SUBSET is not the gate, and it reports the same word.** Phase A and
+    Phase B both recorded "runtime regression green" from a partial invocation. The full
+    `npm run test:runtime` — all 204 files — had `SEAT-12` red the whole time, from the Step 1
+    extraction onward. Two phase exits passed over it. This is #9 ("check the probe's premise")
+    at the level of the CONTRACT rather than a single probe: the number in a delivery report is
+    a claim about a command, and a subset silently answers a different question than the one
+    the gate asked. **The number, once the full suite finally ran: 2647 tests.** Both phase exits
+    had recorded "329/329" — one EIGHTH of the suite — and read it as the whole contract. **Record the exact command with the count, and make the phase-exit run the
+    whole suite even when the last one was minutes ago.**
+
+    Sub-lesson, cheap and expensive: `npm run test:runtime | tail -20` throws away everything
+    but the end of the run. The first full run showed exactly one `✖` and no summary counts —
+    the summary counts were not missing, they had scrolled past `tail`, and any earlier failure
+    would have scrolled with them. **Redirect a gate's output to a file; never pipe a gate
+    through `tail` or `head`.**
+
+63. **A mutation anchored on an indented line can match a DEEPER-indented twin.** Proving the
+    three question-gate fixes, the anchor for the blocked-with-no-replan site
+    (`        jobs.setQuestions(job.id, [q]); // …`, 8 spaces) is a strict substring of the
+    escalate site's identical line at 10 spaces. The patcher's `count(old) == 1` assertion
+    refused it. Without that assertion the mutation would have landed on the escalate site —
+    already proven by an earlier mutation — and the blocked-site test would have gone red for
+    the wrong reason, reading as proof. This is #13 with a new mechanism: not quoting style or
+    whitespace normalisation, but **one indent level being a substring of another**. **Every
+    mutation asserts its target is unique, and anchors on a neighbouring distinct line when it
+    is not.**
+
+### Method notes
+
+* **#11 fired again, and the reviewer caught it, not the author.** `setQuestions()` was fixed
+  at the intake path and called done; three other sites mint the same `kind:"question"` gate
+  and none of them touched `jobs.questions`. The fix site was where the bug was REPORTED. The
+  enumeration that would have caught it is one grep: `mintGate({ kind: "question"`.
+* **A behavioural test beats an AST ratchet at the same claim.** `MAILENV-3` (roles only, no
+  scope leak) survived the extraction untouched because it calls the function; `SEAT-12`'s AST
+  version broke because it reads an address. Prefer the call when the claim can be made by
+  calling.
+
+64. **A test that loads REAL seed data while hardcoding the validator's input is a cache that
+    fails closed — at IMPORT, as `pass 0`.** `guards-writescope`, `glob-redos` and
+    `roster.test` each opened the live `agent-runtime/roster.json` but passed
+    `validSkills: new Set(["repo-read", "research-brief", "ui", "api", "db", "test",
+    "notifications"])` — a 7-id copy of a catalog that lives in `factory.mjs` and had grown to
+    15. Adding the `ceo` seat (skill `strategy-gate`) made the copy stale, `parseRoster` threw
+    inside module scope, and all three files died before a single test ran. The reporter says
+    `✖ <file>` and `pass 0` — NOT `fail 1` — so the damage looks like one failure and is
+    actually an entire file of coverage silently gone. Production was never affected:
+    `server.mjs:2371` derives the same set from `factory.SKILL_CATALOG`. **When a test feeds a
+    validator, derive the validator's input the way production derives it; a hardcoded copy of
+    a governed list two files away buys nothing and goes stale the first time the list grows.**
+    Fixed by replacing all three copies with `new Set(SKILL_CATALOG.map((sk) => sk.id))`, and
+    mutation-proven: a bogus skill id in `roster.json` still reds 11 tests, so widening the set
+    did not disable the check.
+
+    Second-order lesson, and the reason this sat unseen: it was introduced by the CEO-agent
+    work EARLIER IN THE SAME SESSION, in a file (`roster.json`) that no gate in that task's
+    scope re-ran. `strategy-gate` was correctly added to `factory.mjs`'s catalog — the place the
+    task was thinking about — and the three test-side copies were never enumerated. #11 with the
+    duplicate living in TEST code, where "fix where the class lives" is easy to forget because
+    tests do not feel like call sites. **`grep -rl` the literal you are adding, tests included.**
+
+65. **A `skipped` count can hide SECURITY coverage that an unrelated action switched off.**
+    The clean runtime run reported `pass 2636 · fail 0 · skipped 11` and was recorded as the
+    gate. Eleven is a small number next to 2636 and reads like housekeeping. It was not: all
+    eleven are Docker-gated, and they are the sandbox containment suite — *host filesystem is
+    NOT reachable*, *rootfs is read-only*, *network egress is BLOCKED by default*, *runs as
+    non-root (uid 65534)*, *the docker socket is NOT present inside the container*, *kill-switch
+    terminates a runaway*, plus the three `WIRED-1`/`VETO-LIVE-1`/`VETO-LIVE-2` quality-gate
+    tests. They skipped because **I had killed the Docker VM twenty minutes earlier** to quiet
+    the host for Playwright. The suite said so in plain text — `# Docker daemon unreachable —
+    the jailed quality gate cannot be exercised here` — and the summary line reduced it to the
+    word "skipped".
+
+    Two rules. **Read what skipped, never just how many.** A skip is a test that did not run;
+    whether that matters depends entirely on which one. And: **an action taken to make a gate
+    pass can silently weaken a different gate.** Killing the VM fixed the timing flakes
+    (`JOBHTTP-9` 155.9 s → 8.9 s) and disabled the containment suite in the same stroke. The
+    honest sequence is restore the dependency, re-run the skipped tests, and record THAT number
+    — not to quietly keep the green one.
+
+    Corollary on identification: the VM was killed as an "orphan" because `ps` showed its parent
+    as PID 1. macOS reparents XPC children to launchd, so `PPID == 1` is the NORMAL state for a
+    Virtualization.framework VM, not evidence of abandonment. It was Docker Desktop's VM, and
+    the sibling `com.docker.virtualization` process named its owner plainly. **Identify a
+    process by its siblings and its binary path, never by its parent pid.**
+
+66. **A dependency stored as a POSITION dies at the first reorder, and validates on the way.**
+    Phase D's `dependsOn` arrives from the planner as 1-based task numbers, which is the only
+    shape a model can reliably produce. `job_tasks` rows are then REORDERED by a re-plan
+    (`manager.mjs` maps `out.order` onto the existing rows and hands them back to `setTasks`,
+    which re-mints every id). Storing the number would silently repoint every edge at whatever
+    task landed in that position — a graph that still passes every validation and means
+    something else. The store resolves numbers to row ids at write time, and accepts the ids a
+    re-plan carries back, so an edge survives the one operation in the runtime that renumbers
+    tasks.
+
+    **Rule:** an identifier that indexes a mutable ORDER is not an identifier. Resolve it to a
+    stable one at the boundary where the order is still known, and pin it with a test that
+    actually performs the reorder — asserting the first write is not the claim.
+
+67. **A gate that greps the WHOLE FILE cannot fail when the file keeps its own history.**
+    `MP-GATE` asserted that `manager-prompts.mjs` matched `APPROVED-BY: BOSS <date>`. That file
+    deliberately retains every prior approval in its header as a record, so a granted line from
+    2026-09-05 satisfied the test while the GOVERNING line at the top read `_PENDING BOSS_`.
+    Green for three phases, and cited as evidence twice, on a control surface whose entire
+    purpose is to stop a live run.
+
+    This is #5 (a ratchet must be proven to fire) applied to a gate nobody thought of as a
+    ratchet, and #13's mutation step is what would have caught it in one command.
+
+    **Rule:** when a file carries both a CURRENT value and its own history, a check that
+    searches the file is checking the history too. Anchor on the governing occurrence — the
+    first line, a named marker, a parsed field — and ship a synthetic BAD/GOOD pair inside the
+    test so the anchoring itself is asserted on every run.
+
+68. **"Unknown" must resolve to the REFUSING answer, not the convenient one.**
+    Ready-set dispatch runs two seats at once only when their enforced `writeScope`s are
+    disjoint. Three things can make that unreadable: a seat the roster does not hold, a seat
+    with no declared scope, and — the one that is easy to miss — a seat whose role is not
+    `worker`, because `applyAllowed` narrows ONLY workers and every other role keeps the full
+    allow-set. A `station` seat carrying a `writeScope` field is not bounded by it, so reading
+    that field as a bound would hand two unbounded seats the same tree.
+
+    Each of those returns "collide", which degrades to the previous phase's sequential
+    behaviour. The property worth stating: an install that migrates and changes nothing else
+    behaves exactly as it did, and parallelism is granted only where the runtime can PROVE it
+    safe.
+
+    **Rule:** when a new optimisation keys off a value read from configuration, enumerate every
+    way that read can come back uninformative and make each one take the old, slow, safe path.
+    A default that means "go ahead, I found no reason to refuse" is how an optimisation becomes
+    a data-loss bug — and check the ROLE-gated case specifically, because a field that exists
+    on a record is not the same as a field that is enforced for it (#1).
+
+69. **A condition the spec named can still be UNREACHABLE, and only the mutation tells you.**
+    The ready-set spec named three conditions for dispatching a task: predecessors done, seat
+    free, scope disjoint. All three were implemented, all the tests were green, and the review
+    read fine. Then the mutation that DELETED the seat-free branch reddened nothing — in any
+    test, anywhere. The branch could not be reached: a seat's `writeScope` is the same array
+    whichever of its tasks you ask about, and the disjointness predicate is reflexively false,
+    so the scope check already refused a seat its own second task.
+
+    This is the inverse of #13. There, a ratchet looked correct and could not FAIL. Here, a
+    guard looked correct and could not RUN. Both are invisible in review and both are one
+    command away from being obvious.
+
+    **Rule:** mutate every branch you add, including the ones a spec or a plan told you to
+    write — a design document is a hypothesis about what the code will need, not evidence that
+    the code needs it. A branch whose deletion reddens nothing is either untested or
+    unreachable; find out which before shipping it. If it is subsumed by a neighbouring check,
+    DELETE it and pin the subsumption in a test, so the day the neighbour's property changes a
+    test says so instead of a silent gap opening.
+
+70. **A guard that DISARMS ITSELF on its own success.**
+    `ship()` refuses when the tree the BOSS approved disagrees with the branch's current tree.
+    It works — live run 6 executed the comparison and passed it. Then the same function's final
+    `setSummary` rebuilt the `ship` object from scratch instead of spreading the existing one,
+    erasing `tree` and `worktree` from the record. The first ship is therefore guarded and
+    every subsequent one is not: a resume, a retry or a second operator approval reads
+    `known.tree` as `undefined`, skips the comparison, and the branch-moved refusal silently
+    stops existing.
+
+    Two things made it invisible. The guard's own test shipped once and asserted the refusal
+    fired — nothing asserted the STATE AFTER a successful ship. And the summary is written by
+    four different call sites, three of which spread correctly, so the diff of the fourth read
+    like its neighbours.
+
+    **Rule:** when a control reads persisted state written by an earlier stage, test the
+    SECOND invocation, not only the first. And any write to a shared state object is a MERGE
+    (`{...existing, ...changes}`) unless you can name the field you intend to erase — a fresh
+    object literal in a multi-writer record is a silent delete of everything the other writers
+    put there. Grep the other writers of the same key before writing the one in front of you.
+
+71. **An isolated run isolates the CREDENTIAL too, and it fails as a capability error.**
+    Live run 6's first attempt failed both tasks with `kind: "not-capable"`, reason `no account
+    is active`. The account record lives in `accounts.json` inside `RUNTIME_TOKEN_DIR`, which
+    the isolation set overrides — so a harness that correctly protects the operator's repo also
+    silently removes the operator's account. And the record is encrypted with a `cred.key` in
+    the same directory, so copying the account without the key yields a record nothing can
+    open.
+
+    It reads as a product defect ("the engine says it is not capable") when it is a harness
+    fact, which is #9 — check the probe's premise — applied to a whole run rather than a test.
+
+    **Rule:** an isolation set has TWO halves that pull in opposite directions: state that must
+    be fresh (repos, worktrees, databases) and state that must be carried (credentials, keys,
+    personas, the `.env` values the app reads at boot). Enumerate both before a live run, and
+    verify the carried half at the health endpoint — `activeAccount: null` was visible in the
+    very first health response, minutes before the first task failed.
+
+72. **A copy re-stamped at delivery time reorders the conversation it copies.**
+    The mailbox CC's `question` to the Manager so it can resume the asker. The copy was given a
+    FRESH ulid when `route()` ran; the seat's own `blocked`, addressed to the Manager directly,
+    kept its send-time id. The inbox is read in id order. Live run 7: question sent at +130.8 s,
+    blocked at +134.0 s, question's copy stamped +181.6 s — so the Manager read the block BEFORE
+    the question that explained it, filed a plain `blocked`, and replanned a task that was only
+    waiting for an answer. Every unit test fed the Manager a hand-built array in the right order,
+    so none could see it; only a real mailbox under a real heartbeat could.
+
+    **Rule:** when a system orders by a timestamp-bearing id, a derived record must inherit its
+    source's position, never mint a new one at the moment it is derived. Test ordering through
+    the REAL store (MAIL-CC-ORDER-1), with a deliberate gap between send and route — an array a
+    test builds is already in the order the author imagined.
+
+73. **A message to an agent with no turn left is a message to nobody.**
+    Seats get one model turn per task. Phase D's first design let a seat ask a peer and wait,
+    and live run 8 showed the flaw in one line of timing: the backend finished its turn at +0 s,
+    the frontend asked at +44.5 s, and the question sat addressed to a seat nothing would ever
+    run again. The frontend waited correctly — `awaiting-answer`, not blocked — for thirty
+    minutes of stall clock. Waiting was right; waiting for something that could not happen was
+    the bug. The runtime now GIVES the answerer a turn (`replyOnly`) when it is asked and has
+    none of its own, and checks again when its own task finishes, which closes the race where
+    a seat's final `mail_read` runs a moment before the question lands.
+
+    **Rule:** in any system of turn-bound agents, every "wait for X" needs a named mechanism that
+    makes X happen, and that mechanism must cover the case where X's owner has already left. A
+    mailbox is not a conversation if only one side is ever scheduled.
+
+74. **The harness that proves the code is held to the same rules as the code.**
+    Four times this phase my own verification tooling broke a rule this file already states.
+    (1) The mutation harness piped `node --test` into `grep` (#24): every leg, including the
+    restore check, printed nothing, which read as "no failures". (2) TICK-1's first draft
+    HUNG on red instead of failing (#8): without the lease the second tick awaited the same
+    hanging stage, so the red state was a deadlock. (3) Two mutation runs were about to share
+    one `pristine.tmp`; run concurrently, a restore could have written the other file's
+    contents back. (4) A `pkill -f server.mjs` identified processes by pattern (#65).
+
+    **Rule:** a verification tool gets the same review as production code — it decides what you
+    believe. Specifically: capture to a file, bound every await in a test that is meant to go
+    red, give concurrent runs private scratch, and kill by recorded PID.
+
+75. **"Not applicable" and "unknown" are different answers; a write path may not merge them.**
+    `applyAllowed(p, { seat: undefined })` returned the legacy allow-set: every seed path. That
+    is correct for patch-edit and policy, which never HAD a seat to give. It was wrong on the
+    engine broker and the ship ladder, where no seat means the task's seat could not be
+    RESOLVED — an agentId off the roster, a swept queue record — so the writeScope narrowing
+    never ran and the task inherited the whole tree. One `undefined` stood for both "this caller
+    does not narrow" and "I could not tell who wrote this". Phase E · 16 split them: `strict`
+    callers (engine, ship) refuse the unresolved case; the census test GUARD-2 pins which callers
+    are allowed to stay legacy, by file.
+
+    **Rule:** when a guard's input can be missing, ask WHY it is missing at each call site. If
+    the answer is "we failed to look it up", that caller must fail closed, and the guard needs a
+    way to be told so.
+
+76. **A name is not a definition — check which one this file uses.**
+    Two findings in one task. (1) `factory.mjs` runs `bash <REPO_ROOT>/scripts/agent-heartbeat.sh`,
+    which read as the same foreign-script hole as server.mjs. It is not: factory declares its OWN
+    `REPO_ROOT = resolve(__dir, "..")`, always the runtime's repo, while guards.mjs's `REPO_ROOT`
+    follows RUNTIME_REPO_ROOT. Same name, different meaning. (2) `pr-job-branch.test.mjs`'s
+    scaffold passes `allowed: (p) => …` to `createPr`, which reads `deps.applyAllowed`. The
+    injection is silently ignored and every test in that file runs the REAL predicate — the
+    fixture believes it narrows, and never has (left as is; disclosed, not in scope).
+
+    **Rule:** before calling a site vulnerable, or a fixture effective, open the definition the
+    site actually resolves — not the one with the same name you read earlier. An options bag
+    that ignores unknown keys turns a typo into a vacuous test.
+
+77. **A model that declines is not a boundary that refuses.**
+    The first live JAIL-1 probe asked a worker to `echo pwned > ~/…` with and without the sandbox.
+    Both runs ended with no file — and both because the MODEL declined ("suspicious filename"),
+    not because anything stopped it. Read naively, the jailed run "passed". The control is what
+    exposed it: a control that cannot produce the bad outcome makes the treatment's clean result
+    meaningless. The second probe put the write inside `./build.sh` (ordinary work a worker runs
+    without a second thought): control → file written; jailed →
+    `./build.sh: line 3: …: Operation not permitted`, no file.
+
+    **Rule:** when proving an enforcement boundary live, the control run must SHOW the bad outcome
+    first. If the agent refuses on its own, the probe measured the agent's manners, not the fence.
+
+78. **A decision must check it is still the decision's turn.**
+    `onGateDecided("approve")` moved a job to `planned` from whatever status it was in, and
+    `/answer` called it whenever no gate was open. That was harmless while every status that
+    could reach `planned` was one the BOSS had already passed. Phase F added `strategy`, and
+    `strategy → planned` is store-legal — so an answer posted while the CEO was still deciding
+    skipped the CEO. Nothing about the gate was wrong; the handler never asked whether the job
+    was WAITING for it. Found by the independent review, not by any test I had written.
+
+    **Rule:** every approve/decide/answer handler checks that the object is in the state that
+    asked for the decision, and refuses (409) otherwise. A transition table says what moves
+    are legal; it does not say whose turn it is. And a note that a prompt "must not run live
+    until approved" is addendum #1 again — the approval is now a flag the dispatcher enforces,
+    and REV-8 fails if the flag and the header disagree.
+
+79. **Consent is a token, not a word search.**
+    The first `deferAnswer` looked for yes-words and no-words anywhere in the BOSS's answer. It
+    passed its own tests and an independent reviewer still made it say YES to
+    "I don’t want to go ahead" (a typographic apostrophe `’` slipped past `don'?t`) and to
+    "ok, hold off until Q3" (`ok` matched). Natural language cannot be word-matched into a
+    decision that stops or ships work.
+
+    **Rule:** when an answer decides an irreversible branch, accept ONE whole token from a closed
+    set (after NFKC and quote normalisation) and refuse everything else as "ask again". A wrong
+    guess costs the job; a re-ask costs one message.
+
+80. **A hardening flag can break the command it hardens — and a probe that stops early proves nothing.**
+    Two findings on git in one task. (1) `GIT_SAFE_ARGS` carries `-c diff.external=` (empty) to
+    stop a repo from naming an external diff program. For a CONTENT diff, git then tries to run
+    the program `""` and dies — invisible for years because every hardened diff in the runtime was
+    `--name-only`. Adding the same args to the review diff broke it at once (DIFF-1/2); the fix is
+    `--no-ext-diff`, which disables drivers outright. (2) The probe for "does `gh pr create` run
+    git in the worktree?" stopped at a 401 before reaching any git call, so it could not answer
+    the question. The class was closed by mechanism instead — the runner's environment carries the
+    hardening, proven with a planted fsmonitor that a plain `git status` DOES fire (PR-GITENV-0).
+
+    **Rule:** test a hardened command's OUTPUT, not just that it ran; and when a probe cannot
+    reach the code path in question, say "unverified" and close the class with a mechanism whose
+    premise you have watched fire.
+
+81. **An allowlist of "dangerous files" is never finished — invert it where the process loads the code.**
+    CORE_GUARD grew from 14 rows to 61 across three security passes, and each pass found more
+    control files missing: the last census still left 66 runtime modules appliable by an agent.
+    The list could not converge, because the question it answered ("is this module control?") has
+    one honest answer for code the runtime process imports: yes — any module that runs in-process
+    can patch what the others enforce. Decision #1 (2026-09-27) inverted it: under
+    `agent-runtime/`, only the two test dirs are appliable (RUNTIME_FLOOR); everything else,
+    including files that do not exist yet, is refused (RTF-1 runs the whole tree, RTF-2 new paths).
+    An exemption is only as safe as its premises, so both are pinned and watched fire: the runtime
+    never imports from a test dir (RTF-4, mutation M2 red) and a symlink cannot carry a write out
+    of one (RTF-7). And one more vacuous test, caught by its mutation: the first "deleting a
+    runtime module is refused" test used the job-ship `commitTask`, which copies file bodies and so
+    refuses a deletion of ANY path as "unreadable" — green with the floor removed. It now runs on
+    the P5 ladder (`git add -- path` stages deletions) with a premise arm that watches the
+    deletion land when the gate allows it (RTF-6b/6c).
+
+    **Rule:** when every review adds rows to a deny list, stop adding rows. Deny the directory,
+    allow the named exception, and pin the premises that make the exception safe.
+
+82. **A process that starts children owns their death — and a test that boots the product owns its state.**
+    `kill <runtime pid>` exited the server and left the `claude -p` seat it had dispatched running as
+    an orphan (PPID 1), still spending: no signal handler, and the children shared the server's
+    process group, so nothing reached them. Fixed by spawning every CLI child detached through one
+    registry and killing each group on SIGTERM/SIGINT, exiting synchronously so no child handler
+    records the kill as a failed attempt (SHUT-1…4; an AST census keeps new spawn sites honest).
+    Detaching moved a seat's subprocesses into the SEAT's group, which exposed the same class in
+    the four per-task kills — each signalled only the CLI — so they now kill the group (SHUT-5/6).
+    The live proof then exposed the second half: 12 server-booting tests isolate the DB but not
+    `engine-store/`, so a test's seeded cadence planted a task in the LIVE queue and the real runtime
+    ran it as a real model turn.
+
+    **Rule:** every spawn site registers its child with whatever handles shutdown, pinned by a census
+    of spawn calls, not a list of the ones you know. And a test that boots the product must override
+    EVERY durable root it reads — enumerate them from the code, not from the test you copied.

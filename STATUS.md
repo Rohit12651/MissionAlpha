@@ -73,6 +73,12 @@ HEAD is `0cc87ee` (+ this docs commit); the 17 commits before it were already un
 
 ## Log
 
+### 2026-10-02 — "The runtime did not answer" on every page: root cause found, fix awaiting approval
+
+- Cause: under `npm run electron:dev`, Electron's main process starts the runtime with settings it does NOT take from `.env` (port hard-coded 3005 at `electron/main.cjs:17`; token dir from the shell env, else the OS temp dir, `main.cjs:18-19`), while the Vite dev proxy the app calls reads both from `.env` (`RUNTIME_PORT=3006`, `RUNTIME_TOKEN_DIR`). Evidence: runtime pid 94289 (Electron child) listens 127.0.0.1:3005 → `/runtime/health` 200; via Vite 3004 → 500 (`ECONNREFUSED 127.0.0.1:3006`); 3006 → nothing; and on 3005 the token Vite serves gets 401.
+- Not a code regression from today: the pin and the picker allow-list predate this work; `.env` is local and gitignored.
+- No code changed. Fix is in `electron/` (outside scope) → awaiting BOSS approval.
+
 ### 2026-10-02 — commit group 5 landed: `0cc87ee`
 
 - `feat: Landing + Setup first run` — 15 files (12 + JobBoard.tsx, jobsClient.ts + test as build dependencies, BOSS option a; staged count verified; secret scan clean). Not pushed.
