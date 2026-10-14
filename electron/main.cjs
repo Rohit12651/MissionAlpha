@@ -14,11 +14,18 @@ const { exec: cpExec } = require("node:child_process");
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-const RUNTIME_PORT = 3005;
-const RUNTIME_TOKEN_DIR =
-  process.env.RUNTIME_TOKEN_DIR || join(tmpdir(), "missionalpha-runtime");
-const TOKEN_FILE = join(RUNTIME_TOKEN_DIR, ".runtime-token");
 const isDev = !app.isPackaged;
+// Packaged: pinned (the CSP and preload name 127.0.0.1:3005). Dev: the port and token dir the
+// Vite dev proxy reads from the repo .env, so the app's calls reach this runtime and its token
+// matches the one Vite serves (runtime-env.cjs devRuntimeTarget).
+const RUNTIME_PINS = {
+  port: 3005,
+  tokenDir: process.env.RUNTIME_TOKEN_DIR || join(tmpdir(), "missionalpha-runtime"),
+};
+const { port: RUNTIME_PORT, tokenDir: RUNTIME_TOKEN_DIR } = isDev
+  ? require("./runtime-env.cjs").devRuntimeTarget(readRepoDotenv(), process.env, RUNTIME_PINS)
+  : RUNTIME_PINS;
+const TOKEN_FILE = join(RUNTIME_TOKEN_DIR, ".runtime-token");
 
 // Server path: dev → repo sibling; packaged → extraResources bundle.
 const RUNTIME_DIR = isDev
@@ -88,12 +95,22 @@ let win = null;
 let repoRoot = process.env.RUNTIME_REPO_ROOT || null;
 let repoRootFile = null; // initialised in boot() once userData is available
 
+/** The repo-root .env text, or "" (packaged builds have none). */
+function readRepoDotenv() {
+  try { return readFileSync(join(__dirname, "..", ".env"), "utf8"); } catch { return ""; }
+}
+
 function buildSupervisorEnv() {
+  // Step 0 — the desktop child takes allow-listed RUNTIME_* keys from the REPO-ROOT .env
+  // through one picker (runtime-env.cjs), parsed the way Node's --env-file parses the
+  // CLI's agent-runtime/.env. Different file, same rules. Process env wins.
+  const picked = require("./runtime-env.cjs").pickRuntimeEnv(readRepoDotenv(), process.env);
   return {
     ...process.env,
+    ...picked,
     RUNTIME_PORT: String(RUNTIME_PORT),
     RUNTIME_TOKEN_DIR,
-    RUNTIME_BACKEND: process.env.RUNTIME_BACKEND || "cli",
+    RUNTIME_BACKEND: picked.RUNTIME_BACKEND || "cli",
     WAAHYU_STATE_PATH: process.env.WAAHYU_STATE_PATH || join(app.getPath("userData"), "agent-status", "state.json"),
     ...(repoRoot ? { RUNTIME_REPO_ROOT: repoRoot } : {}),
   };
