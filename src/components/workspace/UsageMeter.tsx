@@ -44,31 +44,21 @@ export function UsageMeter({ usage }: { usage: TurnUsage | null }) {
   // Always render — fall back to the zero-state when no turn has completed yet.
   const u = usage ?? ZERO_USAGE;
   const pct = Math.round(u.contextPct * 1000) / 10; // one decimal
-  // bar color escalates with fill: green → amber → red as context fills
-  const accent = u.contextPct < 0.6 ? "done-green" : u.contextPct < 0.85 ? "blocked-amber" : "stale-red";
-  const ac = tok(accent);
+  // Phase G (ADR G-2): the mockup's `.meter` — a context-window ring and its percent.
+  const RING = 50.3; // 2πr, r = 8
   return (
-    <div
-      className="flex items-center gap-2 rounded-md px-2 py-1"
-      style={{ backgroundColor: tok("panel-2"), border: `1px solid ${tok("border")}` }}
+    <span
+      className="meter"
       title={`context ${compact(u.contextTokens)} / ${compact(u.contextWindow)} tokens (${pct}%) · in ${u.inputTokens.toLocaleString()} · out ${u.outputTokens.toLocaleString()}${u.cacheReadTokens ? ` · cache-read ${u.cacheReadTokens.toLocaleString()}` : ""}${u.thinkingTokens ? ` · thinking ${u.thinkingTokens.toLocaleString()}` : ""}${u.estimated ? " · estimated" : ""}`}
       aria-label={`Context window ${pct} percent used, ${u.inputTokens} input and ${u.outputTokens} output tokens, tier ${u.tier}${u.estimated ? ", estimated" : ""}`}
     >
-      {/* context-window % bar */}
-      <div className="flex items-center gap-1.5">
-        <div className="h-1.5 w-14 overflow-hidden rounded-full" style={{ backgroundColor: tok("bg") }} aria-hidden>
-          <div className="h-full rounded-full" style={{ width: `${Math.min(100, u.contextPct * 100)}%`, backgroundColor: ac, transition: "width 240ms ease-out" }} />
-        </div>
-        <span className="font-mono text-[10px] tabular-nums" style={{ color: ac }}>{pct}%</span>
-      </div>
-      {/* context-window absolute readout (Claude-Code style: used / total) */}
-      <span className="font-mono text-[10px] tabular-nums" style={{ color: tok("muted") }}>
-        {compact(u.contextTokens)}/{compact(u.contextWindow)}
-      </span>
-      {u.estimated && (
-        <span className="font-mono text-[9px] uppercase" style={{ color: tok("blocked-amber") }} title="estimated (~chars/4); backend returned no token count">~est</span>
-      )}
-    </div>
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeOpacity=".2" strokeWidth="3" />
+        <circle cx="10" cy="10" r="8" fill="none" stroke="var(--brand)" strokeWidth="3" strokeDasharray={RING}
+          strokeDashoffset={RING * (1 - Math.min(1, u.contextPct))} transform="rotate(-90 10 10)" />
+      </svg>
+      <span>{`${Math.round(pct)}%`}</span>
+    </span>
   );
 }
 

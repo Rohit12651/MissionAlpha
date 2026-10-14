@@ -291,3 +291,29 @@ test("needsTypedConfirm: the field's condition, and it does not vanish once the 
   assert.equal(needsTypedConfirm("high", {}), true);
   assert.equal(isApproveBlocked("high", TYPED_CONFIRM, {}), false);
 });
+
+// ── #4 (2026-09-27) — a JOB's gates in the Inbox ──────────────────────────────────────────────
+// A job mints `question` gates for four reasons, told apart by slot (`taskId`): `<job>-q` is the
+// clarify gate and must be ANSWERED; `-hire`, `-esc-N`, `-blocked-T` are yes/no DECISIONS. The
+// pane used to render every one as a story answer box that could only fail.
+import { isJobClarify, isQuestion as isQuestionGate } from "../inboxClient.ts";
+
+test("JOBGATE-1: a job's clarify gate is recognised by its slot, and still reads as a question", () => {
+  const d = D({ kind: "question", jobId: "job_aaaaaaaaaaaa", taskId: "job_aaaaaaaaaaaa-q" });
+  assert.equal(isJobClarify(d), true);
+  assert.equal(isQuestionGate(d), true);
+});
+
+test("JOBGATE-2: a job's hire / escalation / blocked gate is a DECISION, not a question to answer", () => {
+  for (const slot of ["-hire", "-esc-2", "-blocked-task_x"]) {
+    const d = D({ kind: "question", jobId: "job_aaaaaaaaaaaa", taskId: `job_aaaaaaaaaaaa${slot}` });
+    assert.equal(isJobClarify(d), false, slot);
+    assert.equal(isQuestionGate(d), false, `${slot} gets approve/reject, not an answer box`);
+  }
+});
+
+test("JOBGATE-3 (GOOD): a story question and a non-gate delivery are unchanged", () => {
+  assert.equal(isQuestionGate(D({ kind: "question", storyId: "st_1", taskId: "st_1-q0" })), true);
+  assert.equal(isJobClarify(D({ kind: "question", storyId: "st_1", taskId: "st_1-q0" })), false);
+  assert.equal(isJobClarify(D({ kind: "code" })), false);
+});

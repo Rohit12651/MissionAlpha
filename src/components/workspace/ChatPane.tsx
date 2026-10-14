@@ -1,14 +1,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { Send, Bot, User, AlertTriangle, Zap, Check, FileEdit, Paperclip, X, FileText, Image as ImageIcon, Table, Plus, Square, SquarePen, Users } from "lucide-react";
 import { tok } from "../../lib/agentMeta";
 import { PermissionGate } from "../PermissionGate";
-import { ModelTierPicker } from "./ModelTierPicker";
 import { ModesPicker } from "./ModesPicker";
 import { UsageMeter, type TurnUsage } from "./UsageMeter";
 import { PendingIndicator } from "./PendingIndicator";
 import { QuotaChip } from "./QuotaChip";
-import { loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
+import { MODEL_TIERS, loadTier, saveTier, type ModelTier } from "../../lib/modelTiers";
 import { loadAgentModel } from "../../lib/agentModel";
 import { loadCatalog, loadedCatalog, type MissionSkill, type SkillCatalog } from "../../lib/skillsCatalog";
 import { runtimeToken } from "../../lib/runtimeToken";
@@ -148,43 +146,6 @@ export function ChatPane({
     document.addEventListener("keydown", onEsc);
     return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onEsc); };
   }, [plusOpen]);
-  // Composer height. `composerH` is the MANUAL floor set by dragging the top handle
-  // (up = taller, down = shorter). The box ALSO auto-grows to fit large content up to
-  // COMPOSER_MAX, then scrolls. Effective height = clamp(max(floor, contentHeight)).
-  const COMPOSER_MIN = 44, COMPOSER_MAX = 400;
-  const [composerH, setComposerH] = useState<number>(() => {
-    const n = Number(localStorage.getItem("ma.composerH"));
-    return Number.isFinite(n) && n >= COMPOSER_MIN && n <= COMPOSER_MAX ? n : 56;
-  });
-  useEffect(() => { try { localStorage.setItem("ma.composerH", String(composerH)); } catch { /* ignore */ } }, [composerH]);
-  // Auto-grow to content (capped) + honor the dragged floor. Runs on text + floor change.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto"; // reset so scrollHeight reflects content, not prior height
-    el.style.height = Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, Math.max(composerH, el.scrollHeight))) + "px";
-  }, [input, composerH]);
-  // Holds the teardown for an in-flight composer drag so an unmount mid-drag can
-  // remove the window listeners and restore document.body.style.userSelect.
-  const composerDragCleanupRef = useRef<(() => void) | null>(null);
-  const startComposerResize = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    const startY = e.clientY, startH = composerH;
-    document.body.style.userSelect = "none";
-    const onMove = (ev: PointerEvent) => setComposerH(Math.max(COMPOSER_MIN, Math.min(COMPOSER_MAX, startH + (startY - ev.clientY))));
-    const onUp = () => {
-      document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      composerDragCleanupRef.current = null;
-    };
-    composerDragCleanupRef.current = onUp;
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }, [composerH]);
-  // On unmount, tear down any drag still in progress (listeners + userSelect).
-  useEffect(() => () => { composerDragCleanupRef.current?.(); }, []);
-
   // Boss dispatch bridge state.
   const [gateForMsg, setGateForMsg] = useState<number | null>(null);
   const [fired, setFired] = useState<Set<number>>(new Set());
@@ -265,7 +226,8 @@ export function ChatPane({
     setTeamMsg("");
     setChanges([]);
     setApplyMsg("");
-    inputRef.current?.focus();
+    // No focus here: arriving on a page must not steal focus into the composer (the mockup
+    // does not). Explicit asks — the palette's prefill, a skill pick, the "/" button — do.
     if (!isBoss) void fetchChanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, isBoss]);
@@ -602,323 +564,146 @@ export function ChatPane({
     [gateTeamFor, messages, teamSkills],
   );
 
+  // Phase G (ADR G-2): the approved mockup's chat card — two header rows (who, usage, the
+  // permission-mode segment; the model tier and the mode hint), the thread of `.bubble`s,
+  // the `.composer2` form. Sizing is the mockup's: a rows=2 textarea the operator can drag
+  // taller (native `resize: vertical`), replacing the old JS drag handle.
+  const modeHint: Record<AgentMode, string> = {
+    default: "Ask before every tool call", acceptEdits: "Auto-accept edits, ask for other tools",
+    bypassPermissions: "No permission prompts", plan: "Plan only, no execution",
+  };
+  const whoLabel = (role: Msg["role"]) => (role === "user" ? "You (BOSS)" : isBoss ? "Tech Lead" : threadId);
   return (
-    <section role="main" aria-label="Conversation" className="grid h-full min-h-0 grid-rows-[auto_1fr_auto]" style={{ backgroundColor: tok("panel") }}>
-      {/* sticky header */}
-      {/* Header — controls (usage · quota · model) sit top-right when the panel is
-          wide and wrap to a second line UNDER the title when it's narrow. Pure
-          flex-wrap, no JS: title is flex-1 (basis 160), the controls group is a
-          single shrink-0 unit that drops below once it can't fit beside the title. */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-3" style={{ borderColor: tok("border") }}>
-        <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: accentColor }} aria-hidden />
-        <div className="min-w-0 flex-1 basis-[160px]">
-          <div className="truncate text-[15px] font-semibold" style={{ color: tok("text") }}>{title}</div>
-          <div className="truncate font-mono text-[10px] uppercase tracking-wide" style={{ color: tok("muted") }}>{subtitle}</div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {mode && (
-            <span
-              className="rounded font-mono text-[9px] uppercase tracking-wide"
-              style={{
-                padding: "2px 6px",
-                color: mode === "mock" ? tok("blocked-amber") : tok("done-green"),
-                backgroundColor: `color-mix(in oklch, ${mode === "mock" ? tok("blocked-amber") : tok("done-green")} 12%, transparent)`,
-              }}
-            >
-              {mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}
-            </span>
-          )}
-          <UsageMeter usage={usage} />
-          <QuotaChip />
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }} aria-label="Conversation" role="region">
+      <div className="chat-h">
+        <b id="chat-h" style={{ fontSize: ".875rem" }} title={`${title} · ${subtitle}`}>{isBoss ? "you (BOSS) → tech lead" : `you (BOSS) → ${threadId}`}</b>
+        <UsageMeter usage={usage} />
+        <span style={{ marginLeft: "auto" }}>
           <ModesPicker value={agentMode} onChange={(m) => { modeTouchedRef.current = true; setAgentMode(m); }} disabled={streaming} />
-          <ModelTierPicker value={tier} onChange={changeTier} disabled={streaming} />
-          <button
-            type="button"
-            onClick={() => void handleNewSession()}
-            disabled={streaming || clearing}
-            aria-label="New session (clear history)"
-            aria-haspopup="dialog"
-            title="New session"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
-            style={{ color: tok("muted"), backgroundColor: tok("bg"), borderColor: tok("border") }}
-          >
-            <SquarePen size={13} aria-hidden />
-          </button>
+        </span>
+      </div>
+      <div className="chat-h" style={{ border: 0, paddingTop: 8 }}>
+        <label className="sub" htmlFor={`chat-tier-${threadId}`}>Model tier</label>
+        <select id={`chat-tier-${threadId}`} className="mini-select" value={tier} disabled={streaming} onChange={(e) => changeTier(e.target.value as ModelTier)}>
+          {MODEL_TIERS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+        </select>
+        <span className="sub">{modeHint[agentMode]}</span>
+        {/* APP-ONLY: transport, quota, a fresh session, and whatever the host adds. */}
+        <span className="pills" data-app-only="chat-extras" style={{ marginLeft: "auto" }}>
+          {mode && <span className={mode === "mock" ? "chip warn" : "chip ok"}>{mode === "live" ? "live · claude" : mode === "cli" ? "live · subscription" : "mock"}</span>}
+          <QuotaChip />
+          <button type="button" className="pill" onClick={() => void handleNewSession()} disabled={streaming || clearing} aria-haspopup="dialog">New session</button>
           {headerExtra}
-        </div>
-      </header>
-
-      {/* thread (sole scroll owner) */}
-      <div ref={scrollRef} className="min-h-0 overflow-y-auto px-5 py-6" style={{ overscrollBehavior: "contain" }} aria-busy={streaming}>
-        <div className="mx-auto flex max-w-[760px] flex-col gap-4">
-          {messages.length === 0 && (
-            <div className="rounded-lg border p-4 text-[13px] leading-relaxed" style={{ borderColor: tok("border"), color: tok("muted") }}>
-              {isBoss ? (
-                <><span className="font-semibold" style={{ color: tok("text") }}>Talk to your Tech Lead.</span> Give a goal, ask how to build it, or direct the seats. The Tech Lead thinks first-principles, brings options + a recommendation, and reports to you.</>
-              ) : (
-                <><span className="font-semibold" style={{ color: tok("text") }}>Message {threadId}.</span> They reply with their Claude brain; edits land in a sandbox you review before they touch the repo.</>
-              )}
-            </div>
-          )}
-          {messages.map((m, i) => {
-            const isLast = i === messages.length - 1;
-            const live = streaming && isLast && m.role === "assistant";
-            const parsed = isBoss && m.role === "assistant" ? parseDispatch(m.content) : { clean: m.content, directives: [] as Directive[] };
-            const team = isBoss && m.role === "assistant" && !live ? parseTeamBlock(parsed.clean, teamSkills) : { clean: parsed.clean, members: [] as TeamMember[] };
-            const showDispatch = isBoss && m.role === "assistant" && !live && parsed.directives.length > 0;
-            const showTeam = isBoss && m.role === "assistant" && !live && team.members.length > 0;
-            return (
-              <div key={i} className="flex gap-3">
-                <span className="mt-0.5 shrink-0" style={{ color: m.role === "user" ? tok("accent-cyan") : accentColor }}>
-                  {m.role === "user" ? <User size={15} aria-hidden /> : <Bot size={15} aria-hidden />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[9px] uppercase tracking-wide" style={{ color: tok("muted") }}>
-                    {m.role === "user" ? "you" : isBoss ? "tech lead" : threadId}
-                  </div>
-                  <div
-                    className="whitespace-pre-wrap break-words text-[13px] leading-relaxed"
-                    style={{ color: tok("text") }}
-                    aria-live={live ? "polite" : undefined}
-                  >
-                    {live && pending && !m.content ? (
-                      <PendingIndicator accent={accentColor} />
-                    ) : (
-                      <>
-                        {live ? stripEmphasis(m.content) : stripEmphasis(team.clean)}
-                        {live && <span className="ml-0.5 inline-block animate-pulse">▍</span>}
-                      </>
-                    )}
-                  </div>
-
-                  {showDispatch && (
-                    <div className="mt-2 rounded-md p-2.5" style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 8%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 26%, transparent)` }}>
-                      <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: accentColor }}>
-                        <Zap size={12} aria-hidden /> Tech Lead proposes {parsed.directives.length} dispatch{parsed.directives.length === 1 ? "" : "es"}
-                      </div>
-                      <ul className="mb-2 space-y-1">
-                        {parsed.directives.map((d, k) => (
-                          <li key={k} className="font-mono text-[11px]" style={{ color: tok("text") }}>
-                            <span style={{ color: accentColor }}>{d.type}</span> → {d.target}
-                            {d.body ? <span style={{ color: tok("muted") }}> · {d.body}</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                      {fired.has(i) ? (
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px]" style={{ color: tok("done-green") }}>
-                          <Check size={13} aria-hidden /> dispatched to swarm
-                        </span>
-                      ) : (
-                        <button type="button" onClick={() => setGateForMsg(i)} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold outline-none focus-visible:ring-2" style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}>
-                          <Zap size={13} aria-hidden /> Review &amp; confirm
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {showTeam && (
-                    <div className="mt-2 rounded-md p-2.5" style={{ backgroundColor: `color-mix(in oklch, ${tok("factory-violet")} 8%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("factory-violet")} 26%, transparent)` }}>
-                      <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: tok("factory-violet") }}>
-                        <Users size={12} aria-hidden /> Tech Lead proposes a team of {team.members.length}
-                      </div>
-                      <ul className="mb-2 space-y-1">
-                        {team.members.map((t) => (
-                          <li key={t.id} className="font-mono text-[11px]" style={{ color: tok("text") }}>
-                            <span style={{ color: tok("factory-violet") }}>{t.id}</span> — {t.role}
-                            {t.skills.length ? <span style={{ color: tok("muted") }}> · {t.skills.join(", ")}</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                      {teamBuilt.has(i) ? (
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px]" style={{ color: tok("done-green") }}>
-                          <Check size={13} aria-hidden /> team created — live on the board
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setGateTeamFor(i)}
-                          disabled={teamBusy}
-                          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold outline-none transition-colors duration-150 hover:brightness-110 focus-visible:ring-2 disabled:cursor-default disabled:opacity-40 motion-reduce:transition-none"
-                          style={{ color: tok("factory-violet"), backgroundColor: `color-mix(in oklch, ${tok("factory-violet")} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("factory-violet")} 34%, transparent)` }}
-                        >
-                          <Users size={13} aria-hidden /> Review &amp; hire team
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {err && (
-            <p role="alert" className="inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("stale-red") }}>
-              <AlertTriangle size={12} aria-hidden /> {err}
-            </p>
-          )}
-
-          {/* Agent F2b — proposed sandbox changes + gated apply. */}
-          {!isBoss && changes.length > 0 && (
-            <div className="rounded-md p-2.5" style={{ backgroundColor: `color-mix(in oklch, ${tok("blocked-amber")} 8%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("blocked-amber")} 26%, transparent)` }}>
-              <div className="mb-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: tok("blocked-amber") }}>
-                <FileEdit size={12} aria-hidden /> {changes.length} proposed change{changes.length === 1 ? "" : "s"} (sandbox)
-              </div>
-              <ul className="mb-2 space-y-0.5">
-                {changes.map((c) => (
-                  <li key={c.path} className="font-mono text-[10px]" style={{ color: tok("text") }}>
-                    <span style={{ color: c.status === "new" ? tok("done-green") : tok("accent-cyan") }}>{c.status}</span> {c.path}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" onClick={() => setGateApply(true)} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold outline-none focus-visible:ring-2" style={{ color: tok("blocked-amber"), backgroundColor: `color-mix(in oklch, ${tok("blocked-amber")} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${tok("blocked-amber")} 34%, transparent)` }}>
-                <FileEdit size={13} aria-hidden /> Review &amp; apply to repo
-              </button>
-            </div>
-          )}
-          {applyMsg && (
-            <p className="inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("done-green") }} role="status" aria-live="polite">
-              <Check size={12} aria-hidden /> {applyMsg}
-            </p>
-          )}
-        </div>
+        </span>
       </div>
 
-      {/* sticky input */}
-      <div className="relative border-t px-5 py-3" style={{ borderColor: tok("border") }}>
-        {/* drag the top edge up to enlarge the input box */}
-        <div
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize input box"
-          onPointerDown={startComposerResize}
-          onDoubleClick={() => setComposerH(56)}
-          title="Drag to resize · double-click to reset"
-          className="group absolute inset-x-0 top-0 z-10 flex h-2 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center"
-        >
-          <span className="h-0.5 w-8 rounded-full opacity-40 transition-opacity group-hover:opacity-100" style={{ backgroundColor: tok("accent-cyan") }} />
-        </div>
-        {dispatchMsg && (
-          <p className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("done-green") }} role="status" aria-live="polite">
-            <Check size={12} aria-hidden /> {dispatchMsg}
-          </p>
-        )}
-        {teamMsg && (
-          <p className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px]" style={{ color: tok("factory-violet") }} role="status" aria-live="polite">
-            <Users size={12} aria-hidden /> {teamMsg}
-          </p>
-        )}
-        <div className="relative mx-auto max-w-[760px]">
-          {/* "/" skill menu — opens above the composer */}
-          {slashOpen && (
-            <div role="listbox" aria-label="Skills" className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-md border border-border bg-panel shadow-2xl">
-              <div className="border-b border-border px-3 py-1.5 text-[9px] font-medium uppercase tracking-wide text-muted">MissionAlpha skills · {skillResults.length}</div>
-              <div className="max-h-64 overflow-y-auto">
-                {skillResults.map((s, i) => {
-                  const showHeader = i === 0 || skillResults[i - 1].kind !== s.kind;
-                  return (
-                    <Fragment key={s.id}>
-                      {showHeader && (
-                        <div className="sticky top-0 bg-panel px-3 py-1 text-[9px] font-medium uppercase tracking-wide text-muted">
-                          {catalog?.KIND_LABEL[s.kind] ?? s.kind}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={i === skillIdx}
-                        onMouseEnter={() => setSkillIdx(i)}
-                        onClick={() => pickSkill(s)}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none"
-                        style={{ backgroundColor: i === skillIdx ? `color-mix(in oklch, ${accentColor} 14%, transparent)` : "transparent" }}
-                      >
-                        <span className="shrink-0 font-mono text-[12px] font-medium" style={{ color: accentColor }}>{s.title}</span>
-                        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{s.hint}</span>
-                      </button>
-                    </Fragment>
-                  );
-                })}
-              </div>
-              <div className="border-t border-border px-3 py-1 text-[9px] text-muted">↑↓ pick · Enter insert · Esc close</div>
-            </div>
-          )}
-          {/* ADR-049 — staged attachment chips */}
-          {attachments.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5" aria-label="Attachments">
-              {attachments.map((f, i) => {
-                const k = attachKind(f.name);
-                const Icon = k === "image" ? ImageIcon : k === "pdf" ? FileText : Table;
-                return (
-                  <span
-                    key={`${f.name}-${f.size}-${i}`}
-                    className="inline-flex items-center gap-1.5 rounded-md border py-1 pl-2 pr-1 text-[11px]"
-                    style={{ borderColor: tok("border"), backgroundColor: tok("bg"), color: tok("text") }}
-                  >
-                    <Icon size={13} aria-hidden style={{ color: accentColor }} />
-                    <span className="max-w-[160px] truncate font-medium">{f.name}</span>
-                    <span className="text-muted">{fmtBytes(f.size)}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(i)}
-                      aria-label={`Remove ${f.name}`}
-                      className="ml-0.5 rounded p-0.5 text-muted outline-none hover:text-[inherit] focus-visible:ring-2"
-                    >
-                      <X size={12} aria-hidden />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            accept={ATTACH_ACCEPT}
-            className="hidden"
-            onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
-          />
-          <div
-            className="flex items-end gap-2"
-            onDragOver={(e) => { e.preventDefault(); }}
-            onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer?.files); }}
-          >
-          <div ref={plusRef} className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setPlusOpen((o) => !o)}
-              disabled={streaming}
-              aria-label="Add"
-              aria-haspopup="menu"
-              aria-expanded={plusOpen}
-              title="Add"
-              className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border outline-none transition-colors focus-visible:ring-2 disabled:opacity-40"
-              style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
-            >
-              <Plus size={16} aria-hidden className="transition-transform" style={{ transform: plusOpen ? "rotate(45deg)" : "none" }} />
-            </button>
-            {plusOpen && (
-              <div
-                role="menu"
-                className="absolute bottom-[46px] left-0 z-30 min-w-[200px] overflow-hidden rounded-lg border py-1"
-                style={{ backgroundColor: tok("panel"), borderColor: tok("border"), boxShadow: "0 8px 24px -8px rgba(0,0,0,0.45)" }}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setPlusOpen(false); fileRef.current?.click(); }}
-                  disabled={attachments.length >= ATTACH_MAX_FILES}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] outline-none transition-colors hover:bg-panel-2 focus-visible:bg-panel-2 disabled:opacity-40"
-                  style={{ color: tok("text") }}
-                >
-                  <Paperclip size={15} aria-hidden style={{ color: tok("muted") }} />
-                  <span className="flex-1">Attach files</span>
-                  <span className="text-[10px]" style={{ color: tok("muted") }}>image · pdf · csv · txt</span>
-                </button>
-              </div>
-            )}
+      <div ref={scrollRef} className="chat-thread" aria-live="polite" aria-busy={streaming}>
+        {messages.length === 0 && (
+          <div className="bubble">
+            <span className="who">{whoLabel("assistant")} <span className="ai-tag">AI agent</span></span>
+            <div className="txt">{isBoss
+              ? "I'm the Tech Lead. Tell me what you want built and I'll turn it into a job. The CEO reads it before anything moves."
+              : `Message ${threadId}. Edits land in a sandbox you review before they touch the repo.`}</div>
           </div>
+        )}
+        {messages.map((m, i) => {
+          const isLast = i === messages.length - 1;
+          const live = streaming && isLast && m.role === "assistant";
+          const parsed = isBoss && m.role === "assistant" ? parseDispatch(m.content) : { clean: m.content, directives: [] as Directive[] };
+          const team = isBoss && m.role === "assistant" && !live ? parseTeamBlock(parsed.clean, teamSkills) : { clean: parsed.clean, members: [] as TeamMember[] };
+          const showDispatch = isBoss && m.role === "assistant" && !live && parsed.directives.length > 0;
+          const showTeam = isBoss && m.role === "assistant" && !live && team.members.length > 0;
+          return (
+            <div key={i} className={m.role === "user" ? "bubble me" : "bubble"}>
+              <span className="who">{whoLabel(m.role)}{m.role === "user" ? null : <> <span className="ai-tag">AI agent</span></>}</span>
+              <div className="txt" aria-live={live ? "polite" : undefined}>
+                {live && pending && !m.content ? <PendingIndicator accent={accentColor} /> : (
+                  <>{live ? stripEmphasis(m.content) : stripEmphasis(team.clean)}{live && <span className="ml-0.5 inline-block animate-pulse">▍</span>}</>
+                )}
+              </div>
+              {showDispatch && (
+                <div className="propose">
+                  <span className="sub">{`Proposal · ${parsed.directives.length} dispatch${parsed.directives.length === 1 ? "" : "es"}`}</span>
+                  <ul className="list" style={{ gap: 2 }}>
+                    {parsed.directives.map((d, k) => <li key={k} className="mono" style={{ fontSize: ".75rem" }}>{`${d.type} → ${d.target}${d.body ? ` · ${d.body}` : ""}`}</li>)}
+                  </ul>
+                  {fired.has(i) ? <span className="sub" role="status">dispatched to swarm</span> : (
+                    <div className="row"><button className="btn btn-primary" type="button" style={{ minHeight: 38, padding: "8px 18px" }} onClick={() => setGateForMsg(i)}>Review &amp; confirm</button></div>
+                  )}
+                </div>
+              )}
+              {showTeam && (
+                <div className="propose">
+                  <span className="sub">{`Proposal · a team of ${team.members.length}`}</span>
+                  <ul className="list" style={{ gap: 2 }}>
+                    {team.members.map((t) => <li key={t.id} className="mono" style={{ fontSize: ".75rem" }}>{`${t.id} · ${t.role}${t.skills.length ? ` · ${t.skills.join(", ")}` : ""}`}</li>)}
+                  </ul>
+                  {teamBuilt.has(i) ? <span className="sub" role="status">team created, live on the board</span> : (
+                    <div className="row"><button className="btn btn-primary" type="button" style={{ minHeight: 38, padding: "8px 18px" }} disabled={teamBusy} onClick={() => setGateTeamFor(i)}>Review &amp; hire team</button></div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {err && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: 0 }}>{err}</p>}
+        {/* Agent F2b — proposed sandbox changes + gated apply. */}
+        {!isBoss && changes.length > 0 && (
+          <div className="propose">
+            <span className="sub">{`${changes.length} proposed change${changes.length === 1 ? "" : "s"} (sandbox)`}</span>
+            <ul className="list" style={{ gap: 2 }}>{changes.map((c) => <li key={c.path} className="mono" style={{ fontSize: ".75rem" }}>{`${c.status} ${c.path}`}</li>)}</ul>
+            <div className="row"><button className="btn btn-primary" type="button" style={{ minHeight: 38, padding: "8px 18px" }} onClick={() => setGateApply(true)}>Review &amp; apply to repo</button></div>
+          </div>
+        )}
+        {applyMsg && <p className="sub" role="status" aria-live="polite" style={{ margin: 0 }}>{applyMsg}</p>}
+      </div>
+
+      {(dispatchMsg || teamMsg) && <p className="sub" role="status" aria-live="polite" style={{ margin: "0 0 6px" }}>{dispatchMsg || teamMsg}</p>}
+      {/* "/" skill menu — opens above the composer. */}
+      {slashOpen && (
+        <div role="listbox" aria-label="Skills" className="card" style={{ padding: 0, marginBottom: 8, maxHeight: 256, overflowY: "auto" }}>
+          {skillResults.map((sk, i) => {
+            const showHeader = i === 0 || skillResults[i - 1].kind !== sk.kind;
+            return (
+              <Fragment key={sk.id}>
+                {showHeader && <p className="sub" style={{ margin: 0, padding: "6px 12px" }}>{catalog?.KIND_LABEL[sk.kind] ?? sk.kind}</p>}
+                <button type="button" role="option" aria-selected={i === skillIdx} onMouseEnter={() => setSkillIdx(i)} onClick={() => pickSkill(sk)}
+                  className="r-row" style={{ width: "100%", padding: "8px 12px", gridTemplateColumns: "auto minmax(0,1fr)", background: i === skillIdx ? "var(--indigo-10)" : "transparent" }}>
+                  <b className="mono">{sk.title}</b><small>{sk.hint}</small>
+                </button>
+              </Fragment>
+            );
+          })}
+          <p className="sub" style={{ margin: 0, padding: "6px 12px" }}>↑↓ pick · Enter insert · Esc close</p>
+        </div>
+      )}
+      {/* ADR-049 — staged attachments (APP-ONLY: the mockup composer has no attach). */}
+      {attachments.length > 0 && (
+        <div className="pills" aria-label="Attachments" data-app-only="attachments" style={{ marginBottom: 8 }}>
+          {attachments.map((f, i) => (
+            <span key={`${f.name}-${f.size}-${i}`} className="chip">
+              {`${attachKind(f.name)} · ${f.name} · ${fmtBytes(f.size)}`}
+              <button type="button" className="linkish" onClick={() => removeAttachment(i)} aria-label={`Remove ${f.name}`}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input ref={fileRef} type="file" multiple accept={ATTACH_ACCEPT} className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+      <form
+        className="composer2"
+        autoComplete="off"
+        onSubmit={(e) => { e.preventDefault(); void send(); }}
+        onDragOver={(e) => { e.preventDefault(); }}
+        onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer?.files); }}
+      >
+        <button className="iconbtn" type="button" aria-label="Insert a skill" disabled={streaming}
+          onClick={() => { setInput((v) => (v.startsWith("/") ? v : `/${v}`)); inputRef.current?.focus(); }}>/</button>
+        <div style={{ position: "relative" }}>
+          <label className="sr" htmlFor={`chat-in-${threadId}`}>{isBoss ? "Message the tech lead" : `Message ${threadId}`}</label>
           <textarea
             ref={inputRef}
+            id={`chat-in-${threadId}`}
+            rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
@@ -929,47 +714,26 @@ export function ChatPane({
                 if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSkill(skillResults[skillIdx]); return; }
                 if (e.key === "Escape") { e.preventDefault(); setInput(""); return; }
               }
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
             }}
-            placeholder={isBoss ? "Message your Tech Lead…  (Enter to send · / for skills)" : `Message ${threadId}…  (Enter to send)`}
+            placeholder={isBoss ? "Tell the tech lead what you want. Type / for skills." : `Message ${threadId}. Type / for skills.`}
             disabled={streaming}
-            aria-label={isBoss ? "Message the Tech Lead" : `Message ${threadId}`}
-            className="min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-3 py-2 text-[13px] outline-none focus-visible:ring-2 disabled:opacity-60"
-            style={{ color: tok("text"), backgroundColor: tok("bg"), borderColor: tok("border") }}
           />
-          {streaming ? (
-            <button
-              type="button"
-              onClick={() => void stop()}
-              aria-label="Stop generation"
-              aria-description="Keyboard shortcut: Command or Control period"
-              title="Stop (⌘.)"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold text-white outline-none transition-transform focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
-              style={{ backgroundColor: tok("stale-red") }}
-            >
-              <Square size={12} fill="currentColor" aria-hidden />
-              Stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={!input.trim() && attachments.length === 0}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-[12px] font-semibold outline-none focus-visible:ring-2 disabled:cursor-default disabled:opacity-40"
-              style={{ color: accentColor, backgroundColor: `color-mix(in oklch, ${accentColor} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${accentColor} 34%, transparent)` }}
-            >
-              <Send size={14} aria-hidden />
-              Send
-            </button>
-          )}
-          </div>
-          <div className="mt-1 px-0.5 text-[10px] text-muted">
-            drag &amp; drop or paste · png jpg pdf csv txt · max {ATTACH_MAX_FILES} files · 25 MB each
-          </div>
         </div>
+        {streaming ? (
+          <button className="iconbtn" type="button" onClick={() => void stop()} aria-label="Stop generation" aria-description="Keyboard shortcut: Command or Control period"
+            style={{ background: "var(--bad-ink)", color: "var(--color-pure-white)", borderColor: "var(--bad-ink)" }}>■</button>
+        ) : (
+          <button className="iconbtn" type="submit" aria-label="Send" disabled={!input.trim() && attachments.length === 0}
+            style={{ background: "var(--brand)", color: "#fff", borderColor: "var(--brand)" }}>
+            <svg width="18" height="18" aria-hidden="true"><use href="#i-send" /></svg>
+          </button>
+        )}
+      </form>
+      {/* APP-ONLY: attach files (image · pdf · csv · txt) through the same composer. */}
+      <div className="row" data-app-only="attach" style={{ marginTop: 6, gap: 8 }}>
+        <button type="button" className="linkish" disabled={streaming || attachments.length >= ATTACH_MAX_FILES} onClick={() => fileRef.current?.click()}>Attach files</button>
+        <span className="sub">{`drag & drop or paste · png jpg pdf csv txt · max ${ATTACH_MAX_FILES} files · 25 MB each`}</span>
       </div>
 
       {/* Boss dispatch gate */}
@@ -1011,6 +775,6 @@ export function ChatPane({
           onCancel={() => setGateApply(false)}
         />
       )}
-    </section>
+    </div>
   );
 }

@@ -1,66 +1,28 @@
 import { useEffect, useState } from "react";
-import { formatSla } from "../../lib/inboxClient";
+import { slaText } from "../../lib/inboxTally";
 
 /*
-  P6 / ADR-053 — the live SLA countdown.
-
-  Time discipline (program plan point 9): rendered ENTIRELY from the absolute UTC
-  deadline the runtime stamped at mint, so there is no server tick and no drift — the
-  component just re-reads the local clock once a second. Turns red under one hour;
-  shows "SLA expired" past the deadline.
-
-  Motion (emil): the sub-second urgency pulse is decoration and is disabled under
-  `prefers-reduced-motion`. The once-a-second countdown update is information, not
-  motion, so it keeps ticking either way.
+  P6 / ADR-053 — the live SLA countdown. Phase G (ADR G-2): the mockup's `.sla` span —
+  "SLA mm:ss" in total minutes, "SLA due" once past, `.hot` when the caller says so (the
+  list marks under 20 minutes). Rendered ENTIRELY from the absolute UTC deadline the
+  runtime stamped at mint, re-reading the local clock once a second: no server tick, no
+  drift. The once-a-second update is information, not motion.
 */
+export const HOT_MS = 20 * 60_000;
 
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const on = () => setReduced(mq.matches);
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, []);
-  return reduced;
-}
-
-export function SlaTimer({
-  deadline,
-  slaState = null,
-  className,
-}: {
-  deadline: string | null;
-  slaState?: "halflife" | "expired" | null;
-  className?: string;
-}) {
+export function SlaTimer({ deadline, hotUnderMs }: { deadline: string | null; hotUnderMs?: number }) {
   const [now, setNow] = useState(() => Date.now());
-  const reduced = usePrefersReducedMotion();
-
   useEffect(() => {
     if (!deadline) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [deadline]);
-
-  const view = formatSla(deadline, now);
-  if (!view) return null;
-  const escalated = view.expired || slaState === "expired";
-
+  const text = deadline ? slaText(deadline, now) : null;
+  if (!deadline || !text) return null;
+  const hot = hotUnderMs !== undefined && Date.parse(deadline) - now < hotUnderMs;
   return (
-    <span
-      className={`helm-mono helm-sla${view.hot && !reduced ? " helm-sla-pulse" : ""}${className ? ` ${className}` : ""}`}
-      data-hot={view.hot ? "true" : undefined}
-      data-expired={escalated ? "true" : undefined}
-      role="timer"
-      aria-live={view.hot ? "polite" : "off"}
-      aria-label={view.expired ? "SLA expired" : `Time remaining, ${view.label.replace("SLA ", "")}`}
-      style={{ color: view.hot ? "var(--helm-red)" : "var(--helm-amber)", fontWeight: view.hot ? 600 : 400 }}
-    >
-      {view.label}
+    <span className={hot ? "sla hot" : "sla"} role="timer" aria-label={text === "SLA due" ? "SLA due" : `Time remaining ${text.replace("SLA ", "")}`}>
+      {text}
     </span>
   );
 }

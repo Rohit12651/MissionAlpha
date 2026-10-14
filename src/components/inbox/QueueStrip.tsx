@@ -105,94 +105,49 @@ export function QueueStrip({ lastEvent, resyncNonce, liveNonce = 0 }: QueueStrip
 
   const idle = counts.total === 0;
 
+  // Phase G: APP-ONLY (the mockup's Queue card counts inbox items; this one is the agent
+  // runtime's task queue), restyled in the mockup's `.card` / `.chip` vocabulary.
+  const tone = (t: "ok" | "warn" | "bad" | null) => (t ? `chip ${t}` : "chip");
   return (
-    <section className="helm-pane mb-4 flex flex-col gap-2.5 p-3" aria-label="Agent work queue">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="helm-eyebrow">Queue</div>
-        <div
-          className="helm-mono flex flex-wrap items-center gap-1.5 text-[11px]"
-          role="status"
-          aria-live="polite"
-        >
+    <section className="card qstrip" data-app-only="work-queue" aria-label="Agent work queue" style={{ marginBottom: 16 }}>
+      <div className="card-h" style={{ marginBottom: 8 }}>
+        <span className="sub">Work queue</span>
+        <span className="pills" role="status" aria-live="polite">
           {idle ? (
-            <span className="helm-chip" data-tone="muted">idle — nothing queued</span>
+            <span className="chip">idle · nothing queued</span>
           ) : (
             <>
-              <span className="helm-chip" data-tone={counts.running ? "green" : "muted"}>
-                {counts.running} running
-              </span>
-              <span className="helm-chip" data-tone={counts.queued ? "amber" : "muted"}>
-                {counts.queued} queued
-              </span>
-              {counts.retrying > 0 && (
-                <span className="helm-chip" data-tone="amber">{counts.retrying} retrying</span>
-              )}
-              {counts.failed > 0 && (
-                <span className="helm-chip" data-tone="red">{counts.failed} failed</span>
-              )}
+              <span className={tone(counts.running ? "ok" : null)}>{`${counts.running} running`}</span>
+              <span className={tone(counts.queued ? "warn" : null)}>{`${counts.queued} queued`}</span>
+              {counts.retrying > 0 && <span className="chip warn">{`${counts.retrying} retrying`}</span>}
+              {counts.failed > 0 && <span className="chip bad">{`${counts.failed} failed`}</span>}
             </>
           )}
           {maxInflight != null && (
-            <span
-              className="helm-chip"
-              data-tone="muted"
-              title="Shared concurrency budget across chat, run and the autonomous engine"
-            >
-              {inflight ?? 0}/{maxInflight} slots
+            <span className="chip" title="Shared concurrency budget across chat, run and the autonomous engine">
+              {`${inflight ?? 0}/${maxInflight} slots`}
             </span>
           )}
-        </div>
+        </span>
       </div>
 
       {chips.length > 0 && (
-        <ul className="flex list-none flex-wrap gap-1.5" aria-label="Per-agent queue depth">
+        <ul className="pills" aria-label="Per-agent queue depth" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {chips.map((c) => (
-            <li
-              key={c.agentId}
-              className="helm-chip helm-mono text-[11px]"
-              data-tone={c.failed ? "red" : c.running ? "green" : "amber"}
-            >
-              {c.agentId}
-              <span style={{ color: "var(--helm-paper-faint)" }}>
-                {" · "}
-                {c.running ? `${c.running} run ` : ""}
-                {c.queued ? `${c.queued} wait ` : ""}
-                {c.retrying ? `${c.retrying} retry ` : ""}
-                {c.failed ? `${c.failed} fail` : ""}
-              </span>
+            <li key={c.agentId} className={tone(c.failed ? "bad" : c.running ? "ok" : "warn")}>
+              {`${c.agentId} · ${[c.running ? `${c.running} run` : "", c.queued ? `${c.queued} wait` : "", c.retrying ? `${c.retrying} retry` : "", c.failed ? `${c.failed} fail` : ""].filter(Boolean).join(" ")}`}
             </li>
           ))}
         </ul>
       )}
 
-      {/* WHY the work is failing, not merely how much of it. The engine composes a precise
-          sentence for a scope refusal — naming the seat and the paths it may not write —
-          and every layer between it and here used to keep only the error CLASS, so the
-          operator read `empty-diff` and had to open Stories to learn anything. */}
+      {/* WHY the work is failing, not merely how much of it: the engine's own sentence. */}
       {reasons.length > 0 && (
-        <ul className="flex list-none flex-col gap-1" aria-label="Why work is failing">
+        <ul className="list" aria-label="Why work is failing" style={{ marginTop: 8, gap: 4 }}>
           {reasons.map((r) => (
-            <li
-              key={`${r.kind} ${r.detail ?? ""}`}
-              className="helm-mono flex items-start gap-1.5 text-[11px] leading-snug"
-            >
-              <span className="helm-chip shrink-0" data-tone="red">
-                {r.kind}
-                {r.count > 1 ? ` ×${r.count}` : ""}
-              </span>
-              {r.detail && (
-                // Plain text child. `detail` is scrubbed server-side (twice) but is agent-
-                // and repo-derived, so it is never interpolated as markup. Clamped to two
-                // lines with the full text on hover — truncating in the model would
-                // destroy the path the operator actually needs.
-                <span
-                  className="line-clamp-2 break-all"
-                  style={{ color: "var(--helm-paper-faint)" }}
-                  title={r.detail}
-                >
-                  {r.detail}
-                </span>
-              )}
+            <li key={`${r.kind} ${r.detail ?? ""}`} className="feed-row" style={{ gridTemplateColumns: "auto minmax(0,1fr)" }}>
+              <span className="chip bad">{`${r.kind}${r.count > 1 ? ` ×${r.count}` : ""}`}</span>
+              {r.detail && <span className="mono" style={{ overflowWrap: "anywhere" }} title={r.detail}>{r.detail}</span>}
             </li>
           ))}
         </ul>

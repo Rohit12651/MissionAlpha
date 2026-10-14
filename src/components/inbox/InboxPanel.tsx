@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  INBOX_FILTERS,
   bulkDecide,
   answerStoryQuestion,
   assignDelivery,
   decideDelivery,
   getDelivery,
+  isJobClarify,
   listInbox,
-  matchesFilter,
   type DecideVerb,
   type DeliveryEdit,
   type DeliveryEditError,
   type Delivery,
   type DeliveryDetail,
   type InboxCounts,
-  type InboxFilter,
 } from "../../lib/inboxClient";
+import { agoLabel } from "../../lib/storiesClient";
+import { INBOX_KIND_FILTERS, isBulkSelectable, matchesKindFilter, queueSummary, type InboxKindFilter } from "../../lib/inboxTally";
+import { useVenture } from "../../lib/ventureScope";
+import { BosTopbar } from "../bos/BosTopbar";
 import { useAuth } from "../../lib/useAuth";
+import { answerJob, buildJobAnswers, fetchJob } from "../../lib/jobsClient";
 import { listUsers } from "../../lib/authClient";
 import type { RuntimeEvent } from "../../lib/useRuntimeEvents";
 import { DeliveryCard } from "./DeliveryCard";
@@ -33,7 +36,8 @@ import { AutoApprovedStrip } from "./AutoApprovedStrip";
 import { Scoreboard } from "./Scoreboard";
 
 /*
-  The Inbox surface (docs/mockups/helm-inbox-merged-mockup.html, live).
+  The Inbox surface. Phase G (ADR G-2): the approved mockup's Inbox page
+  (docs/mockups/missionalpha-sketchbook.html, data-page="inbox") over the live data below.
 
   DATA FLOW — push first, poll never removed:
    · mount            → GET /inbox
@@ -85,23 +89,15 @@ export function InboxPanel({
   const [counts, setCounts] = useState<InboxCounts | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
-  const [filter, setFilter] = useState<InboxFilter>("All");
+  const [filter, setFilter] = useState<InboxKindFilter>("all");
+  // APP-ONLY: the mockup has no source filter; the app keeps "my swarm" vs "external".
+  const [source, setSource] = useState<"swarm" | "external" | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [detail, setDetail] = useState<DeliveryDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailNonce, setDetailNonce] = useState(0);
-
-  const [isLg, setIsLg] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(min-width:1024px)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width:1024px)");
-    const on = () => setIsLg(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
 
   const onCountsRef = useRef(onCounts);
   useEffect(() => { onCountsRef.current = onCounts; }, [onCounts]);
@@ -255,6 +251,37 @@ export function InboxPanel({
     [detail, refreshList],
   );
 
+  // #4 — a job's clarify gate: read the job's own questions, answer them through its route.
+  const clarifyJobId = detail && isJobClarify(detail) ? detail.jobId ?? null : null;
+  const [jobQuestions, setJobQuestions] = useState<string[] | null>(null);
+  useEffect(() => {
+    setJobQuestions(null);
+    if (!clarifyJobId) return;
+    let live = true;
+    fetchJob(clarifyJobId)
+      .then((r) => { if (live) setJobQuestions(r.job?.questions ?? []); })
+      .catch(() => { if (live) setJobQuestions([]); });
+    return () => { live = false; };
+  }, [clarifyJobId]);
+
+  const onAnswerJob = useCallback(
+    async (texts: string[]): Promise<{ ok: boolean; error?: string }> => {
+      if (!clarifyJobId || !jobQuestions) return { ok: false, error: "this delivery is not a job's questions" };
+      const built = buildJobAnswers(jobQuestions, texts);
+      if (!built.ok) return built;
+      try {
+        const r = await answerJob(clarifyJobId, built.answers);
+        if (!r.ok) return r;
+        refreshList();
+        setDetailNonce((n) => n + 1);
+        return { ok: true };
+      } catch (e: unknown) {
+        return { ok: false, error: e instanceof Error ? e.message : "request failed" };
+      }
+    },
+    [clarifyJobId, jobQuestions, refreshList],
+  );
+
   const onAssign = useCallback(
     async (assignee: string | null): Promise<{ ok: boolean; error?: string }> => {
       if (!selectedId) return { ok: false, error: "nothing selected" };
@@ -272,7 +299,21 @@ export function InboxPanel({
   );
 
   // ── derived ───────────────────────────────────────────────────────────────
-  const visible = useMemo(() => deliveries.filter((d) => matchesFilter(d, filter)), [deliveries, filter]);
+  const visible = useMemo(
+    () => deliveries.filter((d) => matchesKindFilter(d, filter) && (source === null || (source === "swarm") === (d.source === "swarm"))),
+    [deliveries, filter, source],
+  );
+  // The mockup always has something under review: the first visible item, until the
+  // operator picks another. A deep-linked id wins (initialSelectedId above).
+  useEffect(() => {
+    if (!visible.length) return;
+    // A deep-linked delivery stays selected even when it is beyond this page or filtered out.
+    if (selectedId && selectedId === initialSelectedId) return;
+    if (!selectedId || !visible.some((d) => d.id === selectedId)) setSelectedId(visible[0].id);
+  }, [visible, selectedId, initialSelectedId]);
+  const queue = useMemo(() => queueSummary(deliveries), [deliveries]);
+  const { venture } = useVenture();
+  const now = Date.now();
 
   // Phase 2 — failure clustering. 97 agent-stuck failures were arriving as ~20
   // near-identical cards: one root cause, twenty decisions. Grouping is a VIEW over the
@@ -287,24 +328,18 @@ export function InboxPanel({
   // keyed by id, NOT on the delivery objects: the list re-renders constantly off SSE and
   // a per-row flag would be wiped on every refresh.
   const [sel, setSel] = useState<SelectionState>(EMPTY_SELECTION);
-  const [confirmHighRisk, setConfirmHighRisk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
   // Only PENDING singles are selectable — deciding an already-decided delivery is a
   // no-op the runtime rejects, so it must not be offerable.
   const selectableIds = useMemo(
-    () => groups.filter((g) => g.kind === "single" && g.delivery.status === "pending").map((g) => (g as { delivery: Delivery }).delivery.id),
+    () => groups.filter((g) => g.kind === "single" && isBulkSelectable(g.delivery)).map((g) => (g as { delivery: Delivery }).delivery.id),
     [groups],
   );
 
   // Anything that left the view must leave the selection with it.
   useEffect(() => { setSel((cur) => prune(cur, selectableIds)); }, [selectableIds]);
-
-  const selectedHighRisk = useMemo(
-    () => deliveries.filter((d) => isSelected(sel, d.id) && d.risk?.band === "high").length,
-    [deliveries, sel],
-  );
 
   const onRowSelect = useCallback((id: string, shift: boolean) => {
     setSel((cur) => (shift ? selectRange(cur, id, selectableIds) : toggle(cur, id)));
@@ -312,11 +347,12 @@ export function InboxPanel({
 
   const runBulk = useCallback(async (decision: "approve" | "reject") => {
     const ids = selectedIds(sel);
-    if (ids.length === 0) return;
+    // The bar's Approve stays enabled as drawn; with nothing ticked it says why, not nothing.
+    if (ids.length === 0) { setBulkError("Tick the deliveries to approve first."); return; }
     setBulkBusy(true);
     try {
+      // High risk is never selectable (isBulkSelectable), so no batch needs a confirmation.
       const r = await bulkDecide(ids, decision, {
-        confirmHighRisk: decision === "approve" ? confirmHighRisk : undefined,
         feedback: decision === "reject" ? "Rejected in a bulk decision." : undefined,
       });
       if (r.error) {
@@ -330,13 +366,12 @@ export function InboxPanel({
       } else {
         setBulkError(null);
         setSel(EMPTY_SELECTION);
-        setConfirmHighRisk(false);
       }
       refreshList();
     } finally {
       setBulkBusy(false);
     }
-  }, [sel, confirmHighRisk, refreshList]);
+  }, [sel, refreshList]);
 
   const dismissCluster = useCallback(async (key: string, ids: string[]) => {
     setBulkBusyKey(key);
@@ -356,148 +391,108 @@ export function InboxPanel({
   const pending = counts?.pending ?? deliveries.filter((d) => d.status === "pending").length;
   const autoApproved = counts?.auto_approved ?? 0;
 
-  const showOverlay = !isLg && selectedId != null;
 
+  const pills: [number, string, string][] = [
+    [queue.byKind.delivery, "deliveries", ""], [queue.byKind.question, "questions", ""], [queue.byKind.gate, "gates", ""],
+    [queue.byKind.cluster, "failure clusters", queue.byKind.cluster ? " bad" : ""],
+  ];
+  const clusterRows = deliveries.filter((d) => d.status === "pending" && d.kind === "failure");
+
+  // Phase G (ADR G-2): the mockup's Inbox page, top to bottom.
   return (
-    <div className="helm-root min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7">
-      {/* topbar */}
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="helm-eyebrow">Deliveries awaiting your decision</div>
-          <h1 className="helm-display text-[25px] leading-tight">Inbox</h1>
+    <section className="page" aria-labelledby="h-inbox">
+      <BosTopbar
+        eyebrow={`Inbox · ${venture ?? "All ventures"}`}
+        title="Inbox"
+        tagline="everything that waits on you"
+        headingId="h-inbox"
+        clock
+        chips={<Scoreboard refreshNonce={pending} />}
+      />
+
+      {!connected && <SseDisconnectedBanner retryAt={retryAt} onRetryNow={onReconnectNow} />}
+
+      <div className="card qstrip" style={{ marginBottom: 16 }}>
+        <div className="card-h" style={{ marginBottom: 8 }}>
+          <span className="sub">Queue</span>
+          <span className="sub">{`${pending} waiting · oldest ${queue.oldestAt === null ? "none" : agoLabel(queue.oldestAt, now).replace(" ago", "")}`}</span>
         </div>
-        <div className="helm-mono flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: "var(--helm-paper-dim)" }}>
-          {/* P10 — dogfood scoreboard: quiet, glanceable, refreshes as pending changes */}
-          <Scoreboard refreshNonce={pending} />
-          <span className="helm-chip" data-tone={pending ? "amber" : "green"}>
-            {pending} pending
-          </span>
-          <span className="helm-chip" data-tone={connected ? "green" : "amber"}>
-            {connected ? "live" : "polling"}
-          </span>
+        <div className="pills">
+          {pills.map(([n, label, tone]) => <span key={label} className={`chip${tone}`}>{`${n} ${label}`}</span>)}
+          {clusterRows.map((c) => <button key={c.id} className="pill" type="button" onClick={() => setSelectedId(c.id)}>{c.title}</button>)}
         </div>
       </div>
 
-      {!connected && <div className="mb-4"><SseDisconnectedBanner retryAt={retryAt} onRetryNow={onReconnectNow} /></div>}
-
-      {/* P4 — what the swarm is working on right now, push-driven off task.* */}
+      {/* P4 — what the swarm is working on right now (APP-ONLY, push-driven off task.*). */}
       <QueueStrip lastEvent={lastEvent} resyncNonce={resyncNonce} liveNonce={queueNonce} />
 
       <DeliveryBulkBar
         count={selectedCount(sel)}
-        highRiskCount={selectedHighRisk}
-        confirmHighRisk={confirmHighRisk}
         busy={bulkBusy}
         error={bulkError}
-        onConfirmHighRiskChange={setConfirmHighRisk}
         onApprove={() => void runBulk("approve")}
         onReject={() => void runBulk("reject")}
-        onClear={() => { setSel(EMPTY_SELECTION); setConfirmHighRisk(false); setBulkError(null); }}
+        onClear={() => { setSel(EMPTY_SELECTION); setBulkError(null); }}
       />
 
-      {/* Phase 2 — make the collapsing legible. Without this the human sees a shorter
-          list with no explanation of where the other rows went. Silent collapsing of
-          decisions would be worse than not collapsing at all. */}
+      {/* Phase 2 — make the collapsing legible (APP-ONLY: the mockup does not cluster). */}
       {saved > 0 && (
-        <div className="helm-note mb-2.5 text-[12px]" role="status">
-          {saved} duplicate failure{saved === 1 ? "" : "s"} collapsed into{" "}
-          {groups.filter((g) => g.kind === "cluster").length} cluster
-          {groups.filter((g) => g.kind === "cluster").length === 1 ? "" : "s"}. Expand any
-          cluster to decide its deliveries individually.
-        </div>
+        <p className="sub" role="status" data-app-only="cluster-note" style={{ margin: "0 0 12px" }}>
+          {`${saved} duplicate failure${saved === 1 ? "" : "s"} collapsed into ${groups.filter((g) => g.kind === "cluster").length} cluster${groups.filter((g) => g.kind === "cluster").length === 1 ? "" : "s"}. Expand any cluster to decide its deliveries individually.`}
+        </p>
       )}
 
-      {/* filters */}
-      <div className="mb-3.5 flex flex-wrap gap-1.5" role="group" aria-label="Inbox filters">
-        {INBOX_FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            className="helm-fpill"
-            aria-pressed={filter === f}
-            onClick={() => setFilter(f)}
-          >
-            {f}
-          </button>
+      <div className="pills" role="toolbar" aria-label="Filter the inbox" style={{ marginBottom: 12 }}>
+        {INBOX_KIND_FILTERS.map(([k, label]) => (
+          <button key={k} className="pill" type="button" aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}</button>
+        ))}
+      </div>
+      <div className="pills" role="toolbar" aria-label="Filter by source" data-app-only="source-filter" style={{ marginBottom: 12 }}>
+        {([[null, "Any source"], ["swarm", "My swarm"], ["external", "External"]] as const).map(([k, label]) => (
+          <button key={label} className="pill" type="button" aria-pressed={source === k} onClick={() => setSource(k)}>{label}</button>
         ))}
       </div>
 
-      <div className={isLg ? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_460px]" : "flex flex-col gap-4"}>
-        {/* list */}
-        <div className="min-w-0">
+      <div className="wb">
+        <ul className="list" aria-label="Waiting for you">
           {listError && !deliveries.length ? (
-            <ErrorState message={listError} onRetry={refreshList} busy={listLoading} />
+            <li><ErrorState message={listError} onRetry={refreshList} busy={listLoading} /></li>
           ) : listLoading && !deliveries.length ? (
-            <div className="helm-note" role="status" aria-live="polite">
-              Reading the Inbox…
-            </div>
+            <li className="empty-note" role="status" aria-live="polite">Reading the Inbox…</li>
           ) : visible.length === 0 ? (
-            <EmptyState filtered={deliveries.length > 0} onClear={() => setFilter("All")} />
+            <EmptyState filtered={deliveries.length > 0} onClear={() => { setFilter("all"); setSource(null); }} />
           ) : (
             groups.map((g) =>
               g.kind === "cluster" ? (
-                <ClusterCard
-                  key={g.key}
-                  agentId={g.agentId}
-                  reason={g.reason}
-                  size={g.size}
-                  members={g.members}
-                  busy={bulkBusyKey === g.key}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  onDismissAll={() => void dismissCluster(g.key, g.members.map((m) => m.id))}
-                />
+                <ClusterCard key={g.key} agentId={g.agentId} reason={g.reason} size={g.size} members={g.members}
+                  busy={bulkBusyKey === g.key} selectedId={selectedId} onSelect={setSelectedId}
+                  onDismissAll={() => void dismissCluster(g.key, g.members.map((m) => m.id))} />
               ) : (
-                <DeliveryCard
-                  key={g.delivery.id}
-                  delivery={g.delivery}
-                  selected={g.delivery.id === selectedId}
-                  onSelect={setSelectedId}
-                  bulkSelected={isSelected(sel, g.delivery.id)}
-                  onBulkToggle={g.delivery.status === "pending" ? onRowSelect : undefined}
-                />
+                <DeliveryCard key={g.delivery.id} delivery={g.delivery} selected={g.delivery.id === selectedId} onSelect={setSelectedId}
+                  bulkSelected={isSelected(sel, g.delivery.id)} onBulkToggle={onRowSelect} />
               ),
             )
           )}
-
-          {/* P6 / ADR-053 — auto-applied deliveries live here (collapsed), with the full
-              audit trail one click away. The count is the runtime's real tally. */}
-          <AutoApprovedStrip count={autoApproved} refreshNonce={autoNonce} />
+        </ul>
+        <div className="card review" role="region" aria-label="Delivery review" aria-live="polite">
+          <ReviewPane
+            delivery={detail}
+            loading={detailLoading}
+            error={detailError}
+            onRetry={() => setDetailNonce((n) => n + 1)}
+            onDecide={onDecide}
+            onAnswer={onAnswer}
+            jobQuestions={jobQuestions}
+            onAnswerJob={onAnswerJob}
+            role={role}
+            approvers={approvers}
+            onAssign={onAssign}
+          />
         </div>
-
-        {/* review */}
-        {isLg && (
-          <div className="sticky top-4 min-w-0">
-            <ReviewPane
-              delivery={detail}
-              loading={detailLoading}
-              error={detailError}
-              onRetry={() => setDetailNonce((n) => n + 1)}
-              onDecide={onDecide}
-              onAnswer={onAnswer}
-              role={role}
-              approvers={approvers}
-              onAssign={onAssign}
-            />
-          </div>
-        )}
       </div>
 
-      {showOverlay && (
-        <ReviewPane
-          overlay
-          onClose={() => setSelectedId(null)}
-          delivery={detail}
-          loading={detailLoading}
-          error={detailError}
-          onRetry={() => setDetailNonce((n) => n + 1)}
-          onDecide={onDecide}
-          onAnswer={onAnswer}
-          role={role}
-          approvers={approvers}
-          onAssign={onAssign}
-        />
-      )}
-    </div>
+      {/* P6 / ADR-053 — auto-applied deliveries, with the audit trail one click away. */}
+      <AutoApprovedStrip count={autoApproved} refreshNonce={autoNonce} />
+    </section>
   );
 }

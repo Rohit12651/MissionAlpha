@@ -50,13 +50,9 @@ export interface DiffEditorProps {
   onRevert: (path: string) => void;
 }
 
-function diffLineClass(line: string): string {
-  if (line.startsWith("--- ") || line.startsWith("+++ ")) return "helm-diff-file";
-  if (line.startsWith("@@")) return "helm-diff-meta";
-  if (line.startsWith("+")) return "helm-diff-add";
-  if (line.startsWith("-")) return "helm-diff-del";
-  return "";
-}
+/** The mockup's diff line classes: `.a` added, `.d` deleted, `.c` context. */
+const diffLine = (line: string): "a" | "d" | "c" =>
+  line.startsWith("+") && !line.startsWith("+++ ") ? "a" : line.startsWith("-") && !line.startsWith("--- ") ? "d" : "c";
 
 function DiffEditorImpl({
   change,
@@ -102,111 +98,46 @@ function DiffEditorImpl({
 
   const headerLabel = dirty ? `Your edited contents of ${change.path}` : `Diff for ${change.path}`;
 
+  // Phase G (ADR G-2): the mockup's `.diff` box — a header row (the file, its controls)
+  // over a `<pre>` of `.a` / `.d` / `.c` lines; the editor is the mockup's `.diff textarea`.
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        {/* 12px, not the 11px the read-only DiffBlock uses. Phase 8 sets a 12px absolute
-            floor across the app; adding a NEW sub-12px site here would be work Phase 9
-            then has to undo. `min-w-0` + anywhere-wrapping so a long path shrinks
-            instead of forcing the row wider than a 320px pane. */}
-        <span
-          className="helm-mono text-[12px] min-w-0"
-          style={{ color: "var(--helm-brass)", overflowWrap: "anywhere" }}
-        >
+    <div className="diff">
+      <div className="diff-h">
+        <span className="mono" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
           {change.path}
-          <span style={{ color: "var(--helm-paper-faint)" }}> · {change.status}</span>
-          {dirty ? <span className="helm-edit-flag">edited</span> : null}
+          {dirty ? <span className="sub">{" · edited"}</span> : null}
         </span>
-        <div className="flex items-center gap-1.5">
-          {dirty ? (
-            <button
-              type="button"
-              className="helm-btn helm-btn-slim"
-              data-variant="quiet"
-              onClick={revert}
-              disabled={disabled}
-            >
-              Revert
-            </button>
-          ) : null}
-          <button
-            ref={editBtnRef}
-            type="button"
-            className="helm-btn helm-btn-slim"
-            data-variant="quiet"
-            onClick={toggle}
-            disabled={disabled || !editable}
-            title={editable ? undefined : (change.editableReason ?? undefined)}
-            aria-expanded={editing}
-            aria-controls={editing ? fieldId : undefined}
-          >
+        <span className="row" style={{ gap: 8 }}>
+          {dirty ? <button type="button" className="linkish" onClick={revert} disabled={disabled}>Revert</button> : null}
+          <button ref={editBtnRef} type="button" className="linkish" onClick={toggle} disabled={disabled || !editable}
+            title={editable ? undefined : (change.editableReason ?? undefined)} aria-expanded={editing} aria-controls={editing ? fieldId : undefined}>
             {editing ? "Done" : "Edit"}
           </button>
-        </div>
-      </div>
-
-      {/* Rendered OUTSIDE the editing branch. The common sequence is Edit → type → Done →
-          Approve, which closes the editor — an error confined to the open state would
-          therefore almost never be seen. */}
-      {errorMessage ? (
-        <span id={errorId} className="helm-edit-error" role="alert">
-          {errorMessage}
         </span>
-      ) : null}
-
-      {!editable ? (
-        <span className="helm-edit-note">{change.editableReason}</span>
-      ) : null}
-
+      </div>
+      {/* Rendered OUTSIDE the editing branch: Edit → type → Done → Approve closes the
+          editor, so an error confined to the open state would almost never be seen. */}
+      {errorMessage ? <p id={errorId} className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: "6px 12px" }}>{errorMessage}</p> : null}
+      {!editable ? <p className="sub" style={{ margin: "6px 12px" }}>{change.editableReason}</p> : null}
       {editing ? (
         <>
-          <label className="sr-only" htmlFor={fieldId}>
-            {`Edit the proposed contents of ${change.path}`}
-          </label>
-          <textarea
-            ref={areaRef}
-            id={fieldId}
-            className="helm-input helm-mono helm-edit-area"
-            value={value}
-            spellCheck={false}
-            autoComplete="off"
-            disabled={disabled}
-            placeholder="This file is empty."
-            aria-invalid={errorMessage ? true : undefined}
-            aria-describedby={errorMessage ? errorId : undefined}
-            onChange={(e) => onChange(change.path, e.target.value)}
-          />
-          <span className="helm-edit-note">
-            Approving sends this text in place of the agent&apos;s. It lands through the same
-            checks as an unedited approve.
-          </span>
+          <label className="sr-only" htmlFor={fieldId}>{`Edit the proposed contents of ${change.path}`}</label>
+          <textarea ref={areaRef} id={fieldId} value={value} spellCheck={false} autoComplete="off" disabled={disabled}
+            placeholder="This file is empty." aria-invalid={errorMessage ? true : undefined} aria-describedby={errorMessage ? errorId : undefined}
+            onChange={(e) => onChange(change.path, e.target.value)} />
+          <p className="sub" style={{ margin: "6px 12px" }}>Approving sends this text in place of the agent&apos;s. It lands through the same checks as an unedited approve.</p>
         </>
       ) : (
-        <>
-          {/* Once dirty the surface stops being a diff and becomes the operator's file
-              body, so it says so. A diff-labelled region showing non-diff content is the
-              kind of quiet mislabel that costs someone a bad approval. */}
-          {dirty ? <span className="helm-edit-note">Showing your edit. Press Edit to keep changing it.</span> : null}
-          <pre className="helm-diff" tabIndex={0} role="group" aria-label={headerLabel}>
-            {dirty
-              ? value.split("\n").map((ln, i) => (
-                  <span key={i} style={{ display: "block" }}>
-                    {ln === "" ? " " : ln}
-                  </span>
-                ))
-              : lines.map((ln, i) => (
-                  <span key={i} className={diffLineClass(ln)} style={{ display: "block" }}>
-                    {ln === "" ? " " : ln}
-                  </span>
-                ))}
-          </pre>
-        </>
+        // Once dirty the surface stops being a diff and becomes the operator's file body,
+        // and says so: a diff-labelled region showing non-diff content is a quiet mislabel.
+        <pre tabIndex={0} role="group" aria-label={headerLabel}>
+          {dirty
+            ? value.split("\n").map((ln, i) => <span key={i} className="c">{ln === "" ? " " : ln}</span>)
+            : lines.map((ln, i) => <span key={i} className={diffLine(ln)}>{ln === "" ? " " : ln}</span>)}
+        </pre>
       )}
     </div>
   );
 }
 
-// Memoized: draft state lives in ReviewPane, so without this every keystroke in a 46vh
-// monospace field reconciles every OTHER diff in the delivery. All props are already
-// stable (the change object and the useCallback'd handlers), so the win is free.
 export const DiffEditor = memo(DiffEditorImpl);

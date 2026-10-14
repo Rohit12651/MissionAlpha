@@ -97,6 +97,8 @@ export interface Delivery {
    * null for every non-gate row. Used to route an answer/decision back to its Story.
    */
   storyId?: string | null;
+  /** #4 — the job a job gate belongs to (server: deliveries row `jobId`). */
+  jobId?: string | null;
 }
 
 /** Source-specific metadata an adapter attaches to an external Delivery. */
@@ -205,7 +207,12 @@ export type InboxFilter = (typeof INBOX_FILTERS)[number];
 // Phase 11 — `job-approval` is the JOB gate: ONE decision that ships every task in a job.
 export const GATE_KINDS: readonly DeliveryKind[] = ["question", "design-approval", "release-approval", "job-approval"];
 export const isGate = (d: Delivery): boolean => GATE_KINDS.includes(d.kind);
-export const isQuestion = (d: Delivery): boolean => d.kind === "question";
+/** #4 — a job mints `question` gates for four reasons, told apart by slot (stored in taskId):
+ *  `<job>-q` is the clarify gate, ANSWERED; `-hire` / `-esc-N` / `-blocked-T` are yes/no DECISIONS. */
+export const isJobClarify = (d: Delivery): boolean =>
+  d.kind === "question" && !!d.jobId && d.taskId === `${d.jobId}-q`;
+/** A gate that is ANSWERED with text. A job's decision gates are not: they take approve/reject. */
+export const isQuestion = (d: Delivery): boolean => d.kind === "question" && (!d.jobId || isJobClarify(d));
 export const isDesignGate = (d: Delivery): boolean => d.kind === "design-approval";
 export const isReleaseGate = (d: Delivery): boolean => d.kind === "release-approval";
 

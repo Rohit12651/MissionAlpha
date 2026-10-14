@@ -44,7 +44,12 @@ export interface SingleGroup {
 }
 export type InboxGroup = ClusterGroup | SingleGroup;
 
-const at = (d: Delivery | undefined): number => Number(d?.createdAt) || 0;
+// createdAt is an ISO string on the wire; a number is accepted too (older test shapes).
+const at = (d: Delivery | undefined): number => {
+  const v: unknown = d?.createdAt;
+  const n = typeof v === "number" ? v : Date.parse(String(v));
+  return Number.isFinite(n) ? n : 0;
+};
 
 /**
  * Group deliveries into clusters + singles, newest first.

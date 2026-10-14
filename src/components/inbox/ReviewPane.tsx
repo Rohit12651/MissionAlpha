@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   TYPED_CONFIRM,
   needsTypedConfirm,
@@ -7,12 +6,10 @@ import {
   isApproveBlocked,
   isDesignGate,
   isFailure,
-  isGate,
+  isJobClarify,
   isQuestion,
   isReadOnly,
   isReleaseGate,
-  riskLabel,
-  riskTone,
   sourceLabel,
   type DecideVerb,
   type DeliveryChange,
@@ -24,6 +21,11 @@ import { parseMentions, type Role } from "../../lib/authClient";
 import { DiffEditor } from "./DiffEditor";
 import { isSafePrUrl, modeLabel } from "../../lib/workspaceClient";
 import { ErrorState } from "./ErrorState";
+import { RiskChip } from "./RiskChip";
+import { SlaTimer } from "./SlaTimer";
+import { inboxKindOf } from "../../lib/inboxTally";
+import { stationById, stationInitials } from "../../lib/stationMeta";
+import { STORY_STAGES, isGateStage, stageLabel } from "../../lib/storiesClient";
 import { trustChip, injectionChip } from "../../lib/externalTrust";
 
 // @mention rendering (P9) — display only. Highlights `@name` tokens in feedback; a
@@ -33,7 +35,7 @@ function MentionText({ text }: { text: string }) {
     <>
       {parseMentions(text).map((seg, i) =>
         seg.type === "mention"
-          ? <span key={i} className="helm-mono" style={{ color: "var(--helm-brass)" }}>{seg.value}</span>
+          ? <span key={i} className="mono" style={{ color: "var(--brand)" }}>{seg.value}</span>
           : <span key={i}>{seg.value}</span>,
       )}
     </>
@@ -53,34 +55,26 @@ function MentionText({ text }: { text: string }) {
   does not apply to the change set, which the runtime rebuilds from the on-disk
   patch on GET /inbox/:id.
 
-  a11y: on narrow viewports the pane is a modal dialog (focus trapped, ESC closes,
-  focus restored). On desktop it is an inline region beside the list — a focus trap
-  there would be an a11y bug, so it is deliberately NOT applied.
+  Phase G (ADR G-2): the mockup's review card body — card header (kind · ref, title, SLA),
+  pills, then per kind: a delivery's summary, reasons, diff boxes, typed APPLY, note and
+  Approve / Request changes / Reject; a design gate's spine; a question's numbered
+  answers; a failure's lines. The mockup shows the review INLINE at every width (below
+  the list under 1100px), so the narrow-viewport modal is gone with it.
 */
 
-function diffLineClass(line: string): string {
-  if (line.startsWith("--- ") || line.startsWith("+++ ")) return "helm-diff-file";
-  if (line.startsWith("@@")) return "helm-diff-meta";
-  if (line.startsWith("+")) return "helm-diff-add";
-  if (line.startsWith("-")) return "helm-diff-del";
-  return "";
-}
+/** The mockup's diff line classes: `.a` added, `.d` deleted, `.c` context (headers included). */
+export const diffLine = (line: string): "a" | "d" | "c" =>
+  line.startsWith("+") && !line.startsWith("+++ ") ? "a" : line.startsWith("-") && !line.startsWith("--- ") ? "d" : "c";
 
+/** A decided delivery's change: the mockup's read-only `.diff` box. */
 function DiffBlock({ change }: { change: DeliveryChange }) {
   const lines = useMemo(() => change.patch.split("\n"), [change.patch]);
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="helm-mono text-[11px]" style={{ color: "var(--helm-brass)" }}>
-        {change.path}
-        <span style={{ color: "var(--helm-paper-faint)" }}> · {change.status}</span>
-      </span>
+    <div className="diff">
+      <div className="diff-h"><span className="mono">{change.path}</span><span className="sub">read-only</span></div>
       {/* tabIndex makes the scroll container keyboard-scrollable (a11y for overflow regions). */}
-      <pre className="helm-diff" tabIndex={0} role="group" aria-label={`Diff for ${change.path}`}>
-        {lines.map((ln, i) => (
-          <span key={i} className={diffLineClass(ln)} style={{ display: "block" }}>
-            {ln === "" ? " " : ln}
-          </span>
-        ))}
+      <pre tabIndex={0} role="group" aria-label={`Diff for ${change.path}`}>
+        {lines.map((ln, i) => <span key={i} className={diffLine(ln)}>{ln === "" ? " " : ln}</span>)}
       </pre>
     </div>
   );
@@ -101,9 +95,6 @@ export interface ReviewPaneProps {
     feedback?: string,
     edits?: DeliveryEdit[],
   ) => Promise<{ ok: boolean; error?: string; editErrors?: DeliveryEditError[] }>;
-  /** Modal presentation (narrow viewports): traps focus, ESC closes. */
-  overlay?: boolean;
-  onClose?: () => void;
   /**
    * P9 — the current user's role, or null when solo (0/1 account, full powers). A
    * 'viewer' sees the Inbox but no decide controls, and the server rejects a direct
@@ -118,6 +109,12 @@ export interface ReviewPaneProps {
    * rendered (a question gate then simply shows its text).
    */
   onAnswer?: (answer: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * #4 — a JOB's clarify gate carries several questions, answered together through the job's
+   * own answer route. `jobQuestions` is null while the job is being read.
+   */
+  jobQuestions?: string[] | null;
+  onAnswerJob?: (texts: string[]) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function ReviewPane({
@@ -126,12 +123,12 @@ export function ReviewPane({
   error,
   onRetry,
   onDecide,
-  overlay,
-  onClose,
   role = null,
   approvers = [],
   onAssign,
   onAnswer,
+  jobQuestions = null,
+  onAnswerJob,
 }: ReviewPaneProps) {
   const [feedback, setFeedback] = useState("");
   const [typed, setTyped] = useState("");
@@ -141,6 +138,8 @@ export function ReviewPane({
   const [answerText, setAnswerText] = useState("");
   const [answering, setAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  // #4 — one answer per job question, in the Manager's order.
+  const [jobTexts, setJobTexts] = useState<string[]>([]);
   // Phase 4 — the operator's in-progress revision, keyed by path. A path is present here
   // only once it has been touched; `openEditor` is the single path whose textarea is open
   // (one at a time, so a 320px pane is never a stack of editors).
@@ -148,8 +147,6 @@ export function ReviewPane({
   const [openEditor, setOpenEditor] = useState<string | null>(null);
   // Per-file refusals from the last decision, so each one renders on the field it names.
   const [editErrors, setEditErrors] = useState<DeliveryEditError[]>([]);
-  const paneRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
 
   const id = delivery?.id ?? null;
   // A new selection resets every transient control — stale feedback must never
@@ -168,40 +165,6 @@ export function ReviewPane({
     setOpenEditor(null);
     setEditErrors([]);
   }, [id]);
-
-  // ESC closes in overlay mode; focus is trapped and then restored.
-  useEffect(() => {
-    if (!overlay) return;
-    restoreRef.current = document.activeElement as HTMLElement | null;
-    const node = paneRef.current;
-    node?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose?.();
-        return;
-      }
-      if (e.key !== "Tab" || !node) return;
-      const f = node.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (!f.length) return;
-      const first = f[0];
-      const last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      restoreRef.current?.focus?.();
-    };
-  }, [overlay, onClose, id]);
 
   // Phase 4 — draft handling. Immutable updates throughout: a mutated draft map would
   // not re-render, and a stale render on a control that rewrites source is unacceptable.
@@ -256,6 +219,18 @@ export function ReviewPane({
     [editErrors],
   );
 
+  // #4 — a new selection starts with empty answers, one slot per question.
+  useEffect(() => { setJobTexts((jobQuestions ?? []).map(() => "")); }, [id, jobQuestions]);
+
+  const submitJobAnswers = useCallback(async () => {
+    if (answering || !onAnswerJob) return;
+    setAnswering(true);
+    setAnswerError(null);
+    const r = await onAnswerJob(jobTexts);
+    setAnswering(false);
+    if (!r.ok) setAnswerError(r.error || "could not submit the answers");
+  }, [answering, jobTexts, onAnswerJob]);
+
   // S2 — submit an answer to a question gate.
   const submitAnswer = useCallback(async () => {
     if (answering || !onAnswer) return;
@@ -268,483 +243,245 @@ export function ReviewPane({
     if (!r.ok) setAnswerError(r.error || "could not submit the answer");
   }, [answering, answerText, onAnswer]);
 
-  const body = (() => {
-    if (loading && !delivery) {
-      return (
-        <div className="helm-note" role="status" aria-live="polite">
-          Loading the change set…
-        </div>
-      );
-    }
-    if (error && !delivery) return <ErrorState message={error} onRetry={onRetry} />;
-    if (!delivery) {
-      return <div className="helm-note">Select a delivery to review it.</div>;
-    }
 
-    const band = delivery.risk.band;
-    const pending = delivery.status === "pending";
-    // P4 — a failure Delivery ("agent stuck") has no diff to approve. Its two verbs
-    // are the SAME ones the runtime already implements — request_changes (the feedback
-    // becomes the agent's next task via engine.enqueueGoal) and reject (cancel the
-    // stuck task) — relabelled for what they mean here. No new endpoint, no new
-    // capability, no Approve→apply path on a row with nothing to apply.
-    const failure = isFailure(delivery);
-    // S2 — a HUMAN-GATE delivery. A `question` is ANSWERED (a text answer, not a decision);
-    // a `design-approval` is DECIDED with the same approve / request-changes / reject verbs
-    // (the runtime routes the decision back to the Story). Neither is a code diff, so the
-    // high-band typed-confirm friction and the diff pane do not apply.
-    const gate = isGate(delivery);
-    const question = isQuestion(delivery);
-    const designGate = isDesignGate(delivery);
-    // S5 — the release-accept gate. Decided (approve → run the deploy; request-changes/reject →
-    // bounce the story back to review-qa). The summary carries the release notes + diffstat +
-    // task list + the deploy NETWORK flag, so the deciding human sees whether the deploy has egress.
-    const releaseGate = isReleaseGate(delivery);
-    // P7 — external ingestion. A claude-code session is READ-ONLY (no decide action);
-    // a github-pr decision posts to GitHub (surfaced below the diff + as a PR link).
-    const readOnly = isReadOnly(delivery);
-    // P9 — a viewer sees everything but cannot decide (the server also refuses a direct
-    // decide). null role = solo, which keeps full powers. `canAssign` gates the picker.
-    const canDecide = role !== "viewer";
-    const canAssign = canDecide && !!onAssign && approvers.length > 0;
-    const isGithub = delivery.source === "github-pr";
-    const meta = delivery.externalMeta ?? null;
-    const prUrl = isGithub ? meta?.url ?? delivery.prUrl : delivery.prUrl;
-    // The gate is live NOW even though P2 always writes a null band: the moment
-    // ADR-053 (P6) writes band==="high", Approve is already locked behind the
-    // typed confirmation. No P6 edit to this component is required. The predicate
-    // itself is pure + unit-tested (inboxClient.isApproveBlocked).
-    const approveKind = { designGate: Boolean(designGate), failure: Boolean(failure) };
-    // One source of truth, two questions: does this delivery HAVE a confirmation step, and
-    // is it still outstanding. The field is rendered from the first, the button from the
-    // second — rendering both from the second made the input unmount as you typed into it.
-    const confirmRequired = needsTypedConfirm(band, approveKind);
-    const approveBlocked = isApproveBlocked(band, typed, approveKind);
-    // R10 / R12 — advisory markers off externalMeta. This pane is where the operator
-    // actually READS the untrusted text, so the injection marker matters more here than on
-    // the list row.
-    const trust = trustChip(meta?.trust);
-    const inject = injectionChip(meta?.injectFlags);
-    const changesBlocked = feedback.trim().length === 0; // runtime 400s without feedback
+  if (loading && !delivery) return <div className="empty-note" role="status" aria-live="polite">Loading the change set…</div>;
+  if (error && !delivery) return <ErrorState message={error} onRetry={onRetry} />;
+  if (!delivery) return <div className="empty-note"><span className="script">Pick something.</span><br />Its review opens here.</div>;
 
-    return (
-      <>
-        <h2 className="helm-display text-[17px] leading-snug">{delivery.title}</h2>
+  const d = delivery;
+  const band = d.risk.band;
+  const pending = d.status === "pending";
+  const failure = isFailure(d);
+  const question = isQuestion(d);
+  const designGate = isDesignGate(d);
+  const releaseGate = isReleaseGate(d);
+  const readOnly = isReadOnly(d);
+  // P9 — a viewer sees everything but cannot decide (the server also refuses). null = solo.
+  const canDecide = role !== "viewer";
+  const canAssign = canDecide && !!onAssign && approvers.length > 0;
+  const isGithub = d.source === "github-pr";
+  const meta = d.externalMeta ?? null;
+  const prUrl = isGithub ? meta?.url ?? d.prUrl : d.prUrl;
+  const approveKind = { designGate: Boolean(designGate), failure: Boolean(failure) };
+  const confirmRequired = needsTypedConfirm(band, approveKind);
+  const approveBlocked = isApproveBlocked(band, typed, approveKind);
+  const trust = trustChip(meta?.trust);
+  const inject = injectionChip(meta?.injectFlags);
+  // The mockup's rule, enforced so the copy is true: a note is needed to send work back.
+  const noteMissing = feedback.trim().length === 0;
+  const ref = d.storyId ?? d.jobId ?? null;
+  const station = stationById(d.agentId)?.name ?? d.agentId;
+  const files = d.diffstat.files;
+  const openPr = (e: React.MouseEvent) => {
+    // Electron denies window.open; the packaged app routes through the main-process bridge,
+    // whose own allowlist (https + github.com) is re-checked there.
+    if (window.missionAlpha?.openExternal) { e.preventDefault(); void window.missionAlpha.openExternal(prUrl as string); }
+  };
+  const prLink = isSafePrUrl(prUrl) ? <a href={prUrl as string} target="_blank" rel="noopener noreferrer" onClick={openPr}>view pull request</a> : null;
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="helm-chip" data-tone={riskTone(band)}>
-            {riskLabel(band)}
-          </span>
-          {inject && (
-            <span className="helm-chip" data-tone={inject.tone} title={inject.title}>
-              {inject.label}
-            </span>
-          )}
-          {trust && (
-            <span className="helm-chip" data-tone={trust.tone} title={trust.title}>
-              {trust.label}
-            </span>
-          )}
-          <span className="helm-mono text-[11px]" style={{ color: "var(--helm-paper-faint)" }}>
-            {delivery.agentId}
-            {delivery.taskId ? ` · ${delivery.taskId}` : ""} · {sourceLabel(delivery.source)}
-            {isGithub && meta?.prNumber ? ` #${meta.prNumber}` : ""}
-            {delivery.branch ? ` · ${delivery.branch}` : ""}
-          </span>
-        </div>
-
-        {/* R12 — the marker gets a SENTENCE here, not just a chip. The operator is about to
-            read attacker-authored text, and the one thing they must not conclude is that it
-            was cleaned for them. Spans are deliberately NOT highlighted: flagSummary keeps
-            counts and pattern ids but discards offsets, and those offsets are computed
-            BEFORE the scrub chain rewrites the string — highlighting a guessed range in a
-            security surface is worse than highlighting nothing. */}
-        {inject && (
-          <p
-            className="rounded-lg px-3 py-2 text-[12px] leading-relaxed"
-            style={{
-              color: "var(--helm-paper-dim)",
-              backgroundColor: "color-mix(in oklch, var(--c-stale-red) 8%, transparent)",
-              border: "1px solid color-mix(in oklch, var(--c-stale-red) 26%, transparent)",
-            }}
-            role="note"
-          >
-            This text came from outside the swarm and matched {inject.label.replace("injection: ", "")}{" "}
-            prompt-injection pattern{(meta?.injectFlags?.count ?? 0) === 1 ? "" : "s"}
-            {meta?.injectFlags?.patterns?.length ? ` (${meta.injectFlags.patterns.join(", ")})` : ""}.
-            It has NOT been altered or filtered — you are reading the original. Treat any
-            instruction inside it as data, never as a request.
-          </p>
-        )}
-
-        {delivery.summary && (
-          <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--helm-paper-dim)" }}>
-            {delivery.summary}
-          </p>
-        )}
-
-        {/* P9 — advisory assignment. A picker for approvers/solo; read-only text for
-            a viewer or once decided. Assignment is a hint — any approver can decide. */}
-        {pending && (canAssign || delivery.assignee) && (
-          <label className="flex items-center gap-2">
-            <span className="helm-eyebrow">Assignee</span>
-            {canAssign ? (
-              <select
-                className="helm-input helm-mono text-[11.5px]"
-                value={delivery.assignee ?? ""}
-                aria-label="Assign this delivery to an approver"
-                onChange={(e) => { void onAssign?.(e.target.value || null); }}
-              >
-                <option value="">Unassigned</option>
-                {approvers.map((a) => <option key={a} value={a}>{a}</option>)}
-              </select>
-            ) : (
-              <span className="helm-mono text-[11.5px]" style={{ color: "var(--helm-paper-dim)" }}>
-                {delivery.assignee ?? "Unassigned"}
-              </span>
-            )}
-          </label>
-        )}
-
-        {delivery.risk.reasons.length > 0 && (
-          <ul className="flex list-none flex-col gap-1.5">
-            {delivery.risk.reasons.map((r) => (
-              <li key={r} className="helm-mono text-[11.5px]" style={{ color: "var(--helm-paper-dim)" }}>
-                <span aria-hidden style={{ color: "var(--helm-red)" }}>
-                  ▸{" "}
-                </span>
-                {r}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="flex min-h-0 flex-col gap-3">
-          {delivery.changes.length === 0 ? (
-            delivery.changedPaths.length > 0 ? (
-              // P7 — a read-only claude-code session carries the touched-file list but no
-              // patch bodies (we don't have before/after for a local session). Show the
-              // files so the row is still useful; the full diff lives in Claude Code.
-              <div className="flex flex-col gap-1.5">
-                <span className="helm-eyebrow">Files touched ({delivery.changedPaths.length})</span>
-                <ul className="flex list-none flex-col gap-1">
-                  {delivery.changedPaths.map((p) => (
-                    <li key={p} className="helm-mono text-[11.5px]" style={{ color: "var(--helm-paper-dim)" }}>{p}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="helm-note" data-tone={failure ? "red" : gate ? "amber" : undefined}>
-                {failure
-                  ? "This agent could not finish. No changes were produced — read the classified error above, then dispatch a fix or dismiss it."
-                  : question
-                    ? "A clarify question from the pipeline. Answer it below — the story resumes once every question is answered."
-                    : designGate
-                      ? "A design gate. Review the design summary above, then approve to advance the story to Plan, or request changes to send it back for a revision."
-                      : releaseGate
-                        ? "A release gate. Review the release notes, diffstat and the deploy NETWORK flag above, then approve to run the deploy (and ship on a healthy check), or request changes to send it back to Review-QA."
-                        : "No file changes on this delivery — nothing to diff."}
-              </div>
-            )
-          ) : (
-            delivery.changes.map((c) =>
-              // Phase 4 — a PENDING code delivery is editable; a decided one is a record
-              // and must stay read-only. The read-only path is the original DiffBlock,
-              // byte-for-byte, so nothing about a decided delivery's rendering changed.
-              pending ? (
-                <DiffEditor
-                  key={c.path}
-                  change={c}
-                  draft={drafts[c.path]}
-                  editing={openEditor === c.path}
-                  disabled={busy != null}
-                  // Structured, not a string prefix match: the runtime returns
-                  // `editErrors: [{path, message}]`, so a reworded server message cannot
-                  // silently downgrade this to a pane-level banner.
-                  errorMessage={errorFor(c.path)}
-                  onToggleEdit={toggleEditor}
-                  onChange={setDraft}
-                  onRevert={revertDraft}
-                />
-              ) : (
-                <DiffBlock key={c.path} change={c} />
-              ),
-            )
-          )}
-          {/* ONE pane-level live region for the edit count — the quantity the operator
-              actually needs before pressing Approve. Per-file flags are visual only; a
-              live region per file announces on every mount and says nothing useful. */}
-          {pending && pendingEdits.length ? (
-            <p className="helm-edit-note" role="status">
-              {`${pendingEdits.length} file${pendingEdits.length === 1 ? "" : "s"} edited. Approving sends your text.`}
-            </p>
-          ) : null}
-        </div>
-
-        {!pending ? (
-          <div
-            className="helm-note"
-            data-tone={delivery.status === "rejected" ? "red" : "green"}
-            role="status"
-          >
-            {decidedLabel(delivery.status)}
-            {delivery.decidedBy ? ` · by ${delivery.decidedBy}` : ""}
-            {/* P5 — WHERE the change actually went. Rendered from the persisted
-                `mode`, so it survives a reload and never guesses. */}
-            {delivery.mode ? ` · ${modeLabel(delivery.mode, delivery.branch)}` : ""}
-            {delivery.feedback ? <> · “<MentionText text={delivery.feedback} />”</> : ""}
-            {/* P5 mode='pr' OR P7 github-pr both carry a GitHub PR link. */}
-            {(delivery.mode === "pr" || isGithub) && isSafePrUrl(prUrl) && (
-              <>
-                {" · "}
-                <a
-                  href={prUrl as string}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2"
-                  style={{ color: "var(--helm-brass)" }}
-                  onClick={(e) => {
-                    // Electron denies window.open AND non-loopback navigation, so the
-                    // packaged app routes through the main-process bridge, whose own
-                    // allowlist (https + github.com) is re-checked there.
-                    if (window.missionAlpha?.openExternal) {
-                      e.preventDefault();
-                      void window.missionAlpha.openExternal(prUrl as string);
-                    }
-                  }}
-                >
-                  view pull request
-                </a>
-              </>
-            )}
-          </div>
-        ) : readOnly ? (
-          // P7 — a claude-code session is READ-ONLY in v1: no decide buttons, just a note.
-          <div className="helm-note" role="status">
-            Read-only — this Claude Code session is shown for visibility. Decide it in Claude Code.
-          </div>
-        ) : !canDecide ? (
-          // P9 — a viewer sees the Inbox but cannot decide (the server also refuses a
-          // direct decide). No approve/reject/request-changes controls are rendered.
-          <div className="helm-note" role="status">
-            Viewer — read only. You can review this delivery, but only an approver can decide it.
-          </div>
-        ) : question ? (
-          // S2 — a clarify question is ANSWERED (a text answer), not decided. No approve/reject
-          // verbs apply here; the answer route resolves the gate and resumes the story.
-          <div className="flex flex-col gap-2">
-            {onAnswer ? (
-              <>
-                <label className="flex flex-col gap-1.5">
-                  <span className="helm-eyebrow">Your answer</span>
-                  <textarea
-                    className="helm-input"
-                    rows={3}
-                    value={answerText}
-                    onChange={(e) => setAnswerText(e.target.value)}
-                    placeholder="Answer the pipeline's question — the story resumes once every question is answered."
-                    disabled={answering}
-                  />
-                </label>
-                {answerError && (
-                  <div className="helm-note" data-tone="red" role="alert">{answerError}</div>
-                )}
-                <div className="mt-auto flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="helm-btn"
-                    data-variant="approve"
-                    data-busy={answering ? "true" : undefined}
-                    disabled={answering || answerText.trim().length === 0}
-                    title={answerText.trim().length === 0 ? "Type an answer first" : undefined}
-                    onClick={() => void submitAnswer()}
-                  >
-                    {answering ? "Submitting…" : "Submit answer"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="helm-note" role="status">This clarify question is read-only here.</div>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* P7 — a github-pr decision posts OUTBOUND to GitHub, not into your local tree. */}
-            {isGithub && (
-              <div className="helm-note" role="note">
-                Approving posts a review to GitHub{meta?.prNumber ? ` (PR #${meta.prNumber})` : ""} — the change lands there, not in your working tree.
-                {isSafePrUrl(prUrl) && (
-                  <>
-                    {" · "}
-                    <a
-                      href={prUrl as string}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2"
-                      style={{ color: "var(--helm-brass)" }}
-                      onClick={(e) => {
-                        if (window.missionAlpha?.openExternal) {
-                          e.preventDefault();
-                          void window.missionAlpha.openExternal(prUrl as string);
-                        }
-                      }}
-                    >
-                      view pull request
-                    </a>
-                  </>
-                )}
-              </div>
-            )}
-            {confirmRequired && (
-              <div className="helm-confirm">
-                <b>High-risk change.</b> Type <b>{TYPED_CONFIRM}</b> to enable Approve.
-                <input
-                  className="helm-input helm-mono mt-2"
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  placeholder={`Type ${TYPED_CONFIRM} to confirm…`}
-                  aria-label={`Type ${TYPED_CONFIRM} to enable approval`}
-                  aria-invalid={typed.length > 0 && typed !== TYPED_CONFIRM}
-                  disabled={busy != null}
-                />
-              </div>
-            )}
-
-            <label className="flex flex-col gap-1.5">
-              <span className="helm-eyebrow">Feedback for the agent</span>
-              <textarea
-                className="helm-input"
-                rows={2}
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Required for Request changes — becomes the agent's next task. Use @name to mention a teammate."
-                disabled={busy != null}
-              />
-              {parseMentions(feedback).some((s) => s.type === "mention") && (
-                <span className="helm-mono text-[11px]" style={{ color: "var(--helm-paper-faint)" }}>
-                  Mentions: {parseMentions(feedback).filter((s) => s.type === "mention").map((s) => s.value).join(" ")}
-                </span>
-              )}
-            </label>
-
-            {decideError && (
-              <div className="helm-note" data-tone="red" role="alert">
-                {decideError}
-              </div>
-            )}
-
-            <div className="mt-auto flex flex-wrap gap-2">
-              {failure ? (
-                <>
-                  <button
-                    type="button"
-                    className="helm-btn"
-                    data-variant="changes"
-                    data-busy={busy === "request_changes" ? "true" : undefined}
-                    disabled={changesBlocked || busy != null}
-                    title={changesBlocked ? "Describe the fix first — it becomes the agent's next task" : undefined}
-                    onClick={() => void run("request_changes")}
-                  >
-                    {busy === "request_changes" ? "Dispatching…" : "Dispatch fix"}
-                  </button>
-                  <button
-                    type="button"
-                    className="helm-btn"
-                    data-variant="reject"
-                    data-busy={busy === "reject" ? "true" : undefined}
-                    disabled={busy != null}
-                    onClick={() => void run("reject")}
-                  >
-                    {busy === "reject" ? "Dismissing…" : "Dismiss"}
-                  </button>
-                </>
-              ) : (
-                <>
-              <button
-                type="button"
-                className="helm-btn"
-                data-variant="approve"
-                data-busy={busy === "approve" ? "true" : undefined}
-                disabled={approveBlocked || busy != null}
-                title={approveBlocked ? `Type ${TYPED_CONFIRM} above to enable` : undefined}
-                onClick={() => void run("approve")}
-              >
-                {busy === "approve"
-                  ? (designGate ? "Approving…" : "Applying…")
-                  : designGate
-                    ? "Approve design"
-                    : pendingEdits.length
-                      // The label states what will actually land. "Approve → apply" on a
-                      // set of edited files would understate the action.
-                      // "Approve WITH n edits": on a 5-file delivery, "Approve 2 edits"
-                      // reads as "2 files will land". All of them land; 2 carry an edit.
-                      ? `Approve with ${pendingEdits.length} edit${pendingEdits.length === 1 ? "" : "s"} → apply`
-                      : "Approve → apply"}
-              </button>
-              <button
-                type="button"
-                className="helm-btn"
-                data-variant="changes"
-                data-busy={busy === "request_changes" ? "true" : undefined}
-                disabled={changesBlocked || busy != null}
-                title={changesBlocked ? "Write feedback first" : undefined}
-                onClick={() => void run("request_changes")}
-              >
-                {busy === "request_changes" ? "Sending…" : "Request changes"}
-              </button>
-              <button
-                type="button"
-                className="helm-btn"
-                data-variant="reject"
-                data-busy={busy === "reject" ? "true" : undefined}
-                disabled={busy != null}
-                onClick={() => void run("reject")}
-              >
-                {busy === "reject" ? "Discarding…" : "Reject"}
-              </button>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </>
-    );
-  })();
-
-  const pane = (
-    <div
-      ref={paneRef}
-      tabIndex={-1}
-      className="helm-pane min-h-[420px]"
-      role={overlay ? "dialog" : "region"}
-      aria-modal={overlay ? true : undefined}
-      aria-label="Delivery review"
-    >
-      {overlay && (
-        <button
-          type="button"
-          className="helm-btn self-end"
-          data-variant="quiet"
-          onClick={onClose}
-          aria-label="Close review"
-        >
-          <X size={14} aria-hidden /> Close
-        </button>
+  const note = (label: string) => (
+    <div className="field" style={{ marginTop: 12 }}>
+      <label className="label" htmlFor="rv-note">{label}</label>
+      <textarea id="rv-note" rows={2} className="field-ta" value={feedback} disabled={busy != null} onChange={(e) => setFeedback(e.target.value)} />
+      {parseMentions(feedback).some((m) => m.type === "mention") && (
+        <span className="sub" data-app-only="mentions">{`Mentions: ${parseMentions(feedback).filter((m) => m.type === "mention").map((m) => m.value).join(" ")}`}</span>
       )}
-      {body}
+      {decideError && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: "4px 0 0" }}>{decideError}</p>}
     </div>
   );
 
-  if (!overlay) return pane;
-  return (
-    <div
-      className="fixed inset-0 z-[70] overflow-y-auto p-3"
-      style={{ background: "rgba(6,10,18,0.7)" }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-    >
-      {pane}
+  const decided = !pending ? (
+    <div className={d.status === "rejected" ? "alert" : "alert okline"} role="status" style={{ marginTop: 12 }}>
+      <span className={d.status === "rejected" ? "dot bad" : "dot ok"} style={{ marginTop: 7 }} />
+      <div>
+        {decidedLabel(d.status)}
+        {d.decidedBy ? ` · by ${d.decidedBy}` : ""}
+        {d.mode ? ` · ${modeLabel(d.mode, d.branch)}` : ""}
+        {d.feedback ? <> · “<MentionText text={d.feedback} />”</> : null}
+        {(d.mode === "pr" || isGithub) && prLink ? <> · {prLink}</> : null}
+      </div>
     </div>
+  ) : null;
+
+  const changes = d.changes.length === 0 ? (
+    d.changedPaths.length > 0 ? (
+      // P7 — a read-only Claude Code session carries the touched files but no patch bodies.
+      <ul className="list" style={{ gap: 2, marginTop: 12 }} aria-label="Files touched">
+        {d.changedPaths.map((p) => <li key={p} className="mono" style={{ fontSize: ".8125rem" }}>{p}</li>)}
+      </ul>
+    ) : null
+  ) : (
+    <>
+      {d.changes.map((c) => pending ? (
+        <DiffEditor key={c.path} change={c} draft={drafts[c.path]} editing={openEditor === c.path} disabled={busy != null}
+          errorMessage={errorFor(c.path)} onToggleEdit={toggleEditor} onChange={setDraft} onRevert={revertDraft} />
+      ) : <DiffBlock key={c.path} change={c} />)}
+      {pending && pendingEdits.length ? (
+        <p className="sub" role="status" style={{ margin: "8px 0 0" }}>{`${pendingEdits.length} file${pendingEdits.length === 1 ? "" : "s"} edited. Approving sends your text.`}</p>
+      ) : null}
+    </>
+  );
+
+  const decideRow = (
+    <div className="row" style={{ marginTop: 12 }}>
+      {failure ? (
+        <>
+          <button className="btn btn-primary" type="button" disabled={noteMissing || busy != null} aria-busy={busy === "request_changes" || undefined}
+            title={noteMissing ? "Describe the fix first: it becomes the agent's next task" : undefined} onClick={() => void run("request_changes")}>
+            {busy === "request_changes" ? "Sending back…" : `Send back to ${station}`}
+          </button>
+          <button className="btn btn-ghost" type="button" disabled={busy != null} aria-busy={busy === "reject" || undefined} onClick={() => void run("reject")}>
+            {busy === "reject" ? "Dismissing…" : "Dismiss"}
+          </button>
+        </>
+      ) : designGate ? (
+        <>
+          <button className="btn btn-primary" type="button" disabled={busy != null} aria-busy={busy === "approve" || undefined} onClick={() => void run("approve")}>
+            {busy === "approve" ? "Approving…" : "Approve design"}
+          </button>
+          <button className="btn btn-ghost" type="button" disabled={noteMissing || busy != null} aria-busy={busy === "request_changes" || undefined}
+            title={noteMissing ? "Write a note first" : undefined} onClick={() => void run("request_changes")}>
+            {busy === "request_changes" ? "Sending back…" : "Send it back"}
+          </button>
+          <button className="btn btn-outline" type="button" disabled={noteMissing || busy != null} data-app-only="gate-reject" onClick={() => void run("reject")}>
+            {busy === "reject" ? "Rejecting…" : "Reject"}
+          </button>
+        </>
+      ) : (
+        <>
+          <button className="btn btn-primary" type="button" disabled={approveBlocked || busy != null} aria-busy={busy === "approve" || undefined}
+            title={approveBlocked ? `Type ${TYPED_CONFIRM} above to enable` : undefined} onClick={() => void run("approve")}>
+            {busy === "approve" ? "Applying…" : pendingEdits.length ? `Approve with ${pendingEdits.length} edit${pendingEdits.length === 1 ? "" : "s"}` : "Approve"}
+          </button>
+          <button className="btn btn-ghost" type="button" disabled={noteMissing || busy != null} aria-busy={busy === "request_changes" || undefined}
+            title={noteMissing ? "Write a note first" : undefined} onClick={() => void run("request_changes")}>
+            {busy === "request_changes" ? "Sending…" : "Request changes"}
+          </button>
+          <button className="btn btn-outline" type="button" disabled={noteMissing || busy != null} aria-busy={busy === "reject" || undefined}
+            title={noteMissing ? "Write a note first" : undefined} onClick={() => void run("reject")}>
+            {busy === "reject" ? "Rejecting…" : "Reject"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+
+  let body: React.ReactNode;
+  if (!pending) body = <>{d.summary && <p style={{ margin: "0 0 8px" }}>{d.summary}</p>}{changes}{decided}</>;
+  else if (readOnly) body = <>{d.summary && <p style={{ margin: "0 0 8px" }}>{d.summary}</p>}{changes}<p className="sub" role="status" style={{ marginTop: 12 }}>Read-only: this Claude Code session is shown for visibility. Decide it in Claude Code.</p></>;
+  else if (!canDecide) body = <>{d.summary && <p style={{ margin: "0 0 8px" }}>{d.summary}</p>}{changes}<p className="sub" role="status" style={{ marginTop: 12 }}>Viewer: read only. Only an approver can decide it.</p></>;
+  else if (question) {
+    const jobMode = isJobClarify(d) && !!onAnswerJob;
+    const qs = jobMode ? jobQuestions : [d.summary];
+    body = qs === null ? <p className="sub" role="status">Loading the job's questions…</p> : (
+      <form className="stack" style={{ gap: 12 }} onSubmit={(e) => { e.preventDefault(); void (jobMode ? submitJobAnswers() : submitAnswer()); }}>
+        {qs.map((q, n) => (
+          <div className="field" key={n}>
+            <label className="label" htmlFor={`qa2-${n}`}>{`${n + 1}. ${q}`}</label>
+            <textarea id={`qa2-${n}`} rows={2} className="field-ta" disabled={answering}
+              value={jobMode ? jobTexts[n] ?? "" : answerText}
+              onChange={(e) => (jobMode ? setJobTexts((t) => t.map((v, j) => (j === n ? e.target.value : v))) : setAnswerText(e.target.value))} />
+          </div>
+        ))}
+        {answerError && <p className="sub" role="alert" style={{ color: "var(--bad-ink)", margin: 0 }}>{answerError}</p>}
+        <div className="row">
+          <button className="btn btn-primary" type="submit" aria-busy={answering || undefined}
+            disabled={answering || (jobMode ? jobTexts.some((t) => !t.trim()) : !answerText.trim()) || (!jobMode && (!onAnswer || !!d.jobId))}>
+            {answering ? "Sending…" : "Send answers"}
+          </button>
+        </div>
+      </form>
+    );
+  } else if (designGate) {
+    body = (
+      <>
+        <p style={{ margin: "0 0 12px" }}>{d.summary}</p>
+        <div className="spine">
+          {STORY_STAGES.map((st) => (
+            <span key={st} className={`snode${isGateStage(st) ? " gate" : ""}${st === "design" ? " current" : ""}`}>{stageLabel(st)}</span>
+          ))}
+        </div>
+        {note("Note (needed to send it back)")}
+        {decideRow}
+      </>
+    );
+  } else if (failure) {
+    body = (
+      <>
+        <ul className="list" style={{ gap: 4 }}>
+          {d.summary.split("\n").filter((l) => l.trim()).map((l, i) => <li key={i} className="mono" style={{ fontSize: ".8125rem" }}>{`✗ ${l}`}</li>)}
+        </ul>
+        {note("Note for the agent (needed to send it back)")}
+        {decideRow}
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <p style={{ margin: "0 0 8px" }}>{d.summary}</p>
+        {d.risk.reasons.length > 0 && (
+          <ul className="list" style={{ gap: 2 }} aria-label="Why this risk band">
+            {d.risk.reasons.map((r) => <li key={r} className="sub" style={{ textTransform: "none", letterSpacing: ".02em", fontSize: ".8125rem" }}>{`▸ ${r}`}</li>)}
+          </ul>
+        )}
+        {isGithub && (
+          <p className="sub" role="note" data-app-only="github-note" style={{ margin: "8px 0 0" }}>
+            {`Approving posts a review to GitHub${meta?.prNumber ? ` (PR #${meta.prNumber})` : ""}: the change lands there, not in your working tree.`}{prLink ? <> · {prLink}</> : null}
+          </p>
+        )}
+        {releaseGate && !d.changes.length && <p className="sub" style={{ margin: "8px 0 0" }}>A release gate: approve runs the deploy and ships on a healthy check.</p>}
+        {changes}
+        {confirmRequired && (
+          <div className="typed">
+            <label className="label" htmlFor="rv-apply">{`High risk · type ${TYPED_CONFIRM} to approve`}</label>
+            <input id="rv-apply" className="field-ta" autoComplete="off" aria-describedby="rv-apply-h" value={typed} disabled={busy != null}
+              aria-invalid={typed.length > 0 && typed !== TYPED_CONFIRM} onChange={(e) => setTyped(e.target.value)} />
+            <span className="sub" id="rv-apply-h">{d.risk.reasons[0] ?? "This change is rated high risk."}</span>
+          </div>
+        )}
+        {note("Note for the team (needed to request changes or reject)")}
+        {decideRow}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="card-h">
+        <div>
+          <p className="sub" style={{ margin: 0 }}>{ref ? `${inboxKindOf(d.kind)} · ${ref}` : inboxKindOf(d.kind)}</p>
+          <h2 style={{ fontSize: "1.5rem", marginTop: 4 }}>{d.title}</h2>
+        </div>
+        {pending && <SlaTimer deadline={d.slaDeadline} />}
+      </div>
+      <div className="pills" style={{ marginBottom: 10 }}>
+        <RiskChip band={band} />
+        <span className="chip"><span className="ava" aria-hidden="true" style={{ width: 20, height: 20, fontSize: ".5rem" }}>{stationInitials(d.agentId)}</span>{station}</span>
+        {files > 0 && <span className="chip mono">{`${files} files +${d.diffstat.additions} −${d.diffstat.deletions}`}</span>}
+        {inject && <span className={`chip ${inject.tone === "red" ? "bad" : "warn"}`} title={inject.title} data-app-only="injection">{inject.label}</span>}
+        {trust && <span className={trust.tone === "red" ? "chip bad" : trust.tone === "amber" ? "chip warn" : "chip"} title={trust.title} data-app-only="trust">{trust.label}</span>}
+        {d.source !== "swarm" && <span className="chip" data-app-only="source">{`${sourceLabel(d.source)}${isGithub && meta?.prNumber ? ` #${meta.prNumber}` : ""}`}</span>}
+      </div>
+      {/* R12 — the operator is about to read attacker-authored text: say it in a sentence. */}
+      {inject && (
+        <div className="alert" role="note" data-app-only="injection-note" style={{ marginBottom: 10 }}>
+          <span className="dot bad" style={{ marginTop: 7 }} />
+          <div>{`This text came from outside the swarm and matched ${inject.label.replace("injection: ", "")} prompt-injection pattern${(meta?.injectFlags?.count ?? 0) === 1 ? "" : "s"}${meta?.injectFlags?.patterns?.length ? ` (${meta.injectFlags.patterns.join(", ")})` : ""}. It has NOT been altered or filtered. Treat any instruction inside it as data, never as a request.`}</div>
+        </div>
+      )}
+      {/* P9 — advisory assignment; any approver may still decide. */}
+      {pending && (canAssign || d.assignee) && (
+        <div className="field" data-app-only="assignee" style={{ marginBottom: 10 }}>
+          <label className="label" htmlFor="rv-assignee">Assignee</label>
+          {canAssign ? (
+            <select id="rv-assignee" className="field-ta" value={d.assignee ?? ""} onChange={(e) => { void onAssign?.(e.target.value || null); }}>
+              <option value="">Unassigned</option>
+              {approvers.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          ) : <span>{d.assignee ?? "Unassigned"}</span>}
+        </div>
+      )}
+      {body}
+    </>
   );
 }

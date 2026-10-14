@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
-  fetchJob, statusTone, taskTone, type JobGate, type JobMail, type JobTask,
+  fetchJob, resumeJob, statusTone, taskTone, type JobGate, type JobMail, type JobTask,
 } from "../../lib/jobsClient";
 
 /*
@@ -80,6 +80,19 @@ export interface JobDetailProps {
 export function JobDetail({ jobId, liveNonce, onClose, restoreFocusTo }: JobDetailProps) {
   const [data, setData] = useState<{ tasks: JobTask[]; gates: JobGate[]; log: JobMail[]; title: string; status: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Phase B · Task 6 — the way back from `blocked`. Approver-only on the server (403 renders
+  // as the error line); the control shows whenever the job is blocked so a viewer sees that a
+  // next move exists, and the refusal says who may take it.
+  const [resuming, setResuming] = useState(false);
+  const onResume = async () => {
+    setResuming(true);
+    try {
+      const r = await resumeJob(jobId);
+      if (!r.ok) { setError(r.error); return; }
+      setError(null);
+      setData((d) => (d ? { ...d, status: r.job?.status ?? "planned" } : d));
+    } finally { setResuming(false); }
+  };
   const [retryNonce, setRetryNonce] = useState(0);
   const paneRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -134,6 +147,11 @@ export function JobDetail({ jobId, liveNonce, onClose, restoreFocusTo }: JobDeta
           </div>
           <div className="bos-story-detail-head-right">
             {data && <span className="helm-chip" data-tone={statusTone(data.status)}>{data.status}</span>}
+            {data?.status === "blocked" && (
+              <button type="button" className="helm-btn" data-testid="job-resume" onClick={onResume} disabled={resuming} aria-label="Resume this job — re-plan from blocked">
+                {resuming ? "Resuming…" : "Resume"}
+              </button>
+            )}
             <button type="button" className="helm-btn" data-variant="quiet" onClick={onClose} aria-label="Close job">
               <X size={14} aria-hidden /> Close
             </button>

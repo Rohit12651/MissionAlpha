@@ -10,7 +10,7 @@
 // shell and chip vocabulary so it still reads as part of the same list.
 import { useState } from "react";
 import type { Delivery } from "../../lib/inboxClient";
-import { avatarFor } from "../../lib/inboxClient";
+import { stationInitials } from "../../lib/stationMeta";
 import { DeliveryCard } from "./DeliveryCard";
 
 export function ClusterCard({
@@ -33,64 +33,35 @@ export function ClusterCard({
   onDismissAll: () => void;
 }) {
   const [open, setOpen] = useState(false);
-
+  // Phase G: APP-ONLY grouping (the mockup lists a failure cluster as one row), drawn as the
+  // mockup's list row: an 18px spacer where a checkbox would sit, then a `.dcard`.
   return (
-    <div className="helm-card mb-2.5" data-cluster="true">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="helm-avatar" aria-hidden>{avatarFor(agentId)}</span>
-
-        <span className="helm-display min-w-0 flex-1 text-[13.5px] leading-snug">
-          {agentId} is stuck — {reason}
+    <li data-app-only="failure-cluster" style={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr)", gap: 8, alignItems: "start" }}>
+      <span style={{ display: "block", width: 18 }} />
+      <div className="dcard" style={{ cursor: "default" }}>
+        <span className="l1">
+          <span className="ava" aria-hidden="true">{stationInitials(agentId)}</span>
+          <span className="chip">cluster</span>
+          <b>{`${agentId} is stuck · ${reason}`}</b>
+          {/* The number is the whole point: it names how much noise this one row absorbs. */}
+          <span className="chip bad" aria-label={`${size} identical failures`}>{`×${size}`}</span>
         </span>
-
-        {/* The number is the whole point: it names how much noise this one row absorbs. */}
-        <span className="helm-chip ml-auto" data-tone="red" aria-label={`${size} identical failures`}>
-          ×{size}
+        <span className="l2">
+          <span className="chip warn">repeated failure</span>
+          <span>{`${size} identical failures · one decision`}</span>
         </span>
-      </div>
-
-      <div className="mt-[7px] flex flex-wrap items-center gap-2.5">
-        <span className="helm-chip" data-tone="amber">repeated failure</span>
-        <span className="helm-note text-[11.5px]">
-          {size} identical failures · one decision
+        <span className="row">
+          <button type="button" className="btn btn-outline" disabled={busy} onClick={onDismissAll}>{busy ? "Dismissing…" : `Dismiss all ${size}`}</button>
+          <button type="button" className="btn btn-ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide" : `Show ${size}`}</button>
         </span>
+        {/* Expanded: the real individual deliveries, each still independently decidable.
+            Collapsing is a VIEW, never a loss of access to the underlying records. */}
+        {open && (
+          <ul className="list" style={{ borderTop: "1px solid var(--hair)", paddingTop: 8 }}>
+            {members.map((m) => <DeliveryCard key={m.id} delivery={m} selected={m.id === selectedId} onSelect={onSelect} />)}
+          </ul>
+        )}
       </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="helm-btn"
-          data-variant="reject"
-          disabled={busy}
-          onClick={onDismissAll}
-        >
-          {busy ? "Dismissing…" : `Dismiss all ${size}`}
-        </button>
-        <button
-          type="button"
-          className="helm-btn"
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-        >
-          {open ? "Hide" : `Show ${size}`}
-        </button>
-      </div>
-
-      {/* Expanded: the real individual deliveries, each still independently decidable.
-          Collapsing is a VIEW, never a loss of access to the underlying records. */}
-      {open && (
-        <div className="mt-2.5 border-t pt-2.5" style={{ borderColor: "var(--helm-line)" }}>
-          {members.map((m) => (
-            <DeliveryCard
-              key={m.id}
-              delivery={m}
-              selected={m.id === selectedId}
-              onSelect={onSelect}
-              animate={false}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </li>
   );
 }

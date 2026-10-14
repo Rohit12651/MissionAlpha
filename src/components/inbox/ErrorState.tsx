@@ -1,38 +1,21 @@
-import { AlertTriangle } from "lucide-react";
-
 /**
- * Fetch-failed state. Shows the real failure text (already scrubbed server-side
- * on every /inbox egress path) plus a retry — never a silent empty list, which
- * would read as "no work" when the truth is "we could not ask".
+ * Fetch-failed state. Phase G (ADR G-2): the mockup's `.alert`. Shows the real failure
+ * text (already scrubbed server-side on every /inbox egress path) plus a retry — never a
+ * silent empty list, which would read as "no work" when the truth is "we could not ask".
  */
-export function ErrorState({
-  message,
-  onRetry,
-  busy,
-}: {
-  message: string;
-  onRetry?: () => void;
-  busy?: boolean;
-}) {
+export function ErrorState({ message, onRetry, busy }: { message: string; onRetry?: () => void; busy?: boolean }) {
   return (
-    <div className="helm-note flex flex-col items-center gap-3" data-tone="red" role="alert">
-      <AlertTriangle size={20} aria-hidden />
-      <span className="helm-display" style={{ fontSize: 14, color: "var(--helm-red)" }}>
-        Could not reach the Inbox
-      </span>
-      <span style={{ color: "var(--helm-paper-dim)" }}>{message}</span>
-      {onRetry && (
-        <button
-          type="button"
-          className="helm-btn"
-          data-variant="quiet"
-          data-busy={busy ? "true" : undefined}
-          disabled={busy}
-          onClick={onRetry}
-        >
-          {busy ? "Retrying…" : "Retry"}
-        </button>
-      )}
+    <div className="alert" role="alert">
+      <span className="dot bad" style={{ marginTop: 7 }} />
+      <div>
+        <b>Could not reach the Inbox</b>
+        <p style={{ margin: "4px 0 8px" }}>{message}</p>
+        {onRetry && (
+          <button type="button" className="btn btn-ghost" disabled={busy} aria-busy={busy || undefined} onClick={onRetry}>
+            {busy ? "Retrying…" : "Retry"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

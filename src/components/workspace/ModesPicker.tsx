@@ -1,6 +1,5 @@
 import { useCallback, useRef } from "react";
 import { ShieldCheck, Pencil, Zap, Map as MapIcon } from "lucide-react";
-import { tok } from "../../lib/agentMeta";
 import { runtimeUrl } from "../../lib/runtimeBase";
 import { isPermissionMode, type AgentMode } from "../../lib/agentModes";
 import { runtimeToken } from "../../lib/runtimeToken";
@@ -39,9 +38,6 @@ export function ModesPicker({
   onChange: (m: AgentMode) => void;
   disabled?: boolean;
 }) {
-  const cyan = tok("accent-cyan");
-  const red = tok("stale-red");
-  const amber = tok("blocked-amber");
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const select = useCallback(
@@ -96,19 +92,12 @@ export function ModesPicker({
 
   const noneActive = !MODES.some((x) => x.id === value);
 
+  // Phase G (ADR G-2): the mockup's `.seg`. Kept a radiogroup (one choice) rather than the
+  // mockup's toggle buttons; index.css gives [aria-checked] the mockup's pressed look.
   return (
-    // Single-select widget → radiogroup/radio (NOT group + aria-pressed, which reads as
-    // independent toggles to a screen reader).
-    <div
-      className="flex items-center gap-0.5 rounded-md p-0.5"
-      style={{ backgroundColor: tok("panel-2"), border: `1px solid ${tok("border")}` }}
-      role="radiogroup"
-      aria-label="Agent mode"
-    >
+    <div className="seg" role="radiogroup" aria-label="Permission mode">
       {MODES.map((m, i) => {
         const active = value === m.id;
-        const ac = m.danger && active ? red : m.id === "plan" && active ? amber : active ? cyan : tok("muted");
-        const Icon = m.icon;
         return (
           <button
             key={m.id}
@@ -122,18 +111,8 @@ export function ModesPicker({
             aria-disabled={disabled || undefined}
             title={m.title}
             aria-checked={active}
-            aria-description={m.title}
             tabIndex={active || (noneActive && i === 0) ? 0 : -1}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide outline-none transition-all duration-150 focus-visible:ring-2"
-            style={{
-              color: ac,
-              backgroundColor: active ? `color-mix(in oklch, ${ac} 16%, transparent)` : "transparent",
-              border: active ? `1px solid color-mix(in oklch, ${ac} 40%, transparent)` : "1px solid transparent",
-              opacity: disabled ? 0.4 : 1,
-              pointerEvents: disabled ? "none" : undefined,
-            }}
           >
-            <Icon size={11} aria-hidden />
             {m.label}
           </button>
         );

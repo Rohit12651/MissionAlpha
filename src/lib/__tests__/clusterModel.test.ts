@@ -100,3 +100,15 @@ test("REGRESSION: only PENDING failures cluster; decided ones stay history", () 
   assert.equal((clusters[0] as { size: number }).size, 2, "only the pending pair may collapse");
   assert.equal(groups.filter((g) => g.kind === "single").length, 3);
 });
+
+// Phase G — the runtime sends createdAt as an ISO string (Delivery type, recorded fixtures);
+// the cases above pass numbers, a shape the server never sends, and so never saw that
+// Number("2026-…Z") is NaN: every row read as 0 and the Inbox fell back to key order.
+test("orders by an ISO-string createdAt, newest first, as the runtime sends it", () => {
+  const iso = (id: string, createdAt: string) =>
+    ({ id, kind: "code", agentId: "sr-backend", status: "pending", title: id, createdAt } as unknown as Delivery);
+  const out = groupDeliveries([
+    iso("a-old", "2026-10-01T09:00:00.000Z"), iso("b-new", "2026-10-01T11:00:00.000Z"), iso("c-mid", "2026-10-01T10:00:00.000Z"),
+  ]);
+  assert.deepEqual(out.map((g) => (g.kind === "single" ? g.delivery.id : g.key)), ["b-new", "c-mid", "a-old"]);
+});
