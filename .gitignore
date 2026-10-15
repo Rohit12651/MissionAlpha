@@ -82,3 +82,6 @@ playwright-report/
 
 # Visual/parity run output (journals + screenshots), not source
 test/visual/__screenshots__/
+
+# local security reports, never publish (public repo)
+.gstack/
