@@ -1,0 +1,27 @@
+[
+  {
+    "date": "2026-10-12",
+    "macrostructure": "Workbench (app shell, studied product IA)",
+    "theme": "studied-DNA",
+    "theme_source": "app.devin.ai logged-in walkthrough + docs.devin.ai",
+    "enrichment": "none (working UI simulation)",
+    "brief": "Devin end-to-end working study mockup (docs/mockups/devin-study-mockup.html)"
+  },
+  {
+    "date": "2026-09-30",
+    "macrostructure": "Workbench (cockpit v3, real-app IA)",
+    "theme": "studied-DNA",
+    "enrichment": "E5 hand-built SVG + canvas swarm",
+    "brief": "MissionAlpha cockpit mirrored to real app (BOS_NAV, 13 pages) on Pa'lais sketchbook DNA"
+  },
+  {
+    "date": "2026-09-30",
+    "macrostructure": "Workbench (landing: Marquee Hero + recipe band)",
+    "theme": "studied-DNA",
+    "theme_source": "DESIGN (4).md (Pa'lais)",
+    "enrichment": "E5 hand-built SVG botanical line-art",
+    "nav": "N5 floating pill",
+    "footer": "Ft5 statement",
+    "brief": "MissionAlpha end-to-end mockup, landing + cockpit, realtime (simulated)"
+  }
+]

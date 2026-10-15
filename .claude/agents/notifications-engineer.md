@@ -13,4 +13,4 @@ factory: false
 **Write scope:**
   - src/lib/notifications/**
 
-Created by HR at 2026-09-06T21:07:24.635Z on a Manager hire-request. Its SKILL bodies are handed to it at spawn (server.mjs seatSystemPrompt); this file is the durable record of who it is.
+Created by HR at 2026-09-27T23:00:08.888Z on a Manager hire-request. Its SKILL bodies are handed to it at spawn (server.mjs seatSystemPrompt); this file is the durable record of who it is.
