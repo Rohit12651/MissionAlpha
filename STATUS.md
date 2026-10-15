@@ -43,35 +43,45 @@ Approach A: first-run view state in `App`; `<Landing/>` then `<Setup/>` over the
 
 ## Now
 
-**2026-10-02 — Landing + Setup and Phase G are COMMITTED locally (6 commits on `feat/multi-provider-credentials`, not pushed).** All gates green on the working tree (lint 0 · typecheck 0 · unit 654/654 · runtime 2862/2862 · electron 14/14 · build ✓ 206.93 kB gz · parity gate 77 passed, 116/128 = the 12 allowlisted). STILL UNCOMMITTED: Inbox/Missions (with the review agent), workspace/* + SESSION_MEMORY (unknown origin, edited today), phases A–E runtime/electron/.planning work (Sep 17–27). The committed tree alone fails one unit test (JC-6) until the A–E runtime is committed.
-
-**Decision #1 built: `agent-runtime/` is deny-by-default.** No agent can land anything under it except files in
-`agent-runtime/test/` and `agent-runtime/__tests__/` (`RUNTIME_FLOOR` in guards.mjs, before SEED_DIRS/writeScope, so
-every write path inherits it). Proven on a live server: `/apply` of `agent-runtime/kpis.mjs` → "path not allowed".
-Consequence: `sr-backend`'s `agent-runtime/**` scope now reaches tests only — runtime code is a hand edit.
-
-Step 20 (CEO before planning) built and proven live (run 10). Phases A–E closed; step 19 not started.
-
-HEAD is `0cc87ee` (+ this docs commit); the 17 commits before it were already unpushed.
+**2026-10-15 — Devin-parity Phase 1 in progress; everything committed and pushed (HEAD `7d888fb`, tag `backup/pre-r1-2026-10-15`).**
+Goal: MissionAlpha works like Devin (ticket → own env → code → runs its own tests → PR → review → human merge).
+Plan: `docs/plans/2026-10-14-devin-loop-phase1.md` (Phase 1) and `docs/plans/2026-10-15-devin-parity-roadmap.md`
+(Phases 1–3, tickets P2-1..8, P3-1..5). UI mockup: `docs/mockups/missionalpha-devin-phases.html`.
+Phase 1 done so far: tree landed and pushed; worker Bash narrowed to an allowlist; test jail defaults to node:24-alpine;
+ship gate names tasks where no tests ran. NOT done: R1–R6 (below), AI planner as default, electron dev build verified
+live, and no real PR has ever been opened (C33). CI on `7d888fb` (run 38783915509) still running at time of writing;
+the previous run on this branch was cancelled by a newer push (frontend job passed, runtime suite cancelled).
 
 ## Next
 
-- [ ] Landing + Setup: setup-3/4 mobile parity (handoff prompt in the repair-plan log)
-- [ ] Landing + Setup: lazy-load Landing/Setup (main chunk 213.13 kB gz, +0.45 kB vs pre-review, +8.5 kB vs HEAD)
-- [ ] When committing: include `.claude/agents/ceo.md` (untracked) or every claude-mode job blocks at strategy.
-- [x] BOSS decision #1: deny-by-default for `agent-runtime/` — built 2026-09-27 (RTF-1…7).
-- [ ] BOSS: should `agent-runtime/test/**` be behind the floor? (Note: CI runs agent-authored src/ code too — `ci.yml` has no `permissions:` block; that, not the test dir, caps the blast radius.)
-- [x] Server shutdown orphaned in-flight seat children — fixed 2026-09-27 (SHUT-1…4, live-proven).
-- [x] Server-booting tests wrote into live runtime state — all 51 now import `test/fixtures/isolate-state.mjs` (2026-09-27).
-- [ ] Live `agent-runtime/engine-store/` still holds 365 tasks, many test-planted; 57 old `ma/*` branches in the repo. Yours to prune.
-- [ ] LFS-aware filter neutralising on the add/commit paths.
-- [x] Inbox job-question cards: answered on the card; approve refused on a job's clarify gate (#4, 2026-09-27).
-- [x] `ci.yml`: `permissions: contents: read` + `persist-credentials: false` (2026-09-27; not yet run in CI).
-- [ ] A live job that exercises a CEO `kill`/`defer`, and one that trips the jail or the repo-scripts gate.
-- [ ] Step 19 (server.mjs split) — only if you want it.
-- [ ] C33 — no real PR has ever been opened. Seed roster still cannot parallelise.
+Order fixed by the user 2026-10-15: wait for green CI, then R1. No new features until Phase 1 exit gate.
+- [ ] CI green on `7d888fb` (run 38783915509) — proof: `gh run view` conclusion success
+- [ ] R1 Start-job action → typed Job endpoint → accepted Job ID (F01) — proof: brief → one Job ID → board row; a question creates no job; viewer refused
+- [ ] R2 accepted/refused enqueue + awaited dispatch (F02, F03) — proof: injected backlog-full leaves no phantom `queued` row
+- [ ] R3 planner/worker mode + per-role readiness visible; AI mode default for real runs (F06, F07, F12)
+- [ ] R4 failed commit blocks dependents (F04) — proof: injected commit failure, dependent never starts
+- [ ] R5 combined-branch acceptance gate (F05) — proof: green alone, red combined → no shippable approval
+- [ ] R6 private test repo + 10 graded tickets + single-worker baseline → `docs/plans/phase1-scorecard.md`
+- [ ] Phase 1 exit: ≥6/10 PR + green CI, ≥4/10 mergeable as-is, zero silent failures
+- [ ] Known flake: `engine.test.mjs` "self-heal … exhausts maxAttempts" (3 s wall-clock wait, 3.9 s under load) — fix or widen
+- [ ] Carried over: live `agent-runtime/engine-store/` test-planted tasks + old `ma/*` branches (yours to prune); step 19 server.mjs split (optional)
 
 ## Log
+
+### 2026-10-15 — Devin study → parity plan; Phase 1 hardening pushed; backup tagged
+- Research: `docs/research/devin-teardown.md` (incl. §9b logged-in walkthrough, read-only, nothing changed in the account).
+  Working study mockup `docs/mockups/devin-study-mockup.html` (sessions board, per-PR split diffs, automation editor).
+- Architecture review PDF (F01–F16) read in full; F01–F04 confirmed in code (`App.tsx:162` boss vs `server.mjs` ash;
+  `ChatPane.tsx:494-527` fire-and-forget; `manager.mjs:494-495` null-ID queued; `manager.mjs:990-1022` commit failure only logged).
+- User decisions D1–D7 recorded in the Phase 1 plan (prove one real PR; new private test repo; worker shell allowlist only;
+  explicit Start job, chat advisory; delivered = PR open + CI green).
+- Commits pushed: `3a89806..70da1d7` (10, incl. `abbad37` worker Bash allowlist, `4389fb9` node:24 jail, `70da1d7` unverified
+  tasks on ship gate), then `1dda917` roadmap + mockup, `025297a` session logs, `7d888fb` ignore `.gstack/`.
+- Evidence: clean checkout of `68ced87` runtime 2861/2862 (the 1 = image bug fixed by `4389fb9`, then 35/35 jail tests);
+  working tree 2865/2866 (the 1 = self-heal timing flake, passes 3/3 alone); seat + manager-review suites 64/64.
+- Phases mockup checked in browser: all interactions work, no console errors, no horizontal overflow at 375 px for any view/phase.
+- Backup: tag `backup/pre-r1-2026-10-15` → `025297a` on origin.
+- Missing: CI result for `7d888fb`; R1–R6 not started; Phase 2/3 tickets have no step-level TDD plans yet (written per ticket at start).
 
 ### 2026-10-02 — "The runtime did not answer" on every page: root cause found, fix awaiting approval
 

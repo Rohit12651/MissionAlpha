@@ -6,7 +6,7 @@ Facts about this codebase. Rules live in CLAUDE.md; progress lives in STATUS.md.
 
 <!-- LOGBOOK:GENERATED start - do not edit by hand -->
 
-_Produced by `~/.claude/scripts/logbook-scan.sh` on 2026-09-19 13:51 CDT at commit `85796ae`. Re-run it rather than editing these numbers._
+_Produced by `~/.claude/scripts/logbook-scan.sh` on 2026-10-15 13:16 CDT at commit `7d888fb`. Re-run it rather than editing these numbers._
 
 ### JS/TS packages
 
@@ -21,6 +21,7 @@ _Produced by `~/.claude/scripts/logbook-scan.sh` on 2026-09-19 13:51 CDT at comm
 - `package.json`
 
 <!-- LOGBOOK:GENERATED end -->
+
 
 
 ## Curated notes
@@ -195,3 +196,22 @@ collision rather than resolve it.
 - `GIT_SAFE_ARGS` empties `diff.external`: a CONTENT diff must add `--no-ext-diff` or git dies (addendum #80).
 - pr.mjs `safeEnv()` exports GIT_SAFE_ARGS as GIT_CONFIG_* (applied BEFORE `-c`, so credential replay still wins).
 - test/git-safe-census.test.mjs fails on any new literal `"git"` spawn without `...GIT_SAFE_ARGS` first.
+
+### Devin-parity facts (2026-10-15)
+- Repo `Rohit12651/MissionAlpha` is PUBLIC. Security reports (`.gstack/security-reports/*`) carry exploit scenarios, so
+  `.gstack/` is gitignored (`7d888fb`). Check visibility before pushing any report or audit output.
+- Worker seats with `Bash` get `WORKER_BASH_ALLOWLIST` (test/lint/typecheck/build + read-only git + ls/rg/cat), not raw
+  Bash; manager seats keep `MANAGER_BASH_ALLOWLIST` (`seatAllowedTools`, server.mjs). Before `abbad37` a worker had
+  unrestricted Bash on trusted repos (the jail only applies to untrusted repos).
+- Test jail default image is `node:24-alpine` (`sandbox.mjs`, override `RUNTIME_SANDBOX_IMAGE`). node:20 cannot load
+  `.ts` tests; a local `.env` override hid this, so only a clean checkout caught it.
+- `test-gate.mjs` passes on `scope-empty` (no related tests). The runtime retest now marks that `unverified: true` and
+  the ship gate lists those tasks; it is still a pass, not a failure.
+- Chat posts to `boss` (`App.tsx:162`) but job creation (`create_job`) is wired to `ash` (`server.mjs`): chat cannot
+  start a job (review F01). `ChatPane` fires `/run` without awaiting and says "agents running" regardless (F02).
+- Slack ingress (`adapters/slack.mjs`, `/runtime/ingress/slack`) verifies signatures and mints DELIVERIES, not jobs.
+  No Linear adapter exists. `cadence.mjs` queues station goals, not jobs.
+- Planning/review are rule-based unless `RUNTIME_MANAGER_DISPATCH=claude`.
+- Flake: `engine.test.mjs` "self-heal … exhausts maxAttempts" waits 3 s wall-clock; fails under full-suite load (3.9 s).
+- `git add -p` is interactive (unsupported here); split hunks with `printf 'y\nn\n' | git add -p <file>`.
+- claude-mem `work_state_write` failed with "DOMException is not defined" (2026-10-15); STATUS.md + plan docs hold state.
