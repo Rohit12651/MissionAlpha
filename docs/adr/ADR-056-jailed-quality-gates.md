@@ -38,7 +38,7 @@ The validated-argv discipline in `quality.mjs` is retained as belt-and-suspender
 - **Target = single-operator / CI.** The jail is designed for the reference machine and CI, not a hostile multi-tenant host.
 - **macOS Docker bind-permission caveat (already noted in `sandbox.mjs`):** the mount dir is `chmod 0o777`'d so the non-root container uid can write `/work`. On Linux/CI this is required; on macOS Docker it is cosmetic. The residual host-side exposure of that one dir is accepted for the single-operator/CI target. For the QA/e2e gate the mount is the repo root, so that single directory's mode is changed — acceptable on the operator's own machine.
 - **Per-destination egress filtering is deferred** — `network:false` is a hard off, which is all the gates need (tests must not reach the network).
-- **Exec image** is `node:20-alpine` (has node/npm/git); a config that names a runner absent from the image (e.g. `playwright`) fails the gate honestly — an operator/config concern, not a containment gap.
+- **Exec image** is `node:24-alpine` (has node/npm/git and native TypeScript type stripping); a config that names a runner absent from the image (e.g. `playwright`) fails the gate honestly — an operator/config concern, not a containment gap.
 
 ## Consequences
 

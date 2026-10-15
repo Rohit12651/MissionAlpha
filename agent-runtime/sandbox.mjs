@@ -148,7 +148,10 @@ export function dirSizeBytes(dir, cap = Infinity, sinceMs = undefined) {
 const DOCKER = process.env.RUNTIME_DOCKER_BIN || "docker";
 // Exec image (has node+npm+git for scaffolding). Escape-suite tests pass their own.
 // Pin by digest in a hardened deploy (OQ-037.2); tag is acceptable for the dev milestone.
-export const DEFAULT_EXEC_IMAGE = process.env.RUNTIME_SANDBOX_IMAGE || "node:20-alpine";
+// node:24 strips TypeScript types by default; node:20 cannot load a .ts test at all, so a
+// default of node:20 made the gate unpassable for TS work on any install without a .env
+// override (gate-jail-languages.test.mjs).
+export const DEFAULT_EXEC_IMAGE = process.env.RUNTIME_SANDBOX_IMAGE || "node:24-alpine";
 
 // Sanitize a callId for the container --name. When absent, mint a RANDOM id (never a
 // fixed "anon") so concurrent/back-to-back runs can't collide on the --rm cleanup race.
