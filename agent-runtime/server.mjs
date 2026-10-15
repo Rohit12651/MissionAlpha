@@ -2580,7 +2580,8 @@ const manager = createManager({
       const workdir = engineWorktrees?.pathFor?.(engineTaskId);
       if (!task || !workdir) return { ok: null, tail: "no worktree to re-run in" };
       const r = await testGate.run({ task, workdir });
-      return { ok: r?.pass === true, tail: String(r?.tail ?? "").slice(0, 2_000) };
+      // scope-empty = the gate passed because no related test existed: nothing was verified.
+      return { ok: r?.pass === true, unverified: r?.reason === "scope-empty", tail: String(r?.tail ?? "").slice(0, 2_000) };
     } catch (e) {
       // Fail CLOSED: an error re-running is not a pass.
       return { ok: false, tail: `re-run failed: ${String(e?.message ?? e)}`.slice(0, 500) };

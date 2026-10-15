@@ -197,3 +197,29 @@ test("MR-10: the review diff is asked for the TASK'S PATHS, not the whole worktr
   assert.deepEqual(asked[0].paths, ["src/lib/a1.ts"],
     "diffFor was not told which paths to diff — it will return the whole worktree");
 });
+
+test("MR-11: the gate body states what the RUNTIME re-ran, and flags a task where NO tests ran", async () => {
+  // Phase 1 (docs/plans/2026-10-14-devin-loop-phase1.md, step 5). The RISK line's test count is
+  // the reviewer model's own claim. A scope-empty gate passes (nothing related to run), so a
+  // green review could mean nothing was verified. The human must see that, in runtime words.
+  const h = harness({
+    retest: async (taskId) => (taskId === "task_2"
+      ? { ok: true, unverified: true, tail: "no related tests for the changed paths" }
+      : taskId === "task_3" ? { ok: false, tail: "1 fail" } : { ok: true, tail: "3 pass 0 fail" }),
+  });
+  const j = readyJob(h, 3);
+  await h.mgr.tick(j.id);
+  const body = h.gates[0]?.body || "";
+  assert.match(body, /^TESTS \(runtime re-run\): 1 green · 1 failed · 1 with NO tests run$/m,
+    `missing runtime test line in:\n${body}`);
+  assert.match(body, /UNVERIFIED — no tests ran:\n {2}- task 2/, "the unverified task must be named");
+});
+
+test("MR-12: with every task re-run green there is no UNVERIFIED section", async () => {
+  const h = harness();
+  const j = readyJob(h, 2);
+  await h.mgr.tick(j.id);
+  const body = h.gates[0]?.body || "";
+  assert.match(body, /^TESTS \(runtime re-run\): 2 green · 0 failed · 0 with NO tests run$/m);
+  assert.equal(/UNVERIFIED/.test(body), false);
+});

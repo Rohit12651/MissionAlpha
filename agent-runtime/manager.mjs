@@ -888,10 +888,17 @@ export function createManager({
       if (!v.ok) return block(job, `review rejected: ${v.error}`);
       const rev = v.review;
 
+      // What the RUNTIME re-ran, independent of the model's `testsRun` claim. A scope-empty gate
+      // passes with nothing run, so it is counted and named as unverified, never as green.
+      const unverified = reviewTasks.filter((t) => t.retest?.unverified === true);
+      const green = reviewTasks.filter((t) => t.retest?.ok === true && t.retest?.unverified !== true).length;
+      const failed = reviewTasks.filter((t) => t.retest?.ok !== true).length;
       const body = [
         rev.notes,
         "",
         `RISK: ${rev.risk} · ${rev.filesChanged} file(s) changed · ${rev.testsRun} test run(s) re-run`,
+        `TESTS (runtime re-run): ${green} green · ${failed} failed · ${unverified.length} with NO tests run`,
+        unverified.length ? `\nUNVERIFIED — no tests ran:\n${unverified.map((t) => `  - ${t.title}`).join("\n")}` : "",
         rev.done.length ? `\nDONE:\n${rev.done.map((d) => `  - ${d}`).join("\n")}` : "",
         rev.notDone.length ? `\nNOT DONE:\n${rev.notDone.map((d) => `  - ${d}`).join("\n")}` : "",
         `\nFILES:\n${reviewTasks.flatMap((t) => (t.changedPaths || []).map((p) => `  - ${p} (${t.seat})`)).join("\n") || "  (none)"}`,
