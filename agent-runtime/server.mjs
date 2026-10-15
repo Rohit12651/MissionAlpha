@@ -1882,11 +1882,24 @@ const MANAGER_BASH_ALLOWLIST = Object.freeze([
   "Bash(ls:*)", "Bash(rg:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(cat:*)",
 ]);
 
-/** The tools a seat is OFFERED, with the Manager's Bash narrowed. One source of truth. */
+// Phase 1 (docs/plans/2026-10-14-devin-loop-phase1.md, decision D4): a worker may verify its
+// own work (tests, typecheck, lint, build, read-only git) but never push, fetch, install or
+// delete. A bare "Bash" under the engine's pinned acceptEdits would run ANY command unprompted.
+// The worker jail (worker-jail.mjs) still sandboxes these on untrusted targets.
+const WORKER_BASH_ALLOWLIST = Object.freeze([
+  "Bash(npm test:*)", "Bash(npm run test:*)", "Bash(npm run lint:*)", "Bash(npm run typecheck:*)",
+  "Bash(npm run build:*)", "Bash(npx tsc:*)", "Bash(node --test:*)",
+  "Bash(pnpm test:*)", "Bash(pnpm run test:*)", "Bash(yarn test:*)",
+  "Bash(pytest:*)", "Bash(python -m pytest:*)",
+  "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
+  "Bash(ls:*)", "Bash(rg:*)", "Bash(cat:*)",
+]);
+
+/** The tools a seat is OFFERED, with Bash narrowed per role. One source of truth. */
 function seatAllowedTools(member) {
   const out = [];
   for (const tool of member?.tools || []) {
-    if (tool === "Bash" && member.role !== "worker") out.push(...MANAGER_BASH_ALLOWLIST);
+    if (tool === "Bash") out.push(...(member.role === "worker" ? WORKER_BASH_ALLOWLIST : MANAGER_BASH_ALLOWLIST));
     else out.push(tool);
   }
   return out;

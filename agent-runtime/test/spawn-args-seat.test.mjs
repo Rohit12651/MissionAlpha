@@ -54,21 +54,25 @@ function nodeNamed(name, type) {
 async function loadBuilder() {
   const decl = nodeNamed("MANAGER_BASH_ALLOWLIST", "var");
   assert.ok(decl, "server.mjs must declare MANAGER_BASH_ALLOWLIST");
-  // Find the whole `const MANAGER_BASH_ALLOWLIST = ...;` statement.
-  let constStmt = null;
-  for (const n of walk(ast)) {
-    if (n.type === "VariableDeclaration" && n.declarations?.some((d) => d.id?.name === "MANAGER_BASH_ALLOWLIST")) constStmt = n;
+  // Find the whole `const <NAME>_BASH_ALLOWLIST = ...;` statements.
+  const parts = [];
+  for (const name of ["MANAGER_BASH_ALLOWLIST", "WORKER_BASH_ALLOWLIST"]) {
+    let constStmt = null;
+    for (const n of walk(ast)) {
+      if (n.type === "VariableDeclaration" && n.declarations?.some((d) => d.id?.name === name)) constStmt = n;
+    }
+    assert.ok(constStmt, `server.mjs must declare ${name}`);
+    parts.push(src.slice(constStmt.start, constStmt.end));
   }
   // Lift the two primitives engineDispatch ACTUALLY calls. There is deliberately no
   // composed `buildSeatSpawnArgs` wrapper: a second code path that only tests exercise is
   // a paraphrase of the real one, and paraphrases drift.
-  const parts = [src.slice(constStmt.start, constStmt.end)];
   for (const name of ["seatAllowedTools", "seatSystemPrompt"]) {
     const n = nodeNamed(name);
     assert.ok(n, `server.mjs must declare a pure \`function ${name}(...)\``);
     parts.push(src.slice(n.start, n.end));
   }
-  const mod = `${parts.join("\n")}\nexport { seatAllowedTools, seatSystemPrompt, MANAGER_BASH_ALLOWLIST };\n`;
+  const mod = `${parts.join("\n")}\nexport { seatAllowedTools, seatSystemPrompt, MANAGER_BASH_ALLOWLIST, WORKER_BASH_ALLOWLIST };\n`;
   return import(`data:text/javascript;base64,${Buffer.from(mod).toString("base64")}`);
 }
 
@@ -84,9 +88,32 @@ const MANAGER = {
 };
 
 // ── tools ────────────────────────────────────────────────────────────────────
-test("SEAT-1: a worker's offered tools are exactly its roster tools, Bash included", async () => {
-  const { seatAllowedTools } = await loadBuilder();
-  assert.deepEqual(seatAllowedTools(PIKACHU), ["Read", "Glob", "Grep", "Edit", "Write", "Bash"]);
+test("SEAT-1: a worker keeps its roster tools, with Bash narrowed to the worker allowlist", async () => {
+  const { seatAllowedTools, WORKER_BASH_ALLOWLIST } = await loadBuilder();
+  const tools = seatAllowedTools(PIKACHU);
+  assert.equal(tools.includes("Bash"), false,
+    `a bare Bash under acceptEdits runs any command unprompted; got ${JSON.stringify(tools)}`);
+  assert.deepEqual(tools.filter((t) => !t.startsWith("Bash(")), ["Read", "Glob", "Grep", "Edit", "Write"]);
+  for (const spec of WORKER_BASH_ALLOWLIST) assert.ok(tools.includes(spec), `missing ${spec}`);
+});
+
+test("SEAT-1b: the worker allowlist lets it verify its own work (tests, typecheck, lint, diff)", async () => {
+  const { WORKER_BASH_ALLOWLIST } = await loadBuilder();
+  for (const must of ["Bash(npm test:*)", "Bash(npm run test:*)", "Bash(npm run lint:*)", "Bash(npx tsc:*)",
+    "Bash(node --test:*)", "Bash(git diff:*)", "Bash(git status:*)"]) {
+    assert.ok(WORKER_BASH_ALLOWLIST.includes(must), `worker allowlist must include ${must}`);
+  }
+});
+
+test("SEAT-1c: every worker Bash specifier is command-scoped and cannot push, fetch, install or delete", async () => {
+  const { WORKER_BASH_ALLOWLIST } = await loadBuilder();
+  const FORBIDDEN = /\b(rm|mv|chmod|chown|dd|kill|curl|wget|push|fetch|pull|clone|install|add|ci|exec|eval|sh|bash|sudo|ssh|scp)\b/;
+  for (const spec of WORKER_BASH_ALLOWLIST) {
+    const m = /^Bash\((.+)\)$/.exec(spec);
+    assert.ok(m, `${spec} must be a command-scoped Bash specifier`);
+    assert.ok(m[1].endsWith(":*") && m[1].length > 2, `${spec} must scope a command, not grant all of Bash`);
+    assert.equal(FORBIDDEN.test(m[1]), false, `${spec} names a forbidden command`);
+  }
 });
 
 test("SEAT-2: the MANAGER never receives a bare Bash — it is narrowed to read-only specifiers", async () => {
